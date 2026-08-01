@@ -16,14 +16,16 @@ export const WorldDashboard: React.FC = () => {
   const fetchWorldData = async () => {
     try {
       setLoading(true);
-      const w = await worldApi.getWorld().catch(() => null);
-      setWorld(w);
-      if (w) {
+      const status = await worldApi.getWorldStatus().catch(() => ({ initialized: false }));
+      if (status.initialized) {
+        const w = await worldApi.getWorld();
+        setWorld(w);
         setRegions(await worldApi.getRegions());
         setCities(await worldApi.getCities());
         setDistricts(await worldApi.getDistricts());
         setBuildings(await worldApi.getBuildings());
       } else {
+        setWorld(null);
         setRegions([]);
         setCities([]);
         setDistricts([]);

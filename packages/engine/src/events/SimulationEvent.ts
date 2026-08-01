@@ -24,7 +24,7 @@ export interface SimulationEvent {
   
   handler: EventHandler;
   
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   tags?: string[];
   
   sourceModule: string;
@@ -35,7 +35,7 @@ export interface SimulationEvent {
   
   cancelFlag: boolean;
   retryCount: number;
-  executionResult?: any;
+  executionResult?: unknown;
 
   // Lifecycle & Metrics
   stateTransitions?: { state: EventStatus; time: SimulationTime }[];

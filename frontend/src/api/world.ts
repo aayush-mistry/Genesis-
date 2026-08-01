@@ -4,6 +4,12 @@ const BASE_URL = '/api/v1';
 
 export const worldApi = {
   // World
+  getWorldStatus: async (): Promise<{ initialized: boolean }> => {
+    const res = await fetch(`${BASE_URL}/world/status`);
+    if (!res.ok) throw new Error('Failed to fetch world status');
+    return res.json();
+  },
+
   getWorld: async (): Promise<World> => {
     const res = await fetch(`${BASE_URL}/world`);
     if (!res.ok) throw new Error('Failed to fetch world');

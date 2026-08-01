@@ -1,14 +1,14 @@
 import { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { eventService } from '../services/event.service';
 import { timeService } from '../services/time.service';
-import { SimulationEvent, TimeUtils } from '@genesis/engine';
+import { SimulationEvent, TimeUtils, EventPriority } from '@genesis/engine';
 import { v4 as uuidv4 } from 'uuid';
 
 export const eventRoutes: FastifyPluginAsync = async (server: FastifyInstance) => {
   const scheduler = eventService.scheduler;
   const engine = timeService.engine;
 
-  server.get('/events', async (request, reply) => {
+  server.get('/events', async (_request, _reply) => {
     return {
       upcoming: scheduler.getUpcomingEvents(),
       history: scheduler.getExecutedEvents(),
@@ -16,15 +16,15 @@ export const eventRoutes: FastifyPluginAsync = async (server: FastifyInstance) =
     };
   });
 
-  server.get('/events/upcoming', async (request, reply) => {
+  server.get('/events/upcoming', async (_request, _reply) => {
     return {
       upcoming: scheduler.getUpcomingEvents(),
       queueSize: scheduler.getUpcomingEvents().length
     };
   });
 
-  server.get('/events/history', async (request, reply) => {
-    const query = request.query as any;
+  server.get('/events/history', async (request, _reply) => {
+    const query = request.query as { status?: string, search?: string, module?: string, limit?: string };
     let history = scheduler.getExecutedEvents();
     
     if (query.status) {
@@ -44,20 +44,20 @@ export const eventRoutes: FastifyPluginAsync = async (server: FastifyInstance) =
     return { history };
   });
 
-  server.get('/events/stats', async (request, reply) => {
+  server.get('/events/stats', async (_request, _reply) => {
     return {
       stats: scheduler.stats,
       performance: scheduler.performance
     };
   });
 
-  server.get('/events/logs', async (request, reply) => {
+  server.get('/events/logs', async (_request, _reply) => {
     return {
       logs: scheduler.getLogs()
     };
   });
 
-  server.post('/events/clear', async (request, reply) => {
+  server.post('/events/clear', async (_request, _reply) => {
     scheduler.clearEvents();
     return { success: true };
   });
@@ -87,7 +87,7 @@ export const eventRoutes: FastifyPluginAsync = async (server: FastifyInstance) =
 
   server.put('/events/:id/priority', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const { priority } = request.body as any;
+    const { priority } = request.body as { priority: EventPriority };
     const success = scheduler.updateEventPriority(id, priority);
     if (!success) return reply.status(404).send({ error: 'Event not found' });
     return { success: true };
@@ -115,16 +115,19 @@ export const eventRoutes: FastifyPluginAsync = async (server: FastifyInstance) =
   });
 
   // Event Injection Panel support
-  server.post('/events', async (request, reply) => {
+  server.post('/events', async (request, _reply) => {
     const { 
       name, description, delaySeconds = 10, recurrenceInterval,
       priority = 'Normal', targetModule = 'System', tags = [], metadata = {}
-    } = request.body as any;
+    } = request.body as {
+      name?: string, description?: string, delaySeconds?: number, recurrenceInterval?: 'Hour' | 'Day' | 'Week' | 'Month' | 'Year',
+      priority?: EventPriority, targetModule?: string, tags?: string[], metadata?: Record<string, unknown>
+    };
 
     const currentTime = engine.getCurrentTime();
     
     const scheduledTime = TimeUtils.clone(currentTime);
-    scheduledTime.second += parseInt(delaySeconds, 10);
+    scheduledTime.second += parseInt(delaySeconds.toString(), 10);
     
     while (scheduledTime.second >= 60) {
       scheduledTime.second -= 60;

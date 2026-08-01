@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { SimulationEvent } from '@genesis/engine';
+import { SimulationEvent, SimulationTime } from '@genesis/engine';
 
 interface EventResponse {
   upcoming?: SimulationEvent[];
@@ -21,7 +21,7 @@ export function EventSchedulerCard() {
   });
 
   const scheduleEventMutation = useMutation({
-    mutationFn: async (payload: any) => fetch('/api/v1/events', { 
+    mutationFn: async (payload: Record<string, unknown>) => fetch('/api/v1/events', { 
       method: 'POST', 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -39,7 +39,7 @@ export function EventSchedulerCard() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['eventScheduler'] }),
   });
 
-  const formatTime = (t: any) => {
+  const formatTime = (t: SimulationTime | undefined) => {
     if (!t) return 'N/A';
     return `${t.hour.toString().padStart(2, '0')}:${t.minute.toString().padStart(2, '0')}:${t.second.toString().padStart(2, '0')}`;
   };

@@ -56,7 +56,7 @@ export function LiveLogs() {
           {displayLogs.length === 0 ? (
             <div className="text-[#444] text-sm">Waiting for logs...</div>
           ) : (
-            displayLogs.map((log: any, i: number) => {
+            displayLogs.map((log: { message: string, timestamp: number }, i: number) => {
               const isTick = log.message.includes('Tick');
               const isError = log.message.toLowerCase().includes('error') || log.message.toLowerCase().includes('fail');
               

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { PauseCircle, PlayCircle, XCircle, Search, RefreshCw } from 'lucide-react';
+import { SimulationEvent } from '@genesis/engine';
 
 export function QueueInspector() {
   const queryClient = useQueryClient();
@@ -26,7 +27,7 @@ export function QueueInspector() {
 
   const events = upcomingData?.upcoming || [];
   
-  const filteredEvents = events.filter((e: any) => 
+  const filteredEvents = events.filter((e: SimulationEvent) => 
     e.name.toLowerCase().includes(search.toLowerCase()) || 
     e.id.toLowerCase().includes(search.toLowerCase())
   );
@@ -70,7 +71,7 @@ export function QueueInspector() {
               No events found in the queue.
             </div>
           ) : (
-            filteredEvents.map((event: any) => (
+            filteredEvents.map((event: SimulationEvent) => (
               <div key={event.id} className="grid grid-cols-12 gap-4 p-4 border-b border-[#1a1a1a] items-center hover:bg-[#161616] transition-colors group">
                 <div className="col-span-3 flex flex-col">
                   <span className="font-medium text-white truncate">{event.name}</span>

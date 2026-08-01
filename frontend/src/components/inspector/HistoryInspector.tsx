@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Search, Filter } from 'lucide-react';
+import { SimulationEvent } from '@genesis/engine';
 
 export function HistoryInspector() {
   const [search, setSearch] = useState('');
@@ -73,7 +74,7 @@ export function HistoryInspector() {
               No events found in history matching your criteria.
             </div>
           ) : (
-            history.map((event: any, index: number) => (
+            history.map((event: SimulationEvent, index: number) => (
               <div key={index} className="grid grid-cols-12 gap-4 p-4 border-b border-[#1a1a1a] items-center hover:bg-[#161616] transition-colors">
                 <div className="col-span-3 flex flex-col">
                   <span className="font-medium text-white truncate">{event.name}</span>
@@ -105,7 +106,7 @@ export function HistoryInspector() {
                   }`}>
                     {event.status}
                   </span>
-                  {event.executionResult && event.status === 'Failed' && (
+                  {Boolean(event.executionResult) && event.status === 'Failed' && (
                     <span className="text-[10px] text-red-500 truncate" title={String(event.executionResult)}>
                       {String(event.executionResult)}
                     </span>

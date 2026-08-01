@@ -16,7 +16,7 @@ export function EventInjectionPanel() {
   const [message, setMessage] = useState('');
 
   const mutation = useMutation({
-    mutationFn: async (data: any) => {
+    mutationFn: async (data: Record<string, unknown>) => {
       const res = await fetch('/api/v1/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

@@ -1,6 +1,6 @@
 import Fastify from 'fastify';
 
-import { logger } from './utils/logger';
+
 import { healthRoutes } from './routes/health.routes';
 import { errorHandler } from './middleware/errorHandler';
 
@@ -10,7 +10,7 @@ import { worldRoutes } from './routes/world.routes';
 
 export async function buildApp() {
   const app = Fastify({
-    logger: logger as any
+    logger: true
   });
 
   app.setErrorHandler((error, request, reply) => errorHandler(error, request, reply));

@@ -3,6 +3,7 @@ import { WorldController } from '../controllers/world.controller';
 
 export const worldRoutes: FastifyPluginAsync = async (server: FastifyInstance) => {
   // World
+  server.get('/world/status', WorldController.getWorldStatus);
   server.get('/world', WorldController.getWorld);
   server.post('/world', WorldController.createWorld);
   server.delete('/world', WorldController.deleteWorld);

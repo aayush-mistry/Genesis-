@@ -234,7 +234,7 @@ export class EventScheduler {
    */
   public async executeDueEvents(currentTime: SimulationTime): Promise<void> {
     this.logActivity(`Tick Started [${currentTime.year}-${currentTime.month}-${currentTime.day} ${currentTime.hour}:${currentTime.minute}:${currentTime.second}]`);
-    while (true) {
+    while (this.queue.size() > 0) {
       const nextEvent = this.queue.peek();
       
       if (!nextEvent || TimeUtils.compare(nextEvent.scheduledTime, currentTime) > 0) {

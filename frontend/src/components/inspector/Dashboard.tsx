@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Play, Pause, Square, Activity } from 'lucide-react';
+import { SimulationTime } from '@genesis/engine';
 
 export function Dashboard() {
   const queryClient = useQueryClient();
@@ -32,7 +33,7 @@ export function Dashboard() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['time'] })
   });
 
-  const formatTime = (time: any) => {
+  const formatTime = (time: SimulationTime | undefined) => {
     if (!time) return '0000-00-00 00:00:00';
     return `${time.year.toString().padStart(4, '0')}-${time.month.toString().padStart(2, '0')}-${time.day.toString().padStart(2, '0')} ${time.hour.toString().padStart(2, '0')}:${time.minute.toString().padStart(2, '0')}:${time.second.toString().padStart(2, '0')}`;
   };

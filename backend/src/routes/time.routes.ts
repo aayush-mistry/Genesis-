@@ -4,7 +4,7 @@ import { timeService } from '../services/time.service';
 export const timeRoutes: FastifyPluginAsync = async (server: FastifyInstance) => {
   const engine = timeService.engine;
 
-  server.get('/time', async (request, reply) => {
+  server.get('/time', async (_request, _reply) => {
     return {
       time: engine.getCurrentTime(),
       state: engine.getState(),
@@ -15,22 +15,22 @@ export const timeRoutes: FastifyPluginAsync = async (server: FastifyInstance) =>
     };
   });
 
-  server.post('/time/start', async (request, reply) => {
+  server.post('/time/start', async (_request, _reply) => {
     engine.start();
     return { success: true, state: engine.getState() };
   });
 
-  server.post('/time/pause', async (request, reply) => {
+  server.post('/time/pause', async (_request, _reply) => {
     engine.pause();
     return { success: true, state: engine.getState() };
   });
 
-  server.post('/time/resume', async (request, reply) => {
+  server.post('/time/resume', async (_request, _reply) => {
     engine.resume();
     return { success: true, state: engine.getState() };
   });
 
-  server.post('/time/reset', async (request, reply) => {
+  server.post('/time/reset', async (_request, _reply) => {
     engine.reset();
     return { success: true, state: engine.getState(), time: engine.getCurrentTime() };
   });

@@ -29,7 +29,7 @@ export enum BuildingType {
 
 export interface WorldEntity extends BaseEntity {
   name: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface World extends WorldEntity {

@@ -1,5 +1,5 @@
 import { EventScheduler } from '../EventScheduler';
-import { SimulationEvent } from '../SimulationEvent';
+import { SimulationEvent, EventPriority, EventHandler } from '../SimulationEvent';
 import { TimeEngine } from '../../time/TimeEngine';
 
 describe('EventScheduler', () => {
@@ -17,7 +17,7 @@ describe('EventScheduler', () => {
     jest.useRealTimers();
   });
 
-  const createEvent = (id: string, second: number, priority: any = 'Normal', handler: any = jest.fn()): SimulationEvent => ({
+  const createEvent = (id: string, second: number, priority: EventPriority = 'Normal', handler: EventHandler = jest.fn()): SimulationEvent => ({
     id,
     name: `Event ${id}`,
     description: 'Test event',

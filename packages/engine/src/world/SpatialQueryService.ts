@@ -1,4 +1,4 @@
-import { Coordinate, WorldEntity } from '@genesis/shared';
+import { Coordinate } from '@genesis/shared';
 import { RegionManager } from './RegionManager';
 import { CityManager } from './CityManager';
 import { DistrictManager } from './DistrictManager';
