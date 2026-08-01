@@ -1,3 +1,8 @@
 export { type BaseEntity } from './types/common';
-export { SystemStatus } from './enums/status';
-export { GENESIS_CONFIG } from './constants/config';
+import { SystemStatus as _SystemStatus } from './enums/status';
+import { GENESIS_CONFIG as _GENESIS_CONFIG } from './constants/config';
+
+export const SystemStatus = _SystemStatus;
+export const GENESIS_CONFIG = _GENESIS_CONFIG;
+
+export * from './types/world';

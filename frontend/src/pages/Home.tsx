@@ -1,5 +1,7 @@
-import { GENESIS_CONFIG } from '@genesis/shared';
+import * as Shared from '@genesis/shared';
 import { useQuery } from '@tanstack/react-query';
+import { TimeEngineCard } from '../components/TimeEngineCard';
+import { EventSchedulerCard } from '../components/EventSchedulerCard';
 
 export default function Home() {
   const { data: health, isLoading, isError } = useQuery({
@@ -16,7 +18,7 @@ export default function Home() {
       <header className="space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">System Overview</h2>
         <p className="text-muted-foreground">
-          Current Phase: <span className="text-foreground font-medium">{GENESIS_CONFIG.PHASE}</span>
+          Current Phase: <span className="text-foreground font-medium">{Shared.GENESIS_CONFIG.PHASE}</span>
         </p>
       </header>
 
@@ -64,14 +66,9 @@ export default function Home() {
         </div>
       </div>
       
-      <div className="rounded-xl border bg-card text-card-foreground shadow mt-8 p-6">
-         <h3 className="text-lg font-medium mb-2">Engine Philosophy</h3>
-         <blockquote className="border-l-2 border-primary pl-4 italic text-muted-foreground">
-           "Data first. Visualization second."
-         </blockquote>
-         <p className="mt-4 text-sm">
-           This dashboard is a minimal placeholder. The core focus of Project Genesis is the decoupled simulation engine running in the backend.
-         </p>
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mt-8">
+        <TimeEngineCard />
+        <EventSchedulerCard />
       </div>
     </div>
   );

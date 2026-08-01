@@ -6,16 +6,18 @@
   "workspaces": [
     "shared",
     "backend",
-    "frontend"
+    "frontend",
+    "packages/engine"
   ],
   "scripts": {
     "dev:backend": "npm run dev --workspace=backend",
     "dev:frontend": "npm run dev --workspace=frontend",
     "dev": "npm run dev:backend & npm run dev:frontend",
     "build:shared": "npm run build --workspace=shared",
+    "build:engine": "npm run build --workspace=@genesis/engine",
     "build:backend": "npm run build --workspace=backend",
     "build:frontend": "npm run build --workspace=frontend",
-    "build": "npm run build:shared && npm run build:backend && npm run build:frontend",
+    "build": "npm run build:shared && npm run build:engine && npm run build:backend && npm run build:frontend",
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
     "prepare": "husky install"
