@@ -1,4 +1,4 @@
-c
+
 # Project Genesis
 
 **Data first. Visualization second.**
@@ -147,4 +147,79 @@ Dashboard --> API
 API --> Time
 API --> Scheduler
 API --> World
+```
+## World Initialization
+
+Genesis does not automatically create a simulation world.
+
+On first startup:
+
+1. No active world exists.
+2. GET /api/v1/world returns **404 No Active World**.
+3. The frontend displays a "Create World" state.
+4. The developer creates the world using:
+
+POST /api/v1/world
+
+After creation, the World Engine becomes active and all future modules operate within this world.
+
+This design ensures the simulation lifecycle is explicit and controlled by the engine rather than hidden initialization logic.
+
+## Phase 2.2 – Environment Engine
+
+The Environment Engine adds a robust, data-driven environmental simulation layer to Genesis. It is responsible for simulating realistic environmental conditions across the world's regions independently from other engines.
+
+### Architecture
+The Environment Engine comprises independent modules to maintain separation of responsibilities:
+- **Climate Manager**: Stores Region "DNA" (Tropical, Temperate, etc.)
+- **Season Manager**: Dictates seasons (Spring, Summer, Autumn, Winter) mapped to the Genesis calendar.
+- **Day Cycle Manager**: Translates time into day phases (Dawn, Morning, Afternoon, Evening, Night).
+- **Weather Manager**: Handles localized weather transitions using weighted probabilities and Markov chains.
+- **Environment Calculator**: Dynamically calculates granular values (Temperature, Humidity, Wind, Visibility) based on base climate, season, day phase, weather, and noise.
+
+### Event Integration
+The Environment Engine avoids tight polling. Instead, it subscribes to the Event Scheduler (using a recurring hourly event) to update states and emits standard `SimulationEvent`s when seasons, weather, or day phases transition (e.g., Sunrise, Sunset, Season Change).
+
+### Weather Fronts and Spatial Coherence
+Adjacent regions influence each other. A storm in one region can bleed into a neighboring sunny region, creating realistic weather fronts moving across the world without relying on pure randomness.
+
+### Mermaid Diagrams
+
+#### Engine Integration
+```mermaid
+graph TD;
+    TimeEngine --> EventScheduler;
+    EventScheduler --> EnvironmentEngine;
+    EnvironmentEngine --> WorldEngine;
+```
+
+#### Environment Engine Architecture
+```mermaid
+graph TD;
+    EnvironmentEngine --> ClimateManager;
+    EnvironmentEngine --> SeasonManager;
+    EnvironmentEngine --> DayCycleManager;
+    EnvironmentEngine --> WeatherManager;
+    EnvironmentEngine --> EnvironmentCalculator;
+    EnvironmentCalculator --> EnvironmentalState;
+```
+
+#### Calculation Flow
+```mermaid
+graph TD;
+    Climate --> EnvironmentCalculator;
+    Season --> EnvironmentCalculator;
+    TimeOfDay --> EnvironmentCalculator;
+    Weather --> EnvironmentCalculator;
+    EnvironmentCalculator --> Temperature;
+    EnvironmentCalculator --> Humidity;
+    EnvironmentCalculator --> Wind;
+    EnvironmentCalculator --> Visibility;
+```
+
+#### Spatial Coherence (Weather Propagation)
+```mermaid
+graph TD;
+    NeighbourRegionA --> NeighbourRegionB;
+    NeighbourRegionB --> NeighbourRegionC;
 ```

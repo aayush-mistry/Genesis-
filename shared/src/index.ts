@@ -6,3 +6,4 @@ export const SystemStatus = _SystemStatus;
 export const GENESIS_CONFIG = _GENESIS_CONFIG;
 
 export * from './types/world';
+export * from './types/environment';

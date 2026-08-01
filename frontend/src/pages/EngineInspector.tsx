@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Sidebar } from '../components/inspector/Sidebar';
 import { Dashboard } from '../components/inspector/Dashboard';
 import { WorldDashboard } from '../components/world/WorldDashboard';
+import { EnvironmentDashboard } from '../components/environment/EnvironmentDashboard';
 import { QueueInspector } from '../components/inspector/QueueInspector';
 import { HistoryInspector } from '../components/inspector/HistoryInspector';
 import { LiveLogs } from '../components/inspector/LiveLogs';
@@ -19,6 +20,7 @@ export default function EngineInspector() {
         <div className="absolute inset-0 overflow-y-auto p-8">
           {activeTab === 'dashboard' && <Dashboard />}
           {activeTab === 'world' && <WorldDashboard />}
+          {activeTab === 'environment' && <EnvironmentDashboard />}
           {activeTab === 'queue' && <QueueInspector />}
           {activeTab === 'history' && <HistoryInspector />}
           {activeTab === 'logs' && <LiveLogs />}
