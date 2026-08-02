@@ -3,6 +3,7 @@ import { Sidebar } from '../components/inspector/Sidebar';
 import { Dashboard } from '../components/inspector/Dashboard';
 import { WorldDashboard } from '../components/world/WorldDashboard';
 import { EnvironmentDashboard } from '../components/environment/EnvironmentDashboard';
+import { ResourceInspector } from '../components/resources/ResourceInspector';
 import { QueueInspector } from '../components/inspector/QueueInspector';
 import { HistoryInspector } from '../components/inspector/HistoryInspector';
 import { LiveLogs } from '../components/inspector/LiveLogs';
@@ -21,6 +22,7 @@ export default function EngineInspector() {
           {activeTab === 'dashboard' && <Dashboard />}
           {activeTab === 'world' && <WorldDashboard />}
           {activeTab === 'environment' && <EnvironmentDashboard />}
+          {activeTab === 'resources' && <ResourceInspector />}
           {activeTab === 'queue' && <QueueInspector />}
           {activeTab === 'history' && <HistoryInspector />}
           {activeTab === 'logs' && <LiveLogs />}
