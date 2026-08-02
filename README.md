@@ -223,3 +223,70 @@ graph TD;
     NeighbourRegionA --> NeighbourRegionB;
     NeighbourRegionB --> NeighbourRegionC;
 ```
+
+## Phase 2.3 – Resource Engine
+
+The Resource Engine represents nature in Project Genesis. It is responsible for generating, storing, managing, regenerating, and monitoring every natural resource existing in the simulation world. Resources exist independently of civilization, and their generation is strictly deterministic based on the World Seed.
+
+### Purpose
+To provide a foundational, data-driven layer of natural resources (Water, Forests, Minerals, Energy Potentials) that future economic and citizen systems will interact with.
+
+### Architecture
+The Resource Engine is highly modular and integrates seamlessly with existing systems while remaining decoupled:
+- **ResourceManager**: In-memory state store for all resources.
+- **ResourceGenerator**: Deterministic generation algorithms seeded by the World Seed and Region factors.
+- **ResourceCalculator**: Formulas for dynamic resource evolution based on environmental states.
+
+### Generation Pipeline
+Resource generation strictly follows a dependency chain ensuring absolute determinism:
+
+```mermaid
+graph TD;
+    WorldCreated[World Created] --> WorldSeed[World Seed]
+    WorldSeed --> RegionGenerator[Region Generator]
+    RegionGenerator --> ClimateGenerator[Climate Generator]
+    ClimateGenerator --> SoilGenerator[Soil Generator]
+    SoilGenerator --> WaterDistribution[Water Distribution]
+    WaterDistribution --> ResourceGenerator[Resource Generator]
+    ResourceGenerator --> ResourceEngine[Resource Engine]
+```
+
+### Static vs Dynamic Factors
+- **Static Factors**: Define the initial generation based purely on Region characteristics (Climate, Seed). E.g., Mountains have High Stone and Iron, Deserts have Low Water but High Solar Potential.
+- **Dynamic Factors**: Modifies existing resources post-generation. Governed by Weather, Season, Temperature, and Humidity.
+
+### Regeneration
+- **Renewable Resources**: (Water, Forests, Wildlife, Fish) Regenerate over time driven by environmental inputs.
+- **Non-Renewable Resources**: (Iron, Coal, Gold, Oil) Never regenerate.
+
+### Environmental Interaction
+The Resource Engine subscribes to the Event Scheduler and updates based on the authoritative Environmental state. Heavy rain increases river levels and forest growth, while heatwaves cause drought damage to biological resources.
+
+#### Engine Integration
+```mermaid
+graph TD;
+    TimeEngine[Time Engine] --> EventScheduler[Event Scheduler]
+    EventScheduler --> EnvironmentEngine[Environment Engine]
+    EnvironmentEngine --> ResourceEngine[Resource Engine]
+```
+
+#### Regional Resource Model
+```mermaid
+graph TD;
+    Region[Region] --> ResourceCollection[Resource Collection]
+    ResourceCollection --> Water[Water]
+    ResourceCollection --> Forest[Forest]
+    ResourceCollection --> Iron[Iron]
+    ResourceCollection --> Coal[Coal]
+    ResourceCollection --> Gold[Gold]
+    ResourceCollection --> Wildlife[Wildlife]
+    ResourceCollection --> Fish[Fish]
+```
+
+#### Dynamic Update Flow
+```mermaid
+graph TD;
+    Environment[Environment] --> ResourceCalculator[Resource Calculator]
+    ResourceCalculator --> Regeneration[Regeneration]
+    Regeneration --> UpdatedState[Updated Resource State]
+```
