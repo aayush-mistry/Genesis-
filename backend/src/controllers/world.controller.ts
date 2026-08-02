@@ -34,6 +34,15 @@ export const WorldController = {
     const data = request.body as Omit<Region, 'id' | 'cityIds'>;
     const region = worldService.engine.regionManager.createRegion(data);
     worldService.engine.worldManager.addRegion(region.id);
+    
+    // Auto-generate resources for this new region
+    const world = worldService.engine.worldManager.getWorld();
+    if (world) {
+      import('../services/resource.service').then(m => {
+        m.resourceService.engine.generateResourcesForRegion(region.id, world.randomSeed);
+      });
+    }
+
     return region;
   },
 
