@@ -290,3 +290,51 @@ graph TD;
     ResourceCalculator --> Regeneration[Regeneration]
     Regeneration --> UpdatedState[Updated Resource State]
 ```
+
+## Phase 2.4 – Spatial Engine
+
+The Spatial Engine provides efficient spatial queries, indexing, and coordinate relationships over the world managed by the World Engine. It does not replace the World Engine's hierarchical ownership, but answers "How are these entities spatially related?" in a performant manner.
+
+### Purpose
+To serve high-performance spatial queries (e.g. `findNearby`, `findNearest`) avoiding O(N) entity scans across the entire simulation by utilizing a generic Spatial Index.
+
+### Coordinate System
+All entities in the World Engine use a 2D Cartesian coordinate system. The Spatial Engine uses deterministic Euclidean distance: `sqrt((x2 - x1)^2 + (y2 - y1)^2)`.
+
+### Spatial Index (GridSpatialIndex)
+A generic `SpatialIndex` interface abstracts the storage mechanism. The current implementation uses a **Spatial Hash Grid**, splitting the world into discrete cells. When a query is performed, only entities residing in intersecting cells are inspected, drastically improving performance.
+
+### Entity Lifecycle and Event Integration
+When entities are created, moved, or removed in the World Engine, the Spatial Engine reacts to update its index dynamically, ensuring stale data is purged.
+
+### Engine Integration
+```mermaid
+graph TD;
+    WorldEngine[World Engine] -->|authoritative spatial data| SpatialEngine[Spatial Engine]
+    SpatialEngine --> SpatialCalculator[Spatial Calculator]
+    SpatialEngine --> SpatialQueryService[Spatial Query Service]
+    SpatialEngine --> SpatialIndex[Spatial Index]
+    SpatialIndex --> GridHash[Grid / Hash]
+```
+
+### Entity Lifecycle
+```mermaid
+graph TD;
+    EntityCreated[Entity Created] --> WorldEngine[World Engine]
+    WorldEngine --> SpatialEngine[Spatial Engine]
+    SpatialEngine --> SpatialIndex[Spatial Index]
+    SpatialIndex --> GridCell[Grid Cell]
+    
+    EntityMoved[Entity Moved] --> UpdateIndex[Update Index]
+    EntityRemoved[Entity Removed] --> RemoveFromIndex[Remove From Index]
+```
+
+### Spatial Query Flow
+```mermaid
+graph TD;
+    SpatialQuery[Spatial Query] --> DetermineCells[Determine Relevant Grid Cells]
+    DetermineCells --> RetrieveCandidates[Retrieve Candidates]
+    RetrieveCandidates --> CalculateExactDistance[Calculate Exact Distance]
+    CalculateExactDistance --> FilterResults[Filter Results]
+    FilterResults --> ReturnResults[Return Spatial Results]
+```

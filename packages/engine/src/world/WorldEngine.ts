@@ -3,7 +3,7 @@ import { RegionManager } from './RegionManager';
 import { CityManager } from './CityManager';
 import { DistrictManager } from './DistrictManager';
 import { BuildingManager } from './BuildingManager';
-import { SpatialQueryService } from './SpatialQueryService';
+
 
 export class WorldEngine {
   public worldManager: WorldManager;
@@ -11,7 +11,6 @@ export class WorldEngine {
   public cityManager: CityManager;
   public districtManager: DistrictManager;
   public buildingManager: BuildingManager;
-  public spatialQueryService: SpatialQueryService;
 
   constructor() {
     this.worldManager = new WorldManager();
@@ -19,12 +18,6 @@ export class WorldEngine {
     this.cityManager = new CityManager();
     this.districtManager = new DistrictManager();
     this.buildingManager = new BuildingManager();
-    this.spatialQueryService = new SpatialQueryService(
-      this.regionManager,
-      this.cityManager,
-      this.districtManager,
-      this.buildingManager
-    );
   }
 
   // Deletion orchestrations to maintain relational integrity

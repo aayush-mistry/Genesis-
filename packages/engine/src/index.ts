@@ -8,3 +8,6 @@ export * from './environment/SeasonManager';
 export * from './environment/DayCycleManager';
 export * from './environment/WeatherManager';
 export * from './environment/EnvironmentCalculator';
+export * from './resources';
+export * from './spatial';
+export * from './utils/SeededRandom';
