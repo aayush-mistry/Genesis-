@@ -10,6 +10,7 @@ import { worldRoutes } from './routes/world.routes';
 import { environmentRoutes } from './routes/environment.routes';
 import { resourceRoutes } from './routes/resource.routes';
 import { spatialRoutes } from './routes/spatial.routes';
+import { systemRoutes } from './routes/system.routes';
 
 
 export async function buildApp() {
@@ -26,6 +27,7 @@ export async function buildApp() {
   app.register(environmentRoutes, { prefix: '/api/v1' });
   app.register(resourceRoutes, { prefix: '/api/v1' });
   app.register(spatialRoutes, { prefix: '/api/v1/spatial' });
+  app.register(systemRoutes, { prefix: '/api/v1' });
 
   // Initialize engines
   import('./services/environment.service').then(m => m.environmentService.initialize());

@@ -10,6 +10,13 @@ export const worldApi = {
     return res.json();
   },
 
+  getHierarchy: async (): Promise<any> => {
+    const res = await fetch(`${BASE_URL}/world/hierarchy`);
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error('Failed to fetch world hierarchy');
+    return res.json();
+  },
+
   getWorld: async (): Promise<World> => {
     const res = await fetch(`${BASE_URL}/world`);
     if (!res.ok) throw new Error('Failed to fetch world');

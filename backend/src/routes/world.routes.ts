@@ -7,6 +7,7 @@ export const worldRoutes: FastifyPluginAsync = async (server: FastifyInstance) =
   server.get('/world', WorldController.getWorld);
   server.post('/world', WorldController.createWorld);
   server.delete('/world', WorldController.deleteWorld);
+  server.get('/world/hierarchy', WorldController.getHierarchy);
 
   // Regions
   server.get('/regions', WorldController.getRegions);

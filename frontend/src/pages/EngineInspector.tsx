@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Sidebar } from '../components/inspector/Sidebar';
 import { Dashboard } from '../components/inspector/Dashboard';
 import { WorldDashboard } from '../components/world/WorldDashboard';
+import { WorldInspector } from '../components/inspector/WorldInspector';
 import { EnvironmentDashboard } from '../components/environment/EnvironmentDashboard';
 import { ResourceInspector } from '../components/resources/ResourceInspector';
 import { SpatialDashboard } from '../components/spatial/SpatialDashboard';
@@ -12,7 +13,7 @@ import { PerformanceView } from '../components/inspector/PerformanceView';
 import { EventInjectionPanel } from '../components/inspector/EventInjectionPanel';
 
 export default function EngineInspector() {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState('inspector');
 
   return (
     <div className="flex w-full h-full bg-[#0a0a0a] text-[#e5e5e5] font-sans">
@@ -21,6 +22,7 @@ export default function EngineInspector() {
       <div className="flex-1 overflow-hidden relative">
         <div className="absolute inset-0 overflow-y-auto p-8">
           {activeTab === 'dashboard' && <Dashboard />}
+          {activeTab === 'inspector' && <WorldInspector />}
           {activeTab === 'world' && <WorldDashboard />}
           {activeTab === 'environment' && <EnvironmentDashboard />}
           {activeTab === 'resources' && <ResourceInspector />}

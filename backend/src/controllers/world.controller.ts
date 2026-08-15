@@ -25,6 +25,36 @@ export const WorldController = {
     return { success: true };
   },
 
+  // --- Hierarchy ---
+  getHierarchy: async (_request: FastifyRequest, reply: FastifyReply) => {
+    const world = worldService.engine.worldManager.getWorld();
+    if (!world) {
+      return reply.status(404).send({ error: 'World not found' });
+    }
+
+    const regions = worldService.engine.regionManager.getAllRegions();
+    const cities = worldService.engine.cityManager.getAllCities();
+    const districts = worldService.engine.districtManager.getAllDistricts();
+    const buildings = worldService.engine.buildingManager.getAllBuildings();
+
+    // Build nested structure
+    const hierarchy = {
+      world,
+      regions: regions.map(r => ({
+        ...r,
+        cities: cities.filter(c => c.regionId === r.id).map(c => ({
+          ...c,
+          districts: districts.filter(d => d.cityId === c.id).map(d => ({
+            ...d,
+            buildings: buildings.filter(b => b.districtId === d.id)
+          }))
+        }))
+      }))
+    };
+
+    return hierarchy;
+  },
+
   // --- Regions ---
   getRegions: async (_request: FastifyRequest, _reply: FastifyReply) => {
     return worldService.engine.regionManager.getAllRegions();

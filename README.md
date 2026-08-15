@@ -338,3 +338,63 @@ graph TD;
     CalculateExactDistance --> FilterResults[Filter Results]
     FilterResults --> ReturnResults[Return Spatial Results]
 ```
+
+## Phase 2.5 — World Inspector
+
+The World Inspector is a **Read-Only developer interface** designed to observe the live, deterministic state of the entire Genesis simulation. It acts as the ultimate debugging dashboard, aggregating data from all the backend engines into a single, unified view without introducing any simulation logic into the frontend.
+
+### Purpose
+To provide a data-first, visualization-second view of the simulation, ensuring the backend remains the authoritative source of truth.
+
+### Key Features
+- **World Overview**: Real-time simulation time, season, world seed, and entity counts.
+- **Hierarchical World Tree**: Expandable mapping of Regions, Cities, Districts, and Buildings directly from the backend.
+- **Entity Inspector**: Displays environmental data (climate, weather, temp), regional resources (capacity, quantity, regeneration rate), and spatial coordinates.
+- **Engine Statuses**: Tracks the health, uptime, and queue states of Time, Events, World, Environment, Resource, and Spatial engines.
+- **World Verification**: Calculates a deterministic SHA-256 hash derived purely from structural simulation data, guaranteeing seed-based reproducibility regardless of runtime constraints.
+
+### Read-Only Architecture
+```mermaid
+flowchart TD
+
+    Time[Time Engine]
+    Events[Event Scheduler]
+    World[World Engine]
+    Environment[Environment Engine]
+    Resources[Resource Engine]
+    Spatial[Spatial Engine]
+    API[Backend API]
+    Inspector[World Inspector]
+
+    Time --> Events
+    Events --> World
+    World --> Environment
+    Environment --> Resources
+    World --> Spatial
+
+    World --> API
+    Environment --> API
+    Resources --> API
+    Spatial --> API
+    Events --> API
+    Time --> API
+
+    API --> Inspector
+```
+
+### State Aggregation
+```mermaid
+flowchart LR
+
+    World[World State]
+    Environment[Environment State]
+    Resources[Resource State]
+    Spatial[Spatial State]
+    Events[World Events]
+
+    World --> Inspector[World Inspector]
+    Environment --> Inspector
+    Resources --> Inspector
+    Spatial --> Inspector
+    Events --> Inspector
+```

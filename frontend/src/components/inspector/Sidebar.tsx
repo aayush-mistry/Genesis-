@@ -1,4 +1,4 @@
-import { LayoutDashboard, ListOrdered, History, ScrollText, ActivitySquare, PlusSquare, Globe, Cloud, Leaf, Map } from 'lucide-react';
+import { LayoutDashboard, ListOrdered, History, ScrollText, ActivitySquare, PlusSquare, Globe, Cloud, Leaf, Map, Eye } from 'lucide-react';
 
 interface SidebarProps {
   activeTab: string;
@@ -8,6 +8,7 @@ interface SidebarProps {
 export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'inspector', label: 'World Inspector', icon: Eye },
     { id: 'world', label: 'World Engine', icon: Globe },
     { id: 'environment', label: 'Environment Engine', icon: Cloud },
     { id: 'resources', label: 'Resource Engine', icon: Leaf },
