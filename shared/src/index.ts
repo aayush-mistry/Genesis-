@@ -8,6 +8,8 @@ export const GENESIS_CONFIG = _GENESIS_CONFIG;
 export * from './types/world';
 export * from './types/environment';
 export * from './types/resources';
+export * from './types/time';
+export * from './types/citizen';
 
 export { ResourceCategory, ResourceType } from './types/resources';
 export * from './types/spatial';

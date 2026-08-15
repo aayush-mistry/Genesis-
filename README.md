@@ -398,3 +398,24 @@ flowchart LR
     Spatial --> Inspector
     Events --> Inspector
 ```
+
+## Phase 3 — Citizen Engine
+
+### Phase 3.1 — Citizen Model
+Establishes the foundational deterministic Citizen Domain Model without adding behavior or AI simulation.
+
+- **Purpose**: Define what a Citizen is and provide a clean representation for future systems.
+- **Citizen Identity**: Generates unique, stable `citizen-000001` format IDs. Uses deterministic Name Generation powered by `SeededRandom`.
+- **Location References**: The engine enforces separation from the World Engine by storing a reference (`locationId`) rather than duplicating spatial data. It explicitly rejects non-existent locations by validating against the authoritative World Engine.
+- **Time Integration**: Uses the Time Engine's authoritative `SimulationClock`. Age is deterministically derived via `currentDate.year - birthDate.year` instead of using real-world `Date.now()`.
+- **Repository Abstraction**: Includes a clean `CitizenRepository` abstraction with an `InMemoryCitizenRepository` implementation.
+
+```mermaid
+flowchart TD
+    Time[Time Engine] --> Clock[Simulation Clock]
+    World[World Engine] --> Location[Location Validation]
+    Clock --> Citizen[Citizen Engine]
+    Location --> Citizen
+    Citizen --> Repository[Citizen Repository]
+    Citizen --> API[Citizen API]
+```

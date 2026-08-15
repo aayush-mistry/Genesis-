@@ -6,6 +6,7 @@ import { worldService } from '../services/world.service';
 import { environmentService } from '../services/environment.service';
 import { resourceService } from '../services/resource.service';
 import { spatialService } from '../services/spatial.service';
+import { citizenService } from '../services/citizen.service';
 
 export class SystemController {
   public static async getStatus(_req: FastifyRequest, reply: FastifyReply) {
@@ -13,6 +14,7 @@ export class SystemController {
     const eventStats = eventService.scheduler.stats;
     const world = worldService.engine.worldManager.getWorld();
     const spatialStats = spatialService.engine.index.getStatistics();
+    const citizens = citizenService.engine.listCitizens();
 
     return reply.send({
       engines: {
@@ -39,10 +41,15 @@ export class SystemController {
         spatial: {
           status: world ? 'Running' : 'Ready',
           details: `Indexed entities: ${spatialStats.indexedEntities}`
+        },
+        citizen: {
+          status: 'Running',
+          details: `Total Citizens: ${citizens.length}`
         }
       }
     });
   }
+
 
   public static async getVerification(_req: FastifyRequest, reply: FastifyReply) {
     const world = worldService.engine.worldManager.getWorld();
@@ -59,6 +66,8 @@ export class SystemController {
     const resources = resourceService.engine.resourceManager.getAllResources();
     const profiles = environmentService.engine.climateManager.getAllProfiles();
 
+    const citizens = citizenService.engine.listCitizens();
+
     // The hash MUST depend on deterministic structure, counts, and seed, NOT timestamps or memory addresses.
     const payload = JSON.stringify({
       seed: world.randomSeed,
@@ -68,7 +77,8 @@ export class SystemController {
         districts: districts.length,
         buildings: buildings.length,
         resources: resources.length,
-        climateProfiles: profiles.length
+        climateProfiles: profiles.length,
+        citizens: citizens.length
       },
       // Hashing the sorted IDs (deterministic) ensures the generation structure is identical
       regionIds: regions.map(r => r.id).sort(),
@@ -76,6 +86,7 @@ export class SystemController {
       districtIds: districts.map(d => d.id).sort(),
       buildingIds: buildings.map(b => b.id).sort(),
       resourceIds: resources.map(r => r.id).sort(),
+      citizenIds: citizens.map(c => c.id).sort()
     });
 
     const hash = crypto.createHash('sha256').update(payload).digest('hex');
@@ -87,7 +98,8 @@ export class SystemController {
       counts: {
         regions: regions.length,
         resources: resources.length,
-        environmentProfiles: profiles.length
+        environmentProfiles: profiles.length,
+        citizens: citizens.length
       }
     });
   }
