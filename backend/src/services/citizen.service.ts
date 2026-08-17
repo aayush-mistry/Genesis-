@@ -1,6 +1,7 @@
 import { CitizenService, InMemoryCitizenRepository, PopulationSimulator } from '@genesis/engine';
 import { worldService } from './world.service';
 import { timeService } from './time.service';
+import { eventService } from './event.service';
 
 class BackendCitizenService {
   public engine: CitizenService;
@@ -15,6 +16,10 @@ class BackendCitizenService {
   public initialize() {
     // In the future, this might load existing citizens from a database.
     this.simulator.start();
+    
+    // Schedule Needs updates
+    this.engine.needsService.scheduleNeedsUpdate(eventService.scheduler, timeService.engine.getCurrentTime());
+    
     console.log('[Citizen Engine] Initialized and Simulator started');
   }
 }

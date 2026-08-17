@@ -4,3 +4,4 @@ export * from './generators/NameGenerator';
 export * from './services/AgeCalculator';
 export * from './services/CitizenService';
 export * from './services/PopulationSimulator';
+export * from './services/NeedsService';

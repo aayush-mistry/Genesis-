@@ -11,6 +11,14 @@ export enum CitizenGender {
   OTHER = 'OTHER'
 }
 
+export interface VitalState {
+  hunger: number;
+  thirst: number;
+  energy: number;
+  health: number;
+  lastUpdatedSimulationTime: SimulationTime;
+}
+
 export interface Citizen {
   id: string;
   name: string;
@@ -19,4 +27,5 @@ export interface Citizen {
   status: CitizenStatus;
   createdAt: SimulationTime;
   locationId: string | null;
+  vitalState: VitalState;
 }

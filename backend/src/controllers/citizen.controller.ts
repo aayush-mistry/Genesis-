@@ -61,5 +61,57 @@ export const CitizenController = {
     }
 
     return reply.send({ success: true });
+  },
+
+  getCitizenVitals: async (request: FastifyRequest, reply: FastifyReply) => {
+    const { citizenId } = request.params as { citizenId: string };
+    const citizen = citizenService.engine.getCitizen(citizenId);
+
+    if (!citizen) {
+      return reply.status(404).send({ error: `Citizen with ID ${citizenId} not found` });
+    }
+
+    return reply.send(citizen.vitalState);
+  },
+
+  getPopulationVitals: async (_request: FastifyRequest, reply: FastifyReply) => {
+    const citizens = citizenService.engine.listCitizens().filter(c => c.status === 'ACTIVE');
+    
+    if (citizens.length === 0) {
+      return reply.send({ message: 'No active citizens found' });
+    }
+
+    let totalHunger = 0;
+    let totalThirst = 0;
+    let totalEnergy = 0;
+    let totalHealth = 0;
+
+    let criticalHungerCount = 0;
+    let criticalThirstCount = 0;
+    let lowHealthCount = 0;
+
+    for (const citizen of citizens) {
+      const v = citizen.vitalState;
+      totalHunger += v.hunger;
+      totalThirst += v.thirst;
+      totalEnergy += v.energy;
+      totalHealth += v.health;
+
+      if (v.hunger >= 90) criticalHungerCount++;
+      if (v.thirst >= 90) criticalThirstCount++;
+      if (v.health <= 20) lowHealthCount++;
+    }
+
+    const count = citizens.length;
+    return reply.send({
+      populationSize: count,
+      averageHunger: totalHunger / count,
+      averageThirst: totalThirst / count,
+      averageEnergy: totalEnergy / count,
+      averageHealth: totalHealth / count,
+      criticalHungerCount,
+      criticalThirstCount,
+      lowHealthCount
+    });
   }
 };

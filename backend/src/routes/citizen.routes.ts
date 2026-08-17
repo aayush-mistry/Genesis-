@@ -6,4 +6,6 @@ export const citizenRoutes: FastifyPluginAsync = async (server: FastifyInstance)
   server.get('/citizens', CitizenController.listCitizens);
   server.get('/citizens/:id', CitizenController.getCitizen);
   server.delete('/citizens/:id', CitizenController.deleteCitizen);
+  server.get('/citizens/:citizenId/vitals', CitizenController.getCitizenVitals);
+  server.get('/world/:worldId/population/vitals', CitizenController.getPopulationVitals);
 };

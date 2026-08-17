@@ -4,6 +4,7 @@ import { NameGenerator } from '../generators/NameGenerator';
 import { AgeCalculator } from './AgeCalculator';
 import { WorldEngine } from '../../world/WorldEngine';
 import { TimeEngine } from '../../time/TimeEngine';
+import { NeedsService } from './NeedsService';
 
 let citizenIdCounter = 1;
 
@@ -11,11 +12,13 @@ export class CitizenService {
   private repository: CitizenRepository;
   private worldEngine: WorldEngine;
   private timeEngine: TimeEngine;
+  public needsService: NeedsService;
 
   constructor(repository: CitizenRepository, worldEngine: WorldEngine, timeEngine: TimeEngine) {
     this.repository = repository;
     this.worldEngine = worldEngine;
     this.timeEngine = timeEngine;
+    this.needsService = new NeedsService(this.repository);
   }
 
   /**
@@ -44,6 +47,9 @@ export class CitizenService {
     const actualSeed = seed !== undefined ? seed : parseInt(id.replace('citizen-', ''), 10);
     const name = NameGenerator.generateName(actualSeed, gender);
 
+    // Generate VitalState
+    const vitalState = this.needsService.initializeVitalState(actualSeed, currentTime);
+
     const citizen: Citizen = {
       id,
       name,
@@ -51,7 +57,8 @@ export class CitizenService {
       gender,
       status: CitizenStatus.ACTIVE,
       createdAt: currentTime,
-      locationId
+      locationId,
+      vitalState
     };
 
     this.repository.create(citizen);

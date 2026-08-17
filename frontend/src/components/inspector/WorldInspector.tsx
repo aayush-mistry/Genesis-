@@ -241,9 +241,9 @@ export function WorldInspector() {
                           {selectedRes?.length ? selectedRes.map((res: any) => (
                             <tr key={res.id} className="border-b border-[#222]">
                               <td className="py-2 text-white">{res.type}</td>
-                              <td className="py-2 text-right text-green-400">{res.currentQuantity.toLocaleString()}</td>
-                              <td className="py-2 text-right text-[#888]">{res.maxCapacity.toLocaleString()}</td>
-                              <td className="py-2 text-right text-blue-400">+{res.regenerationRate.toFixed(2)}</td>
+                              <td className="py-2 text-right text-green-400">{res.currentQuantity?.toLocaleString() ?? '--'}</td>
+                              <td className="py-2 text-right text-[#888]">{res.maximumCapacity?.toLocaleString() ?? '--'}</td>
+                              <td className="py-2 text-right text-blue-400">{res.regenerationRate != null ? `+${res.regenerationRate.toFixed(2)}` : '--'}</td>
                             </tr>
                           )) : (
                             <tr><td colSpan={4} className="py-4 text-center text-[#555]">No resources tracked</td></tr>

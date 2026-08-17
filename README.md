@@ -419,3 +419,74 @@ flowchart TD
     Citizen --> Repository[Citizen Repository]
     Citizen --> API[Citizen API]
 ```
+
+## Phase 3.3 — Needs & Vital State
+
+The Needs & Vital State phase introduces the first dynamic biological state of citizens in Genesis. Each citizen now receives a `VitalState` tracking Hunger, Thirst, Energy, and Health values bounds strictly between 0 and 100.
+
+### Responsibilities
+- **Vital State Generation**: Deterministically initializes citizen vital states upon creation using the configured seed.
+- **Needs Decay**: Dynamically increases hunger, increases thirst, and modifies energy based strictly on the elapsed Simulation Time between updates.
+- **Separation of Concerns**: Health damage and starvation logic belong to future lifecycle modules. Needs Engine strictly manages numerical decay based on time.
+
+### Architecture Rules
+- Does **not** use real-world `Date.now()`. Needs decay according to `SimulationClock` time.
+- Handles simulation pausing and varying speed gracefully by calculating deltas based on simulation hours elapsed since the last update.
+- Scalable: Integrates with the existing `EventScheduler` to run a periodic (hourly) population update rather than spamming independent ticks for thousands of citizens.
+
+### Future Integration
+The Needs Engine is structurally ready to interface with the Resource Engine (Food/Water availability) and Environment Engine (Temperature modifiers) through abstractions.
+
+### Engine Architecture
+
+```mermaid
+flowchart TD
+
+    Time[Time Engine]
+        --> Clock[Simulation Time]
+
+    Clock
+        --> Scheduler[Event Scheduler]
+
+    Scheduler
+        --> Needs[Needs Engine]
+
+    Needs
+        --> Citizens[Citizen Vital State]
+
+    Resources[Resource Engine]
+        --> Needs
+
+    Environment[Environment Engine]
+        --> Needs
+
+    Citizens
+        --> Repository[Citizen Repository]
+
+    Repository
+        --> API[Citizen API]
+```
+
+### Future Citizen Lifecycle Dependency
+
+```mermaid
+flowchart TD
+
+    Food[Food Availability]
+        --> Hunger[Hunger]
+
+    Water[Water Availability]
+        --> Thirst[Thirst]
+
+    Hunger
+        --> Health[Health]
+
+    Thirst
+        --> Health
+
+    Environment[Environment]
+        --> Health
+
+    Health
+        --> Lifecycle[Future Citizen Lifecycle]
+```
