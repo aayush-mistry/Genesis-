@@ -33,6 +33,7 @@ export async function buildApp() {
   app.register(citizenRoutes, { prefix: '/api/v1' });
 
   // Initialize engines
+  import('./services/world.service').then(m => m.worldService.initialize());
   import('./services/environment.service').then(m => m.environmentService.initialize());
   import('./services/resource.service').then(m => m.resourceService.initialize());
   import('./services/spatial.service').then(m => m.spatialService.initialize());
