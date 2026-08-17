@@ -1,18 +1,21 @@
-import { CitizenService, InMemoryCitizenRepository } from '@genesis/engine';
+import { CitizenService, InMemoryCitizenRepository, PopulationSimulator } from '@genesis/engine';
 import { worldService } from './world.service';
 import { timeService } from './time.service';
 
 class BackendCitizenService {
   public engine: CitizenService;
+  public simulator: PopulationSimulator;
 
   constructor() {
     const repository = new InMemoryCitizenRepository();
     this.engine = new CitizenService(repository, worldService.engine, timeService.engine);
+    this.simulator = new PopulationSimulator(this.engine, timeService.engine);
   }
 
   public initialize() {
     // In the future, this might load existing citizens from a database.
-    console.log('[Citizen Engine] Initialized');
+    this.simulator.start();
+    console.log('[Citizen Engine] Initialized and Simulator started');
   }
 }
 

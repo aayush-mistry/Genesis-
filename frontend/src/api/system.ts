@@ -13,6 +13,7 @@ export interface SystemStatus {
     environment: EngineStatus;
     resource: EngineStatus;
     spatial: EngineStatus;
+    citizen: EngineStatus;
   };
 }
 

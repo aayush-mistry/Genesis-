@@ -17,6 +17,12 @@ export const WorldController = {
   createWorld: async (request: FastifyRequest, _reply: FastifyReply) => {
     const { name, description, seed } = request.body as { name: string; description: string; seed: number };
     const world = worldService.engine.worldManager.createWorld(name, description, seed);
+    
+    // Initialize population
+    import('../services/citizen.service').then(m => {
+      m.citizenService.simulator.initializePopulation(5000);
+    });
+    
     return world;
   },
 
