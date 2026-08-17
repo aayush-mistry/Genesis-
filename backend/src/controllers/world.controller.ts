@@ -18,6 +18,24 @@ export const WorldController = {
     const { name, description, seed } = request.body as { name: string; description: string; seed: number };
     const world = worldService.engine.worldManager.createWorld(name, description, seed);
     
+    // Auto-create a default region so the UI has something to display (e.g. resources)
+    const defaultRegion = worldService.engine.regionManager.createRegion({
+      name: 'Genesis Valley',
+      climate: 'Temperate',
+      description: 'The cradle of civilization in this world.',
+      population: 0,
+      coordinates: { x: 0, y: 0 },
+      worldId: world.id,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+    worldService.engine.worldManager.addRegion(defaultRegion.id);
+    
+    // Auto-generate resources for this new region
+    import('../services/resource.service').then(m => {
+      m.resourceService.engine.generateResourcesForRegion(defaultRegion.id, world.randomSeed);
+    });
+
     // Initialize population
     import('../services/citizen.service').then(m => {
       m.citizenService.simulator.initializePopulation(5000);
