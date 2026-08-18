@@ -2,6 +2,7 @@ import { CitizenService, InMemoryCitizenRepository, PopulationSimulator } from '
 import { worldService } from './world.service';
 import { timeService } from './time.service';
 import { eventService } from './event.service';
+import { spatialService } from './spatial.service';
 
 class BackendCitizenService {
   public engine: CitizenService;
@@ -9,7 +10,13 @@ class BackendCitizenService {
 
   constructor() {
     const repository = new InMemoryCitizenRepository();
-    this.engine = new CitizenService(repository, worldService.engine, timeService.engine);
+    this.engine = new CitizenService(
+      repository, 
+      worldService.engine, 
+      timeService.engine,
+      eventService.scheduler,
+      spatialService.engine.queryService
+    );
     this.simulator = new PopulationSimulator(this.engine, timeService.engine);
   }
 

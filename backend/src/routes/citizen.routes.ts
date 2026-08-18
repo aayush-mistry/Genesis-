@@ -8,4 +8,9 @@ export const citizenRoutes: FastifyPluginAsync = async (server: FastifyInstance)
   server.delete('/citizens/:id', CitizenController.deleteCitizen);
   server.get('/citizens/:citizenId/vitals', CitizenController.getCitizenVitals);
   server.get('/world/:worldId/population/vitals', CitizenController.getPopulationVitals);
+  
+  // Movement endpoints
+  server.post('/citizens/:citizenId/movement', CitizenController.requestMovement);
+  server.get('/citizens/:citizenId/movement', CitizenController.getMovement);
+  server.delete('/citizens/:citizenId/movement', CitizenController.cancelMovement);
 };

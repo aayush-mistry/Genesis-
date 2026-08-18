@@ -12,11 +12,18 @@ describe('PopulationSimulator', () => {
   let citizenService: CitizenService;
   let simulator: PopulationSimulator;
 
+  let eventScheduler: import('../../events/EventScheduler').EventScheduler;
+  let spatialEngine: import('../../spatial/SpatialEngine').SpatialEngine;
+
   beforeEach(() => {
     timeEngine = new TimeEngine();
     worldEngine = new WorldEngine();
     repository = new InMemoryCitizenRepository();
-    citizenService = new CitizenService(repository, worldEngine, timeEngine);
+    
+    eventScheduler = new (require('../../events/EventScheduler').EventScheduler)(timeEngine);
+    spatialEngine = new (require('../../spatial/SpatialEngine').SpatialEngine)(worldEngine, eventScheduler);
+    
+    citizenService = new CitizenService(repository, worldEngine, timeEngine, eventScheduler, spatialEngine.queryService);
     simulator = new PopulationSimulator(citizenService, timeEngine);
   });
 

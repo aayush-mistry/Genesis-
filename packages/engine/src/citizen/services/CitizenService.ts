@@ -1,10 +1,13 @@
-import { Citizen, CitizenGender, CitizenStatus, SimulationTime } from '@genesis/shared';
+import { Citizen, CitizenGender, CitizenStatus, SimulationTime, MovementState } from '@genesis/shared';
 import { CitizenRepository } from '../repositories/CitizenRepository';
 import { NameGenerator } from '../generators/NameGenerator';
 import { AgeCalculator } from './AgeCalculator';
 import { WorldEngine } from '../../world/WorldEngine';
 import { TimeEngine } from '../../time/TimeEngine';
 import { NeedsService } from './NeedsService';
+import { MovementService } from './MovementService';
+import { EventScheduler } from '../../events/EventScheduler';
+import { SpatialQueryService } from '../../spatial/SpatialQueryService';
 
 let citizenIdCounter = 1;
 
@@ -13,12 +16,25 @@ export class CitizenService {
   private worldEngine: WorldEngine;
   private timeEngine: TimeEngine;
   public needsService: NeedsService;
+  public movementService: MovementService;
 
-  constructor(repository: CitizenRepository, worldEngine: WorldEngine, timeEngine: TimeEngine) {
+  constructor(
+    repository: CitizenRepository, 
+    worldEngine: WorldEngine, 
+    timeEngine: TimeEngine,
+    eventScheduler: EventScheduler,
+    spatialQueryService: SpatialQueryService
+  ) {
     this.repository = repository;
     this.worldEngine = worldEngine;
     this.timeEngine = timeEngine;
     this.needsService = new NeedsService(this.repository);
+    this.movementService = new MovementService(
+      this.repository,
+      spatialQueryService,
+      eventScheduler,
+      timeEngine
+    );
   }
 
   /**
@@ -58,7 +74,9 @@ export class CitizenService {
       status: CitizenStatus.ACTIVE,
       createdAt: currentTime,
       locationId,
-      vitalState
+      vitalState,
+      movementState: MovementState.IDLE,
+      activeRoute: null
     };
 
     this.repository.create(citizen);

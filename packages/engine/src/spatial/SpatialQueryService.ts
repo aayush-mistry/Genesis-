@@ -131,4 +131,27 @@ export class SpatialQueryService {
     
     return SpatialRelationship.FAR;
   }
+
+  /**
+   * Calculates a simple route between two entities.
+   * For Phase 3.4, this returns a straight-line path and the exact Euclidean distance.
+   */
+  public calculateRoute(sourceId: string, destinationId: string): { path: string[], distance: number } {
+    const sourceCoords = this.worldEngine.getEntityCoordinates(sourceId);
+    const destCoords = this.worldEngine.getEntityCoordinates(destinationId);
+
+    if (!sourceCoords) {
+      throw new Error(`Route generation failed: Source entity ${sourceId} coordinates not found.`);
+    }
+
+    if (!destCoords) {
+      throw new Error(`Route generation failed: Destination entity ${destinationId} coordinates not found.`);
+    }
+
+    const distance = SpatialCalculator.calculateDistance(sourceCoords, destCoords);
+    return {
+      path: [sourceId, destinationId],
+      distance
+    };
+  }
 }

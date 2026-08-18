@@ -484,9 +484,42 @@ flowchart TD
     Thirst
         --> Health
 
-    Environment[Environment]
-        --> Health
-
     Health
         --> Lifecycle[Future Citizen Lifecycle]
 ```
+
+## Phase 3.4 — Location, Routes & Movement
+
+Phase 3.4 introduces the mechanical movement infrastructure for citizens, strictly separating **movement execution** from **movement decision-making**.
+
+### Responsibilities
+- **Spatial Validation:** Resolves location IDs to their exact Euclidean coordinates using the World Engine's spatial hierarchies.
+- **Route Generation:** Deterministically generates routes and estimated travel durations based on a configurable travel speed.
+- **State Management:** Manages the active `MovementState` of citizens (`IDLE` vs `TRAVELLING`) and their active route context.
+- **Event-Driven Arrival:** Uses the `EventScheduler` to schedule an arrival event at the expected completion time. Once the event triggers, the citizen's location is atomically updated and they are marked as `IDLE`.
+
+### Movement Flow Architecture
+
+```mermaid
+flowchart TD
+    API[Movement API]
+    Movement[Movement Service]
+    Spatial[Spatial Query Service]
+    World[World Engine]
+    Events[Event Scheduler]
+    Time[Time Engine]
+    Citizen[Citizen Repository]
+
+    API -->|Request Movement| Movement
+    Movement -->|Get Coordinates| Spatial
+    Spatial -->|Resolve Entity ID| World
+    Movement -->|Calculate Duration| Time
+    Movement -->|Schedule Arrival| Events
+    Movement -->|Update State to TRAVELLING| Citizen
+
+    Events -->|Arrival Trigger| Movement
+    Movement -->|Update Location, Set IDLE| Citizen
+```
+
+### Determinism and Simulation Speed
+Movement respects simulation pausing and dynamic simulation speeds, because the entire system calculates expected arrival in `SimulationTime` terms and integrates with the authoritative Time Engine through the Event Scheduler.

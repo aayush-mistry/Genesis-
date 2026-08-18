@@ -11,6 +11,7 @@ describe('Citizen Engine (Phase 3.1)', () => {
   let timeEngine: TimeEngine;
   let worldEngine: WorldEngine;
   let scheduler: EventScheduler;
+  let spatialEngine: import('../../spatial/SpatialEngine').SpatialEngine;
   let repository: InMemoryCitizenRepository;
   let citizenService: CitizenService;
 
@@ -18,8 +19,9 @@ describe('Citizen Engine (Phase 3.1)', () => {
     timeEngine = new TimeEngine();
     scheduler = new EventScheduler(timeEngine);
     worldEngine = new WorldEngine();
+    spatialEngine = new (require('../../spatial/SpatialEngine').SpatialEngine)(worldEngine, scheduler);
     repository = new InMemoryCitizenRepository();
-    citizenService = new CitizenService(repository, worldEngine, timeEngine);
+    citizenService = new CitizenService(repository, worldEngine, timeEngine, scheduler, spatialEngine.queryService);
   });
 
   describe('Citizen Creation & Retrieval', () => {

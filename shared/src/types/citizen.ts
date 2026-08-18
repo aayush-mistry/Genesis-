@@ -19,6 +19,23 @@ export interface VitalState {
   lastUpdatedSimulationTime: SimulationTime;
 }
 
+export enum MovementState {
+  IDLE = 'IDLE',
+  TRAVELLING = 'TRAVELLING'
+}
+
+export interface Route {
+  id: string;
+  sourceId: string;
+  destinationId: string;
+  path: string[];
+  status: 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
+  createdAtSimulationTime: SimulationTime;
+  startedAtSimulationTime: SimulationTime;
+  expectedArrivalSimulationTime: SimulationTime;
+  estimatedTravelDurationHours: number;
+}
+
 export interface Citizen {
   id: string;
   name: string;
@@ -28,4 +45,6 @@ export interface Citizen {
   createdAt: SimulationTime;
   locationId: string | null;
   vitalState: VitalState;
+  movementState: MovementState;
+  activeRoute: Route | null;
 }

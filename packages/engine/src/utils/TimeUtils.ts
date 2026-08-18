@@ -30,6 +30,30 @@ export class TimeUtils {
   }
 
   /**
+   * Converts a scalar number of seconds back into a SimulationTime object.
+   */
+  public static fromSeconds(totalSeconds: number): SimulationTime {
+    let remaining = totalSeconds;
+
+    const second = remaining % 60;
+    remaining = Math.floor(remaining / 60);
+
+    const minute = remaining % 60;
+    remaining = Math.floor(remaining / 60);
+
+    const hour = remaining % 24;
+    remaining = Math.floor(remaining / 24);
+
+    const day = (remaining % 30) + 1;
+    remaining = Math.floor(remaining / 30);
+
+    const month = (remaining % 12) + 1;
+    const year = Math.floor(remaining / 12) + 1;
+
+    return { year, month, day, hour, minute, second };
+  }
+
+  /**
    * Compare two SimulationTime objects.
    * Returns negative if t1 < t2, zero if t1 === t2, positive if t1 > t2
    */

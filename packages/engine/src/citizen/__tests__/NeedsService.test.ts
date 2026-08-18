@@ -1,6 +1,6 @@
 import { NeedsService, NeedsConfig } from '../services/NeedsService';
 import { InMemoryCitizenRepository } from '../repositories/InMemoryCitizenRepository';
-import { Citizen, CitizenGender, CitizenStatus, SimulationTime, VitalState } from '@genesis/shared';
+import { Citizen, CitizenGender, CitizenStatus, SimulationTime, VitalState, MovementState } from '@genesis/shared';
 import { EventScheduler } from '../../events/EventScheduler';
 import { TimeEngine } from '../../time/TimeEngine';
 
@@ -21,7 +21,9 @@ describe('NeedsService', () => {
     status: CitizenStatus.ACTIVE,
     createdAt: { year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0 },
     locationId: null,
-    vitalState
+    vitalState,
+    movementState: MovementState.IDLE,
+    activeRoute: null
   });
 
   it('initializes deterministically based on seed', () => {

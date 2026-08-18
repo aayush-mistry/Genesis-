@@ -113,5 +113,51 @@ export const CitizenController = {
       criticalThirstCount,
       lowHealthCount
     });
+  },
+
+  requestMovement: async (request: FastifyRequest, reply: FastifyReply) => {
+    const { citizenId } = request.params as { citizenId: string };
+    const { destinationId } = request.body as { destinationId: string };
+
+    if (!destinationId) {
+      return reply.status(400).send({ error: 'destinationId is required' });
+    }
+
+    try {
+      const route = citizenService.engine.movementService.requestMovement(citizenId, destinationId);
+      return reply.send(route);
+    } catch (error: any) {
+      if (error.message.includes('not found')) {
+        return reply.status(404).send({ error: error.message });
+      }
+      return reply.status(400).send({ error: error.message });
+    }
+  },
+
+  getMovement: async (request: FastifyRequest, reply: FastifyReply) => {
+    const { citizenId } = request.params as { citizenId: string };
+    const citizen = citizenService.engine.getCitizen(citizenId);
+
+    if (!citizen) {
+      return reply.status(404).send({ error: `Citizen with ID ${citizenId} not found` });
+    }
+
+    return reply.send({
+      citizenId: citizen.id,
+      locationId: citizen.locationId,
+      movementState: citizen.movementState,
+      activeRoute: citizen.activeRoute
+    });
+  },
+
+  cancelMovement: async (request: FastifyRequest, reply: FastifyReply) => {
+    const { citizenId } = request.params as { citizenId: string };
+
+    try {
+      citizenService.engine.movementService.cancelMovement(citizenId);
+      return reply.send({ success: true });
+    } catch (error: any) {
+      return reply.status(404).send({ error: error.message });
+    }
   }
 };
