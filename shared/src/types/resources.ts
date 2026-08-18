@@ -23,24 +23,30 @@ export enum ResourceType {
   HYDROELECTRIC_POTENTIAL = 'HYDROELECTRIC_POTENTIAL',
 }
 
+export interface ResourceCondition {
+  type: string;
+  value: number; // 0 to 1
+}
+
 export interface Resource extends BaseEntity {
   type: ResourceType;
+  name: string;
   category: ResourceCategory;
+  unit: string;
+  renewable: boolean;
   regionId: string;
-  currentQuantity: number;
-  maximumCapacity: number;
-  quality: number; // 0 to 1
-  purity?: number; // 0 to 1, mostly for minerals
-  health?: number; // 0 to 1, mostly for biological
-  regenerationRate: number; // Amount generated per tick (0 for non-renewable)
-  consumptionRate: number; // Current consumption
+  currentAmount: number;
+  maximumAmount: number;
+  naturalRecoveryRate: number | null; // Amount generated per tick (null for non-renewable)
+  consumptionRate: number | null; // Current consumption (null if not simulated)
+  condition: ResourceCondition | null;
   extractionDifficulty: number; // 0 (easy) to 1 (hard)
   metadata?: Record<string, unknown>;
 }
 
 export interface ResourceStatistics {
   totalQuantity: number;
-  averageQuality: number;
+  averageCondition: number;
   renewableQuantity: number;
   nonRenewableQuantity: number;
   resourceDistribution: Record<string, number>;

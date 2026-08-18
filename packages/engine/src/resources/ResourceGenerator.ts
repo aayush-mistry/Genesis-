@@ -56,18 +56,22 @@ export class ResourceGenerator {
     if (region.climate === 'Desert') multiplier = 0.1;
     if (region.climate === 'Tropical' || region.climate === 'Coastal') multiplier = 2.0;
 
-    const maxCap = Math.floor(rng.nextFloat(50000, 150000) * multiplier);
+    const maxCap = Math.floor(rng.nextFloat(5000000, 15000000) * multiplier); // Cubic meters
     return {
       type: ResourceType.WATER,
+      name: 'Water',
       category: ResourceCategory.RENEWABLE,
+      unit: 'm³',
+      renewable: true,
       regionId: region.id,
-      currentQuantity: Math.floor(maxCap * rng.nextFloat(0.7, 1.0)),
-      maximumCapacity: maxCap,
-      quality: rng.nextFloat(0.5, 1.0),
-      purity: rng.nextFloat(0.6, 1.0),
-      health: 1.0,
-      regenerationRate: Math.floor(rng.nextFloat(10, 50) * multiplier),
-      consumptionRate: 0,
+      currentAmount: Math.floor(maxCap * rng.nextFloat(0.7, 1.0)),
+      maximumAmount: maxCap,
+      condition: {
+        type: 'Water Quality',
+        value: rng.nextFloat(0.5, 1.0)
+      },
+      naturalRecoveryRate: Math.floor(rng.nextFloat(1000, 5000) * multiplier),
+      consumptionRate: null,
       extractionDifficulty: rng.nextFloat(0.1, 0.3)
     };
   }
@@ -78,17 +82,22 @@ export class ResourceGenerator {
     if (region.climate === 'Mountain') multiplier = 1.5;
     if (region.climate === 'Semi-Arid') multiplier = 0.2;
 
-    const maxCap = Math.floor(rng.nextFloat(20000, 80000) * multiplier);
+    const maxCap = Math.floor(rng.nextFloat(20000, 80000) * multiplier); // Hectares
     return {
       type: ResourceType.FORESTS,
+      name: 'Forests',
       category: ResourceCategory.RENEWABLE,
+      unit: 'ha',
+      renewable: true,
       regionId: region.id,
-      currentQuantity: Math.floor(maxCap * rng.nextFloat(0.5, 1.0)),
-      maximumCapacity: maxCap,
-      quality: rng.nextFloat(0.4, 1.0),
-      health: rng.nextFloat(0.7, 1.0),
-      regenerationRate: Math.floor(rng.nextFloat(5, 20) * multiplier),
-      consumptionRate: 0,
+      currentAmount: Math.floor(maxCap * rng.nextFloat(0.5, 1.0)),
+      maximumAmount: maxCap,
+      condition: {
+        type: 'Forest Condition',
+        value: rng.nextFloat(0.7, 1.0)
+      },
+      naturalRecoveryRate: Math.floor(rng.nextFloat(5, 20) * multiplier),
+      consumptionRate: null,
       extractionDifficulty: rng.nextFloat(0.2, 0.5)
     };
   }
@@ -98,33 +107,43 @@ export class ResourceGenerator {
     if (region.climate === 'Temperate') multiplier = 2.0;
     if (region.climate === 'Humid Continental') multiplier = 1.8;
 
-    const maxCap = Math.floor(rng.nextFloat(40000, 100000) * multiplier);
+    const maxCap = Math.floor(rng.nextFloat(40000, 100000) * multiplier); // Hectares
     return {
       type: ResourceType.GRASSLANDS,
+      name: 'Grasslands',
       category: ResourceCategory.RENEWABLE,
+      unit: 'ha',
+      renewable: true,
       regionId: region.id,
-      currentQuantity: Math.floor(maxCap * rng.nextFloat(0.6, 1.0)),
-      maximumCapacity: maxCap,
-      quality: rng.nextFloat(0.5, 1.0),
-      health: rng.nextFloat(0.8, 1.0),
-      regenerationRate: Math.floor(rng.nextFloat(20, 60) * multiplier),
-      consumptionRate: 0,
+      currentAmount: Math.floor(maxCap * rng.nextFloat(0.6, 1.0)),
+      maximumAmount: maxCap,
+      condition: {
+        type: 'Land Condition',
+        value: rng.nextFloat(0.8, 1.0)
+      },
+      naturalRecoveryRate: Math.floor(rng.nextFloat(20, 60) * multiplier),
+      consumptionRate: null,
       extractionDifficulty: rng.nextFloat(0.1, 0.2)
     };
   }
 
   private generateWildlife(region: Region, rng: SeededRandom, baseArea: number) {
-    const maxCap = Math.floor(rng.nextFloat(10000, 40000));
+    const maxCap = Math.floor(rng.nextFloat(10000, 40000)); // Individuals
     return {
       type: ResourceType.WILDLIFE,
+      name: 'Wildlife',
       category: ResourceCategory.RENEWABLE,
+      unit: 'individuals',
+      renewable: true,
       regionId: region.id,
-      currentQuantity: Math.floor(maxCap * rng.nextFloat(0.4, 0.9)),
-      maximumCapacity: maxCap,
-      quality: rng.nextFloat(0.5, 1.0),
-      health: rng.nextFloat(0.7, 1.0),
-      regenerationRate: Math.floor(rng.nextFloat(2, 10)),
-      consumptionRate: 0,
+      currentAmount: Math.floor(maxCap * rng.nextFloat(0.4, 0.9)),
+      maximumAmount: maxCap,
+      condition: {
+        type: 'Population Health',
+        value: rng.nextFloat(0.7, 1.0)
+      },
+      naturalRecoveryRate: Math.floor(rng.nextFloat(2, 10)),
+      consumptionRate: null,
       extractionDifficulty: rng.nextFloat(0.3, 0.6)
     };
   }
@@ -133,17 +152,22 @@ export class ResourceGenerator {
     let multiplier = 1.0;
     if (region.climate === 'Coastal') multiplier = 3.0;
 
-    const maxCap = Math.floor(rng.nextFloat(20000, 60000) * multiplier);
+    const maxCap = Math.floor(rng.nextFloat(20000, 60000) * multiplier); // Tonnes
     return {
       type: ResourceType.FISH,
+      name: 'Fish',
       category: ResourceCategory.RENEWABLE,
+      unit: 'tonnes',
+      renewable: true,
       regionId: region.id,
-      currentQuantity: Math.floor(maxCap * rng.nextFloat(0.6, 1.0)),
-      maximumCapacity: maxCap,
-      quality: rng.nextFloat(0.5, 1.0),
-      health: rng.nextFloat(0.7, 1.0),
-      regenerationRate: Math.floor(rng.nextFloat(10, 30) * multiplier),
-      consumptionRate: 0,
+      currentAmount: Math.floor(maxCap * rng.nextFloat(0.6, 1.0)),
+      maximumAmount: maxCap,
+      condition: {
+        type: 'Ecosystem Health',
+        value: rng.nextFloat(0.7, 1.0)
+      },
+      naturalRecoveryRate: Math.floor(rng.nextFloat(10, 30) * multiplier),
+      consumptionRate: null,
       extractionDifficulty: rng.nextFloat(0.2, 0.5)
     };
   }
@@ -152,17 +176,19 @@ export class ResourceGenerator {
     let multiplier = 1.0;
     if (region.climate === 'Mountain') multiplier = 3.0;
     
-    const qty = Math.floor(rng.nextFloat(100000, 500000) * multiplier);
+    const qty = Math.floor(rng.nextFloat(100000, 500000) * multiplier); // Tonnes
     return {
       type: ResourceType.STONE,
+      name: 'Stone',
       category: ResourceCategory.NON_RENEWABLE,
+      unit: 'tonnes',
+      renewable: false,
       regionId: region.id,
-      currentQuantity: qty,
-      maximumCapacity: qty,
-      quality: rng.nextFloat(0.4, 1.0),
-      purity: rng.nextFloat(0.7, 1.0),
-      regenerationRate: 0,
-      consumptionRate: 0,
+      currentAmount: qty,
+      maximumAmount: qty,
+      condition: null,
+      naturalRecoveryRate: null,
+      consumptionRate: null,
       extractionDifficulty: rng.nextFloat(0.3, 0.7)
     };
   }
@@ -171,17 +197,22 @@ export class ResourceGenerator {
     let multiplier = 1.0;
     if (region.climate === 'Mountain') multiplier = 2.5;
     
-    const qty = Math.floor(rng.nextFloat(20000, 80000) * multiplier);
+    const qty = Math.floor(rng.nextFloat(20000, 80000) * multiplier); // Tonnes
     return {
       type: ResourceType.IRON,
+      name: 'Iron',
       category: ResourceCategory.NON_RENEWABLE,
+      unit: 'tonnes',
+      renewable: false,
       regionId: region.id,
-      currentQuantity: qty,
-      maximumCapacity: qty,
-      quality: rng.nextFloat(0.5, 1.0),
-      purity: rng.nextFloat(0.4, 0.9),
-      regenerationRate: 0,
-      consumptionRate: 0,
+      currentAmount: qty,
+      maximumAmount: qty,
+      condition: {
+        type: 'Ore Purity',
+        value: rng.nextFloat(0.4, 0.9)
+      },
+      naturalRecoveryRate: null,
+      consumptionRate: null,
       extractionDifficulty: rng.nextFloat(0.4, 0.8)
     };
   }
@@ -191,17 +222,22 @@ export class ResourceGenerator {
     if (region.climate === 'Mountain') multiplier = 2.0;
     if (region.climate === 'Desert') multiplier = 1.5;
     
-    const qty = Math.floor(rng.nextFloat(15000, 60000) * multiplier);
+    const qty = Math.floor(rng.nextFloat(15000, 60000) * multiplier); // Tonnes
     return {
       type: ResourceType.COPPER,
+      name: 'Copper',
       category: ResourceCategory.NON_RENEWABLE,
+      unit: 'tonnes',
+      renewable: false,
       regionId: region.id,
-      currentQuantity: qty,
-      maximumCapacity: qty,
-      quality: rng.nextFloat(0.5, 1.0),
-      purity: rng.nextFloat(0.4, 0.9),
-      regenerationRate: 0,
-      consumptionRate: 0,
+      currentAmount: qty,
+      maximumAmount: qty,
+      condition: {
+        type: 'Ore Purity',
+        value: rng.nextFloat(0.4, 0.9)
+      },
+      naturalRecoveryRate: null,
+      consumptionRate: null,
       extractionDifficulty: rng.nextFloat(0.4, 0.8)
     };
   }
@@ -210,17 +246,22 @@ export class ResourceGenerator {
     let multiplier = 1.0;
     if (region.climate === 'Humid Continental' || region.climate === 'Temperate') multiplier = 2.0;
     
-    const qty = Math.floor(rng.nextFloat(30000, 100000) * multiplier);
+    const qty = Math.floor(rng.nextFloat(30000, 100000) * multiplier); // Tonnes
     return {
       type: ResourceType.COAL,
+      name: 'Coal',
       category: ResourceCategory.NON_RENEWABLE,
+      unit: 'tonnes',
+      renewable: false,
       regionId: region.id,
-      currentQuantity: qty,
-      maximumCapacity: qty,
-      quality: rng.nextFloat(0.4, 1.0),
-      purity: rng.nextFloat(0.5, 0.95),
-      regenerationRate: 0,
-      consumptionRate: 0,
+      currentAmount: qty,
+      maximumAmount: qty,
+      condition: {
+        type: 'Deposit Quality',
+        value: rng.nextFloat(0.5, 0.95)
+      },
+      naturalRecoveryRate: null,
+      consumptionRate: null,
       extractionDifficulty: rng.nextFloat(0.5, 0.9)
     };
   }
@@ -229,17 +270,19 @@ export class ResourceGenerator {
     let multiplier = 1.0;
     if (region.climate === 'Mountain') multiplier = 1.5;
     
-    const qty = Math.floor(rng.nextFloat(1000, 5000) * multiplier);
+    const qty = Math.floor(rng.nextFloat(1000, 5000) * multiplier); // kg
     return {
       type: ResourceType.GOLD,
+      name: 'Gold',
       category: ResourceCategory.NON_RENEWABLE,
+      unit: 'kg',
+      renewable: false,
       regionId: region.id,
-      currentQuantity: qty,
-      maximumCapacity: qty,
-      quality: rng.nextFloat(0.8, 1.0),
-      purity: rng.nextFloat(0.1, 0.5),
-      regenerationRate: 0,
-      consumptionRate: 0,
+      currentAmount: qty,
+      maximumAmount: qty,
+      condition: null,
+      naturalRecoveryRate: null,
+      consumptionRate: null,
       extractionDifficulty: rng.nextFloat(0.7, 1.0)
     };
   }
@@ -248,17 +291,22 @@ export class ResourceGenerator {
     let multiplier = 1.0;
     if (region.climate === 'Desert' || region.climate === 'Arctic' || region.climate === 'Coastal') multiplier = 2.0;
     
-    const qty = Math.floor(rng.nextFloat(20000, 100000) * multiplier);
+    const qty = Math.floor(rng.nextFloat(20000, 100000) * multiplier); // Barrels
     return {
       type: ResourceType.OIL,
+      name: 'Oil',
       category: ResourceCategory.NON_RENEWABLE,
+      unit: 'barrels',
+      renewable: false,
       regionId: region.id,
-      currentQuantity: qty,
-      maximumCapacity: qty,
-      quality: rng.nextFloat(0.6, 1.0),
-      purity: rng.nextFloat(0.6, 1.0),
-      regenerationRate: 0,
-      consumptionRate: 0,
+      currentAmount: qty,
+      maximumAmount: qty,
+      condition: {
+        type: 'Crude Quality',
+        value: rng.nextFloat(0.6, 1.0)
+      },
+      naturalRecoveryRate: null,
+      consumptionRate: null,
       extractionDifficulty: rng.nextFloat(0.6, 0.95)
     };
   }
@@ -267,17 +315,19 @@ export class ResourceGenerator {
     let multiplier = 1.0;
     if (region.climate === 'Desert' || region.climate === 'Arctic') multiplier = 2.0;
     
-    const qty = Math.floor(rng.nextFloat(20000, 90000) * multiplier);
+    const qty = Math.floor(rng.nextFloat(20000, 90000) * multiplier); // Cubic meters
     return {
       type: ResourceType.NATURAL_GAS,
+      name: 'Natural Gas',
       category: ResourceCategory.NON_RENEWABLE,
+      unit: 'm³',
+      renewable: false,
       regionId: region.id,
-      currentQuantity: qty,
-      maximumCapacity: qty,
-      quality: rng.nextFloat(0.6, 1.0),
-      purity: rng.nextFloat(0.7, 1.0),
-      regenerationRate: 0,
-      consumptionRate: 0,
+      currentAmount: qty,
+      maximumAmount: qty,
+      condition: null,
+      naturalRecoveryRate: null,
+      consumptionRate: null,
       extractionDifficulty: rng.nextFloat(0.6, 0.95)
     };
   }
@@ -288,16 +338,19 @@ export class ResourceGenerator {
     if (region.climate === 'Arctic') multiplier = 0.2;
     if (region.climate === 'Tropical') multiplier = 1.5;
 
-    const maxCap = Math.floor(rng.nextFloat(500, 1500) * multiplier); // abstract units
+    const maxCap = Math.floor(rng.nextFloat(500, 1500) * multiplier); // W/m²
     return {
       type: ResourceType.SOLAR_POTENTIAL,
+      name: 'Solar Potential',
       category: ResourceCategory.RENEWABLE,
+      unit: 'W/m²',
+      renewable: true,
       regionId: region.id,
-      currentQuantity: maxCap,
-      maximumCapacity: maxCap,
-      quality: rng.nextFloat(0.7, 1.0),
-      regenerationRate: maxCap, // Potential is always max available when sunny
-      consumptionRate: 0,
+      currentAmount: maxCap,
+      maximumAmount: maxCap,
+      condition: null,
+      naturalRecoveryRate: maxCap, // Potential is always max available when sunny
+      consumptionRate: null,
       extractionDifficulty: rng.nextFloat(0.1, 0.3)
     };
   }
@@ -306,16 +359,19 @@ export class ResourceGenerator {
     let multiplier = 1.0;
     if (region.climate === 'Coastal' || region.climate === 'Mountain') multiplier = 2.5;
 
-    const maxCap = Math.floor(rng.nextFloat(400, 1200) * multiplier); // abstract units
+    const maxCap = Math.floor(rng.nextFloat(400, 1200) * multiplier); // W/m²
     return {
       type: ResourceType.WIND_POTENTIAL,
+      name: 'Wind Potential',
       category: ResourceCategory.RENEWABLE,
+      unit: 'W/m²',
+      renewable: true,
       regionId: region.id,
-      currentQuantity: maxCap,
-      maximumCapacity: maxCap,
-      quality: rng.nextFloat(0.6, 1.0),
-      regenerationRate: maxCap,
-      consumptionRate: 0,
+      currentAmount: maxCap,
+      maximumAmount: maxCap,
+      condition: null,
+      naturalRecoveryRate: maxCap,
+      consumptionRate: null,
       extractionDifficulty: rng.nextFloat(0.2, 0.4)
     };
   }

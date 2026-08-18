@@ -23,14 +23,14 @@ The simulation engine is completely independent from the frontend.
 
 ```
 genesis/
-├── packages/
-│   └── engine/   # Core simulation engine logic (Time Engine, etc.)
-├── frontend/     # React, Vite, Tailwind CSS application
-├── backend/      # Node.js, Fastify, Prisma backend API
-├── shared/       # Shared TypeScript types, interfaces, constants
-├── docs/         # Additional project documentation
-├── scripts/      # Automation and CI/CD scripts
-└── .github/      # GitHub actions and workflows
+â”œâ”€â”€ packages/
+â”‚   â””â”€â”€ engine/   # Core simulation engine logic (Time Engine, etc.)
+â”œâ”€â”€ frontend/     # React, Vite, Tailwind CSS application
+â”œâ”€â”€ backend/      # Node.js, Fastify, Prisma backend API
+â”œâ”€â”€ shared/       # Shared TypeScript types, interfaces, constants
+â”œâ”€â”€ docs/         # Additional project documentation
+â”œâ”€â”€ scripts/      # Automation and CI/CD scripts
+â””â”€â”€ .github/      # GitHub actions and workflows
 ```
 
 ## Tech Stack
@@ -91,30 +91,30 @@ npm run dev
 ```text
 Genesis Roadmap
 
-Phase 1 ✅ Core Engine
-├── Project Foundation
-├── Time Engine
-├── Event Scheduler
-└── Engine Inspector
+Phase 1 âœ… Core Engine
+â”œâ”€â”€ Project Foundation
+â”œâ”€â”€ Time Engine
+â”œâ”€â”€ Event Scheduler
+â””â”€â”€ Engine Inspector
 
-Phase 2 🚧 World Engine
-├── 2.1 World Model
-├── 2.2 Environment Engine
-├── 2.3 Resource Engine
-├── 2.4 Spatial Engine
-└── 2.5 World Inspector
+Phase 2 ðŸš§ World Engine
+â”œâ”€â”€ 2.1 World Model
+â”œâ”€â”€ 2.2 Environment Engine
+â”œâ”€â”€ 2.3 Resource Engine
+â”œâ”€â”€ 2.4 Spatial Engine
+â””â”€â”€ 2.5 World Inspector
 
-Phase 3 🔜 Citizen Engine
-Phase 4 🔜 AI Decision Engine
-Phase 5 🔜 Economy Engine
-Phase 6 🔜 Relationship Engine
-Phase 7 🔜 History Engine
-Phase 8 🔜 Visualization
-Phase 9 🔜 Persistence
-Phase 10 🔜 Optimization & Scale
+Phase 3 ðŸ”œ Citizen Engine
+Phase 4 ðŸ”œ AI Decision Engine
+Phase 5 ðŸ”œ Economy Engine
+Phase 6 ðŸ”œ Relationship Engine
+Phase 7 ðŸ”œ History Engine
+Phase 8 ðŸ”œ Visualization
+Phase 9 ðŸ”œ Persistence
+Phase 10 ðŸ”œ Optimization & Scale
 ```
 
-## Phase 2 – World Engine
+## Phase 2 â€“ World Engine
 
 The World Engine provides the spatial foundation for every future module in Project Genesis. 
 
@@ -165,7 +165,7 @@ After creation, the World Engine becomes active and all future modules operate w
 
 This design ensures the simulation lifecycle is explicit and controlled by the engine rather than hidden initialization logic.
 
-## Phase 2.2 – Environment Engine
+## Phase 2.2 â€“ Environment Engine
 
 The Environment Engine adds a robust, data-driven environmental simulation layer to Genesis. It is responsible for simulating realistic environmental conditions across the world's regions independently from other engines.
 
@@ -224,7 +224,7 @@ graph TD;
     NeighbourRegionB --> NeighbourRegionC;
 ```
 
-## Phase 2.3 – Resource Engine
+## Phase 2.3 â€“ Resource Engine
 
 The Resource Engine represents nature in Project Genesis. It is responsible for generating, storing, managing, regenerating, and monitoring every natural resource existing in the simulation world. Resources exist independently of civilization, and their generation is strictly deterministic based on the World Seed.
 
@@ -291,7 +291,7 @@ graph TD;
     Regeneration --> UpdatedState[Updated Resource State]
 ```
 
-## Phase 2.4 – Spatial Engine
+## Phase 2.4 â€“ Spatial Engine
 
 The Spatial Engine provides efficient spatial queries, indexing, and coordinate relationships over the world managed by the World Engine. It does not replace the World Engine's hierarchical ownership, but answers "How are these entities spatially related?" in a performant manner.
 
@@ -339,7 +339,7 @@ graph TD;
     FilterResults --> ReturnResults[Return Spatial Results]
 ```
 
-## Phase 2.5 — World Inspector
+## Phase 2.5 â€” World Inspector
 
 The World Inspector is a **Read-Only developer interface** designed to observe the live, deterministic state of the entire Genesis simulation. It acts as the ultimate debugging dashboard, aggregating data from all the backend engines into a single, unified view without introducing any simulation logic into the frontend.
 
@@ -399,9 +399,9 @@ flowchart LR
     Events --> Inspector
 ```
 
-## Phase 3 — Citizen Engine
+## Phase 3 â€” Citizen Engine
 
-### Phase 3.1 — Citizen Model
+### Phase 3.1 â€” Citizen Model
 Establishes the foundational deterministic Citizen Domain Model without adding behavior or AI simulation.
 
 - **Purpose**: Define what a Citizen is and provide a clean representation for future systems.
@@ -420,7 +420,7 @@ flowchart TD
     Citizen --> API[Citizen API]
 ```
 
-## Phase 3.3 — Needs & Vital State
+## Phase 3.3 â€” Needs & Vital State
 
 The Needs & Vital State phase introduces the first dynamic biological state of citizens in Genesis. Each citizen now receives a `VitalState` tracking Hunger, Thirst, Energy, and Health values bounds strictly between 0 and 100.
 
@@ -488,6 +488,50 @@ flowchart TD
         --> Lifecycle[Future Citizen Lifecycle]
 ```
 
+## Resource Model
+
+The Resource Engine strictly defines semantic, deterministic data rather than arbitrary scores.
+
+- **Resource Categories**: Resources are divided into `RENEWABLE` (e.g., Water, Forests) and `NON_RENEWABLE` (e.g., Minerals).
+- **Physical Units**: Every resource has a defined physical unit (`m³`, `ha`, `tonnes`, etc.) for absolute clarity.
+- **Current Quantity & Capacity**: The engine explicitly limits `currentAmount` to `maximumAmount`, with maximum capacity derived deterministically from region characteristics (climate, size).
+- **Natural Recovery**: Renewable resources have a `naturalRecoveryRate` (amount replenished per hour). Non-renewable resources are explicitly marked with `null`.
+- **Condition**: Replaces generic "Health" and "Quality" with explicit, semantic strings like `Water Quality`, `Forest Condition`, or `Ore Purity`.
+- **Deterministic Generation**: All generation uses a `SeededRandom` dependent on the global world seed and the specific region hash.
+- **Consumption**: The API explicitly communicates `consumptionRate`, rendering it as `Not yet simulated` until consumption systems are built.
+
+### Resource Engine Architecture
+
+```mermaid
+flowchart TD
+
+    Region[Region]
+    Climate[Climate]
+    Weather[Weather]
+    Soil[Soil]
+    WaterBodies[Water Bodies]
+    Land[Land Area]
+    Population[Population]
+
+    Region --> ResourceEngine[Resource Engine]
+    Climate --> ResourceEngine
+    Weather --> ResourceEngine
+    Soil --> ResourceEngine
+    WaterBodies --> ResourceEngine
+    Land --> ResourceEngine
+    Population --> ResourceEngine
+
+    ResourceEngine --> Quantity[Current Quantity]
+    ResourceEngine --> Capacity[Resource Capacity]
+    ResourceEngine --> Recovery[Natural Recovery]
+    ResourceEngine --> Condition[Resource Condition]
+
+    CitizenEngine[Citizen Engine]
+        --> Consumption[Resource Consumption]
+
+    Consumption --> ResourceEngine
+```
+
 ## Phase 3.4 — Location, Routes & Movement
 
 Phase 3.4 introduces the mechanical movement infrastructure for citizens, strictly separating **movement execution** from **movement decision-making**.
@@ -524,12 +568,12 @@ flowchart TD
 ### Determinism and Simulation Speed
 Movement respects simulation pausing and dynamic simulation speeds, because the entire system calculates expected arrival in `SimulationTime` terms and integrates with the authoritative Time Engine through the Event Scheduler.
 
-## Phase 3.5 — Occupation, Skills & Workplaces
+## Phase 3.5 â€” Occupation, Skills & Workplaces
 
 Phase 3.5 gives citizens an economic and occupational identity. The engine assigns citizens to deterministic, resource-driven workplaces while adhering to strict requirements on skill suitability and age restrictions.
 
 ### Responsibilities
-- **Skill System:** Citizens are deterministically generated with a set of 0–100 skills depending on their age and seed. 
+- **Skill System:** Citizens are deterministically generated with a set of 0â€“100 skills depending on their age and seed. 
 - **World-Driven Generation:** Workplaces (Farms, Mines, Offices, Public Services) spawn organically based on the world's regions, existing structures (e.g., city buildings), and natural environment rather than randomized assignment.
 - **Job Eligibility & Vacancies:** Jobs are strictly distributed based on workplace capacity (`vacancies = capacity - occupiedPositions`), citizen age (under 18 are `STUDENT`, 75+ are `RETIRED`), and required minimum skills.
 - **Suitability Ranking:** Unemployed citizens are ranked for vacancies based on skill alignment, resolving tie-breakers deterministically.
@@ -576,7 +620,7 @@ flowchart TD
     Movement --> Scheduler[Event Scheduler]
 ```
 
-## Phase 4 � AI Decision Engine
+## Phase 4 — AI Decision Engine
 
 The AI Decision Engine provides the foundational framework for citizen intelligence. It strictly separates **decision-making** from **execution**, orchestrating the sequence of perceiving state, scoring options, and finalizing a choice.
 

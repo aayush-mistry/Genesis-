@@ -58,35 +58,43 @@ export class ResourceManager {
   public getStatistics(): ResourceStatistics {
     const all = this.getAllResources();
     let totalQuantity = 0;
-    let totalQuality = 0;
+    let totalCondition = 0;
     let renewableQuantity = 0;
     let nonRenewableQuantity = 0;
     let totalRegenerationRate = 0;
+    let resourcesWithCondition = 0;
+    let resourcesWithRegeneration = 0;
     const distribution: Record<string, number> = {};
 
     all.forEach(r => {
-      totalQuantity += r.currentQuantity;
-      totalQuality += r.quality;
-      totalRegenerationRate += r.regenerationRate;
-
-      if (r.category === ResourceCategory.RENEWABLE) {
-        renewableQuantity += r.currentQuantity;
-      } else {
-        nonRenewableQuantity += r.currentQuantity;
+      totalQuantity += r.currentAmount;
+      if (r.condition !== null) {
+        totalCondition += r.condition.value;
+        resourcesWithCondition++;
+      }
+      if (r.naturalRecoveryRate !== null) {
+        totalRegenerationRate += r.naturalRecoveryRate;
+        resourcesWithRegeneration++;
       }
 
-      distribution[r.type] = (distribution[r.type] || 0) + r.currentQuantity;
+      if (r.renewable) {
+        renewableQuantity += r.currentAmount;
+      } else {
+        nonRenewableQuantity += r.currentAmount;
+      }
+
+      distribution[r.type] = (distribution[r.type] || 0) + r.currentAmount;
     });
 
     const count = all.length;
 
     return {
       totalQuantity,
-      averageQuality: count > 0 ? totalQuality / count : 0,
+      averageCondition: resourcesWithCondition > 0 ? totalCondition / resourcesWithCondition : 0,
       renewableQuantity,
       nonRenewableQuantity,
       resourceDistribution: distribution,
-      averageRegenerationRate: count > 0 ? totalRegenerationRate / count : 0
+      averageRegenerationRate: resourcesWithRegeneration > 0 ? totalRegenerationRate / resourcesWithRegeneration : 0
     };
   }
 }

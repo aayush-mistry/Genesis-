@@ -14,7 +14,7 @@ export function ResourceStats() {
 
   const statCards = [
     { label: 'Total Quantity', value: stats.totalQuantity.toLocaleString(), color: 'text-indigo-400', icon: <Mountain size={18} /> },
-    { label: 'Avg Quality', value: `${(stats.averageQuality * 100).toFixed(1)}%`, color: 'text-blue-400', icon: <Activity size={18} /> },
+    { label: 'Avg Condition', value: `${(stats.averageCondition * 100).toFixed(1)}%`, color: 'text-blue-400', icon: <Activity size={18} /> },
     { label: 'Renewable', value: stats.renewableQuantity.toLocaleString(), color: 'text-green-400', icon: <Leaf size={18} /> },
     { label: 'Non-Renewable', value: stats.nonRenewableQuantity.toLocaleString(), color: 'text-yellow-400', icon: <Zap size={18} /> },
   ];

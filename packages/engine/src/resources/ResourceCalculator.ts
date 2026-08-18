@@ -67,19 +67,24 @@ export class ResourceCalculator {
     }
 
     // The base regeneration rate is per tick (usually 1 hour)
-    const baseRegen = resource.regenerationRate;
+    const baseRegen = resource.naturalRecoveryRate ?? 0;
     const generatedAmount = baseRegen * modifier * hoursElapsed;
     
     // Calculate new quantity with cap
-    let newQuantity = resource.currentQuantity + generatedAmount - (resource.consumptionRate * hoursElapsed);
+    const consumption = resource.consumptionRate ?? 0;
+    let newQuantity = resource.currentAmount + generatedAmount - (consumption * hoursElapsed);
     
     // Clamp to boundaries
-    if (newQuantity > resource.maximumCapacity) newQuantity = resource.maximumCapacity;
+    if (newQuantity > resource.maximumAmount) newQuantity = resource.maximumAmount;
     if (newQuantity < 0) newQuantity = 0;
 
+    const updates: Partial<Resource> = {
+      currentAmount: newQuantity,
+    };
+
     // Quality changes based on extremes (health of forests etc.)
-    let newHealth = resource.health !== undefined ? resource.health : 1.0;
-    if (resource.type === ResourceType.FORESTS || resource.type === ResourceType.WILDLIFE) {
+    if (resource.condition !== null && (resource.type === ResourceType.FORESTS || resource.type === ResourceType.WILDLIFE)) {
+       let newHealth = resource.condition.value;
        if (envState && envState.temperature > 40 && envState.humidity < 20) {
          newHealth -= 0.01 * hoursElapsed; // Drought damage
        } else if (modifier >= 1.2) {
@@ -87,16 +92,11 @@ export class ResourceCalculator {
        }
        if (newHealth > 1.0) newHealth = 1.0;
        if (newHealth < 0) newHealth = 0;
-    }
-
-    const updates: Partial<Resource> = {
-      currentQuantity: newQuantity,
-    };
-    
-    if (resource.health !== undefined) {
-      updates.health = newHealth;
-      // Quality correlates to health for biologicals
-      updates.quality = newHealth * 0.9 + 0.1;
+       
+       updates.condition = {
+         type: resource.condition.type,
+         value: newHealth
+       };
     }
 
     return updates;
