@@ -86,6 +86,11 @@ export class CitizenService {
     };
 
     this.repository.create(citizen);
+    
+    // Update population
+    this.updatePopulationForLocation(locationId, 1);
+    this.worldEngine.worldManager.updatePopulation(1);
+
     return citizen;
   }
 
@@ -98,6 +103,15 @@ export class CitizenService {
   }
 
   public deleteCitizen(id: string): boolean {
+    const citizen = this.repository.findById(id);
+    if (!citizen) return false;
+
+    // Decrement population
+    if (citizen.status === CitizenStatus.ACTIVE) {
+      this.updatePopulationForLocation(citizen.locationId, -1);
+      this.worldEngine.worldManager.updatePopulation(-1);
+    }
+
     return this.repository.delete(id);
   }
 
@@ -129,5 +143,54 @@ export class CitizenService {
     if (!exists) {
       throw new Error(`Location validation failed: Entity with ID ${locationId} does not exist in the World Engine.`);
     }
+  }
+
+  private updatePopulationForLocation(locationId: string | null, amount: number): void {
+    const hierarchy = this.worldEngine.resolveLocationHierarchy(locationId);
+    if (hierarchy.regionId) {
+      this.worldEngine.regionManager.updatePopulation(hierarchy.regionId, amount);
+    }
+    if (hierarchy.cityId) {
+      this.worldEngine.cityManager.updatePopulation(hierarchy.cityId, amount);
+    }
+  }
+
+  /**
+   * Called to update citizen location (migration)
+   */
+  public updateLocation(citizenId: string, newLocationId: string | null): void {
+    const citizen = this.getCitizen(citizenId);
+    if (!citizen) return;
+
+    if (newLocationId) {
+      this.validateLocation(newLocationId);
+    }
+
+    if (citizen.status === CitizenStatus.ACTIVE) {
+      this.updatePopulationForLocation(citizen.locationId, -1);
+      this.updatePopulationForLocation(newLocationId, 1);
+    }
+
+    citizen.locationId = newLocationId;
+    this.repository.update(citizen);
+  }
+
+  /**
+   * Called to update status (e.g., DECEASED)
+   */
+  public updateStatus(citizenId: string, status: CitizenStatus): void {
+    const citizen = this.getCitizen(citizenId);
+    if (!citizen || citizen.status === status) return;
+
+    if (status === CitizenStatus.DECEASED && citizen.status === CitizenStatus.ACTIVE) {
+      this.updatePopulationForLocation(citizen.locationId, -1);
+      this.worldEngine.worldManager.updatePopulation(-1);
+    } else if (status === CitizenStatus.ACTIVE && citizen.status === CitizenStatus.DECEASED) {
+      this.updatePopulationForLocation(citizen.locationId, 1);
+      this.worldEngine.worldManager.updatePopulation(1);
+    }
+
+    citizen.status = status;
+    this.repository.update(citizen);
   }
 }

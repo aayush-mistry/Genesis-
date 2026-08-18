@@ -50,4 +50,12 @@ export class RegionManager {
       region.cityIds = region.cityIds.filter((id: string) => id !== cityId);
     }
   }
+
+  public updatePopulation(regionId: string, amount: number): void {
+    const region = this.regions.get(regionId);
+    if (region) {
+      region.population += amount;
+      if (region.population < 0) region.population = 0;
+    }
+  }
 }

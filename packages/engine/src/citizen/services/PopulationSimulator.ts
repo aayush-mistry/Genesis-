@@ -18,7 +18,13 @@ export class PopulationSimulator {
   private readonly MONTHLY_DEATH_RATE = 0.01 / 12; // 1% annual base death rate
   private readonly MONTHLY_MIGRATION_RATE = 0.005 / 12; // 0.5% annual migration growth
 
-  constructor(citizenService: CitizenService, timeEngine: TimeEngine, occupationService?: OccupationService, workplaceGenerator?: WorkplaceGenerator) {
+  constructor(
+    citizenService: CitizenService, 
+    timeEngine: TimeEngine, 
+    occupationService?: OccupationService, 
+    workplaceGenerator?: WorkplaceGenerator,
+    private defaultLocationIdProvider?: () => string | null
+  ) {
     this.citizenService = citizenService;
     this.timeEngine = timeEngine;
     this.occupationService = occupationService;
@@ -47,7 +53,8 @@ export class PopulationSimulator {
       const birthDate = { ...currentTime };
       birthDate.year -= ageYears;
 
-      this.citizenService.createCitizen(gender, null, birthDate);
+      const locationId = this.defaultLocationIdProvider ? this.defaultLocationIdProvider() : null;
+      this.citizenService.createCitizen(gender, locationId, birthDate);
     }
 
     if (this.workplaceGenerator && this.occupationService) {
@@ -103,7 +110,8 @@ export class PopulationSimulator {
       if (Math.random() < this.MONTHLY_BIRTH_RATE) {
         newBirths++;
         const gender = Math.random() > 0.5 ? CitizenGender.FEMALE : CitizenGender.MALE;
-        this.citizenService.createCitizen(gender, null, { ...currentTime });
+        const locationId = this.defaultLocationIdProvider ? this.defaultLocationIdProvider() : null;
+        this.citizenService.createCitizen(gender, locationId, { ...currentTime });
       }
     }
 
@@ -119,8 +127,7 @@ export class PopulationSimulator {
 
       if (Math.random() < individualDeathRate) {
         newDeaths++;
-        citizen.status = CitizenStatus.DECEASED;
-        // Ideally update through repository
+        this.citizenService.updateStatus(citizen.id, CitizenStatus.DECEASED);
       }
     }
 
@@ -133,7 +140,8 @@ export class PopulationSimulator {
             const ageYears = 20 + Math.floor(Math.random() * 10);
             const birthDate = { ...currentTime };
             birthDate.year -= ageYears;
-            this.citizenService.createCitizen(gender, null, birthDate);
+            const locationId = this.defaultLocationIdProvider ? this.defaultLocationIdProvider() : null;
+            this.citizenService.createCitizen(gender, locationId, birthDate);
         }
     }
   }

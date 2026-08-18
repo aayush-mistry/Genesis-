@@ -100,4 +100,30 @@ export class WorldEngine {
 
     return undefined;
   }
+  public resolveLocationHierarchy(locationId: string | null): { regionId?: string, cityId?: string } {
+    if (!locationId) return {};
+
+    const region = this.regionManager.getRegion(locationId);
+    if (region) return { regionId: region.id };
+
+    const city = this.cityManager.getCity(locationId);
+    if (city) return { regionId: city.regionId, cityId: city.id };
+
+    const district = this.districtManager.getDistrict(locationId);
+    if (district) {
+      const parentCity = this.cityManager.getCity(district.cityId);
+      if (parentCity) return { regionId: parentCity.regionId, cityId: parentCity.id };
+    }
+
+    const building = this.buildingManager.getBuilding(locationId);
+    if (building) {
+      const parentDistrict = this.districtManager.getDistrict(building.districtId);
+      if (parentDistrict) {
+        const parentCity = this.cityManager.getCity(parentDistrict.cityId);
+        if (parentCity) return { regionId: parentCity.regionId, cityId: parentCity.id };
+      }
+    }
+
+    return {};
+  }
 }

@@ -47,4 +47,11 @@ export class WorldManager {
       this.world.regionIds = this.world.regionIds.filter((id: string) => id !== regionId);
     }
   }
+
+  public updatePopulation(amount: number): void {
+    if (this.world) {
+      this.world.currentPopulation += amount;
+      if (this.world.currentPopulation < 0) this.world.currentPopulation = 0;
+    }
+  }
 }

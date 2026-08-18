@@ -17,7 +17,16 @@ class BackendCitizenService {
       eventService.scheduler,
       spatialService.engine.queryService
     );
-    this.simulator = new PopulationSimulator(this.engine, timeService.engine);
+    this.simulator = new PopulationSimulator(
+      this.engine, 
+      timeService.engine,
+      undefined,
+      undefined,
+      () => {
+        const regions = worldService.engine.regionManager.getAllRegions();
+        return regions.length > 0 ? regions[0].id : null;
+      }
+    );
   }
 
   public initialize() {

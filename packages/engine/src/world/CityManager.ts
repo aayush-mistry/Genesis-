@@ -54,4 +54,12 @@ export class CityManager {
       city.districtCount = city.districtIds.length;
     }
   }
+
+  public updatePopulation(cityId: string, amount: number): void {
+    const city = this.cities.get(cityId);
+    if (city) {
+      city.population += amount;
+      if (city.population < 0) city.population = 0;
+    }
+  }
 }
