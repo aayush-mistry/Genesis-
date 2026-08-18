@@ -4,3 +4,5 @@ export * from './CityManager';
 export * from './DistrictManager';
 export * from './BuildingManager';
 export * from './WorldEngine';
+export * from './repositories/WorkplaceRepository';
+export * from './services/WorkplaceGenerator';

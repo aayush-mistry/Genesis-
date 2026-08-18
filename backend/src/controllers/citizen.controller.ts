@@ -159,5 +159,50 @@ export const CitizenController = {
     } catch (error: any) {
       return reply.status(404).send({ error: error.message });
     }
+  },
+
+  getEmployment: async (request: FastifyRequest, reply: FastifyReply) => {
+    const { citizenId } = request.params as { citizenId: string };
+    const citizen = citizenService.engine.getCitizen(citizenId);
+
+    if (!citizen) {
+      return reply.status(404).send({ error: `Citizen with ID ${citizenId} not found` });
+    }
+
+    return reply.send({
+      employmentStatus: citizen.employmentStatus,
+      workplaceId: citizen.workplaceId,
+      jobType: citizen.jobType,
+      jobSchedule: citizen.jobSchedule
+    });
+  },
+
+  getSkills: async (request: FastifyRequest, reply: FastifyReply) => {
+    const { citizenId } = request.params as { citizenId: string };
+    const citizen = citizenService.engine.getCitizen(citizenId);
+
+    if (!citizen) {
+      return reply.status(404).send({ error: `Citizen with ID ${citizenId} not found` });
+    }
+
+    return reply.send(citizen.skills || []);
+  },
+
+  getWorkplace: async (request: FastifyRequest, reply: FastifyReply) => {
+    const { citizenId } = request.params as { citizenId: string };
+    const citizen = citizenService.engine.getCitizen(citizenId);
+
+    if (!citizen) {
+      return reply.status(404).send({ error: `Citizen with ID ${citizenId} not found` });
+    }
+
+    if (!citizen.workplaceId) {
+      return reply.send(null);
+    }
+
+    // Since workplace generation is mocked at the controller level currently or 
+    // requires a global service, we might need a way to fetch it.
+    // Assuming we have workplaceService/repository accessible later, for now we return the ID.
+    return reply.send({ workplaceId: citizen.workplaceId });
   }
 };

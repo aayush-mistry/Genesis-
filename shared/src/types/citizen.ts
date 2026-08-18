@@ -47,4 +47,9 @@ export interface Citizen {
   vitalState: VitalState;
   movementState: MovementState;
   activeRoute: Route | null;
+  skills: import('./occupation').Skill[];
+  employmentStatus: import('./occupation').EmploymentStatus;
+  workplaceId: string | null;
+  jobType: import('./occupation').JobType | null;
+  jobSchedule: import('./occupation').WorkSchedule | null;
 }

@@ -1,10 +1,14 @@
 import { CitizenGender, CitizenStatus, SimulationTime } from '@genesis/shared';
 import { CitizenService } from './CitizenService';
 import { TimeEngine } from '../../time/TimeEngine';
+import { OccupationService } from './OccupationService';
+import { WorkplaceGenerator } from '../../world/services/WorkplaceGenerator';
 
 export class PopulationSimulator {
   private citizenService: CitizenService;
   private timeEngine: TimeEngine;
+  private occupationService?: OccupationService;
+  private workplaceGenerator?: WorkplaceGenerator;
   private lastProcessedYear: number = 0;
   private lastProcessedMonth: number = 0;
   private isSubscribed: boolean = false;
@@ -14,9 +18,11 @@ export class PopulationSimulator {
   private readonly MONTHLY_DEATH_RATE = 0.01 / 12; // 1% annual base death rate
   private readonly MONTHLY_MIGRATION_RATE = 0.005 / 12; // 0.5% annual migration growth
 
-  constructor(citizenService: CitizenService, timeEngine: TimeEngine) {
+  constructor(citizenService: CitizenService, timeEngine: TimeEngine, occupationService?: OccupationService, workplaceGenerator?: WorkplaceGenerator) {
     this.citizenService = citizenService;
     this.timeEngine = timeEngine;
+    this.occupationService = occupationService;
+    this.workplaceGenerator = workplaceGenerator;
     
     // Bind the listener method so it can be added/removed properly
     this.onTimeTick = this.onTimeTick.bind(this);
@@ -42,6 +48,12 @@ export class PopulationSimulator {
       birthDate.year -= ageYears;
 
       this.citizenService.createCitizen(gender, null, birthDate);
+    }
+
+    if (this.workplaceGenerator && this.occupationService) {
+      console.log(`[PopulationSimulator] Generating workplaces and assigning jobs...`);
+      this.workplaceGenerator.generateWorkplaces();
+      this.occupationService.runJobAssignment();
     }
   }
 

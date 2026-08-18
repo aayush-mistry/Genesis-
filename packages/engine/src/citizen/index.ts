@@ -6,3 +6,5 @@ export * from './services/CitizenService';
 export * from './services/PopulationSimulator';
 export * from './services/NeedsService';
 export * from './services/MovementService';
+export * from './generators/SkillGenerator';
+export * from './services/OccupationService';

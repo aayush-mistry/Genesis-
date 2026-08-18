@@ -523,3 +523,55 @@ flowchart TD
 
 ### Determinism and Simulation Speed
 Movement respects simulation pausing and dynamic simulation speeds, because the entire system calculates expected arrival in `SimulationTime` terms and integrates with the authoritative Time Engine through the Event Scheduler.
+
+## Phase 3.5 — Occupation, Skills & Workplaces
+
+Phase 3.5 gives citizens an economic and occupational identity. The engine assigns citizens to deterministic, resource-driven workplaces while adhering to strict requirements on skill suitability and age restrictions.
+
+### Responsibilities
+- **Skill System:** Citizens are deterministically generated with a set of 0–100 skills depending on their age and seed. 
+- **World-Driven Generation:** Workplaces (Farms, Mines, Offices, Public Services) spawn organically based on the world's regions, existing structures (e.g., city buildings), and natural environment rather than randomized assignment.
+- **Job Eligibility & Vacancies:** Jobs are strictly distributed based on workplace capacity (`vacancies = capacity - occupiedPositions`), citizen age (under 18 are `STUDENT`, 75+ are `RETIRED`), and required minimum skills.
+- **Suitability Ranking:** Unemployed citizens are ranked for vacancies based on skill alignment, resolving tie-breakers deterministically.
+- **Work Schedules:** Jobs have intrinsic start and end times, laying the foundation for future routine systems.
+
+### Overall Occupation Architecture
+
+```mermaid
+flowchart TD
+
+    World[Genesis World]
+
+    World --> Resources[Resources]
+    World --> Land[Land & Environment]
+    World --> Buildings[Buildings & Urbanization]
+
+    Resources --> Suitability[Job Suitability]
+    Land --> Suitability
+    Buildings --> Suitability
+
+    Suitability --> Workplaces[Workplace Generation]
+
+    Workplaces --> Positions[Job Positions & Vacancies]
+
+    Citizen[Citizen] --> Skills[Skills]
+    Citizen --> Age[Age & Eligibility]
+    Citizen --> Location[Current Location]
+
+    Skills --> Assignment[Job Assignment]
+    Age --> Assignment
+    Location --> Assignment
+    Positions --> Assignment
+    Suitability --> Assignment
+
+    Assignment --> Employment[Employment]
+
+    Employment --> Workplace[Assigned Workplace]
+    Workplace --> Schedule[Work Schedule]
+
+    Workplace --> Spatial[Spatial Engine]
+    Schedule --> Movement[Movement System]
+
+    Movement --> Time[Time Engine]
+    Movement --> Scheduler[Event Scheduler]
+```

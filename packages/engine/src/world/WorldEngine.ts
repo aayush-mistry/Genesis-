@@ -3,7 +3,7 @@ import { RegionManager } from './RegionManager';
 import { CityManager } from './CityManager';
 import { DistrictManager } from './DistrictManager';
 import { BuildingManager } from './BuildingManager';
-
+import { WorkplaceRepository } from './repositories/WorkplaceRepository';
 
 export class WorldEngine {
   public worldManager: WorldManager;
@@ -11,6 +11,7 @@ export class WorldEngine {
   public cityManager: CityManager;
   public districtManager: DistrictManager;
   public buildingManager: BuildingManager;
+  public workplaceRepository: WorkplaceRepository;
 
   constructor() {
     this.worldManager = new WorldManager();
@@ -18,6 +19,7 @@ export class WorldEngine {
     this.cityManager = new CityManager();
     this.districtManager = new DistrictManager();
     this.buildingManager = new BuildingManager();
+    this.workplaceRepository = new WorkplaceRepository();
   }
 
   // Deletion orchestrations to maintain relational integrity

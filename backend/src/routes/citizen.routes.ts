@@ -13,4 +13,9 @@ export const citizenRoutes: FastifyPluginAsync = async (server: FastifyInstance)
   server.post('/citizens/:citizenId/movement', CitizenController.requestMovement);
   server.get('/citizens/:citizenId/movement', CitizenController.getMovement);
   server.delete('/citizens/:citizenId/movement', CitizenController.cancelMovement);
+
+  // Occupation endpoints
+  server.get('/citizens/:citizenId/employment', CitizenController.getEmployment);
+  server.get('/citizens/:citizenId/skills', CitizenController.getSkills);
+  server.get('/citizens/:citizenId/workplace', CitizenController.getWorkplace);
 };

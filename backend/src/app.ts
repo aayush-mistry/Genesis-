@@ -12,7 +12,7 @@ import { resourceRoutes } from './routes/resource.routes';
 import { spatialRoutes } from './routes/spatial.routes';
 import { systemRoutes } from './routes/system.routes';
 import { citizenRoutes } from './routes/citizen.routes';
-
+import { workplaceRoutes } from './routes/workplace.routes';
 
 export async function buildApp() {
   const app = Fastify({
@@ -31,6 +31,7 @@ export async function buildApp() {
   app.register(spatialRoutes, { prefix: '/api/v1/spatial' });
   app.register(systemRoutes, { prefix: '/api/v1' });
   app.register(citizenRoutes, { prefix: '/api/v1' });
+  app.register(workplaceRoutes, { prefix: '/api/v1' });
 
   // Initialize engines
   import('./services/world.service').then(m => m.worldService.initialize());

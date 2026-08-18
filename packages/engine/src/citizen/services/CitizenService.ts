@@ -1,7 +1,8 @@
-import { Citizen, CitizenGender, CitizenStatus, SimulationTime, MovementState } from '@genesis/shared';
+import { Citizen, CitizenGender, CitizenStatus, SimulationTime, MovementState, EmploymentStatus } from '@genesis/shared';
 import { CitizenRepository } from '../repositories/CitizenRepository';
 import { NameGenerator } from '../generators/NameGenerator';
 import { AgeCalculator } from './AgeCalculator';
+import { SkillGenerator } from '../generators/SkillGenerator';
 import { WorldEngine } from '../../world/WorldEngine';
 import { TimeEngine } from '../../time/TimeEngine';
 import { NeedsService } from './NeedsService';
@@ -76,7 +77,12 @@ export class CitizenService {
       locationId,
       vitalState,
       movementState: MovementState.IDLE,
-      activeRoute: null
+      activeRoute: null,
+      skills: SkillGenerator.generateSkills(actualSeed, AgeCalculator.calculateAge(actualBirthDate, currentTime)),
+      employmentStatus: EmploymentStatus.UNEMPLOYED,
+      workplaceId: null,
+      jobType: null,
+      jobSchedule: null
     };
 
     this.repository.create(citizen);
