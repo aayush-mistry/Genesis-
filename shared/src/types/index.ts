@@ -6,3 +6,4 @@ export * from './environment';
 export * from './resources';
 export * from './spatial';
 export * from './occupation';
+export * from './decision';

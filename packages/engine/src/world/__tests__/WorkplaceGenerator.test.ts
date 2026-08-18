@@ -19,13 +19,13 @@ describe('WorkplaceGenerator', () => {
     const region1 = worldEngine.regionManager.createRegion({ name: 'R1', description: '', population: 0, worldId: 'w1', coordinates: { x:0, y:0 }, climate: 'Temperate', createdAt: new Date(), updatedAt: new Date() });
     worldEngine.worldManager.addRegion(region1.id);
 
-    const city1 = worldEngine.cityManager.createCity({ name: 'C1', population: 0, coordinates: { x:0, y:0 }, area: 100, regionId: region1.id, districtCount: 1, buildingCount: 1 });
+    const city1 = worldEngine.cityManager.createCity({ name: 'C1', population: 0, coordinates: { x:0, y:0 }, area: 100, regionId: region1.id, createdAt: new Date(), updatedAt: new Date() });
     worldEngine.regionManager.addCity(region1.id, city1.id);
 
-    const district1 = worldEngine.districtManager.createDistrict({ name: 'D1', type: 'COMMERCIAL' as any, cityId: city1.id, buildingIds: [] });
+    const district1 = worldEngine.districtManager.createDistrict({ name: 'D1', type: 'COMMERCIAL' as any, cityId: city1.id, createdAt: new Date(), updatedAt: new Date() });
     worldEngine.cityManager.addDistrict(city1.id, district1.id);
 
-    const building1 = worldEngine.buildingManager.createBuilding({ name: 'B1', type: 'OFFICE' as any, coordinates: { x:0, y:0 }, capacity: 10, status: 'OK', districtId: district1.id, roomIds: [] });
+    const building1 = worldEngine.buildingManager.createBuilding({ name: 'B1', type: 'OFFICE' as any, coordinates: { x:0, y:0 }, capacity: 10, status: 'OK', districtId: district1.id, createdAt: new Date(), updatedAt: new Date() });
     worldEngine.districtManager.addBuilding(district1.id, building1.id);
 
     // Generate

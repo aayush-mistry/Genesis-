@@ -12,3 +12,4 @@ export * from './resources';
 export * from './spatial';
 export * from './utils/SeededRandom';
 export * from './citizen';
+export * from './decision';

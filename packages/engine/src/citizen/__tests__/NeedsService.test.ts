@@ -23,7 +23,12 @@ describe('NeedsService', () => {
     locationId: null,
     vitalState,
     movementState: MovementState.IDLE,
-    activeRoute: null
+    activeRoute: null,
+    skills: [],
+    employmentStatus: 'UNEMPLOYED' as any,
+    workplaceId: null,
+    jobType: null,
+    jobSchedule: null
   });
 
   it('initializes deterministically based on seed', () => {

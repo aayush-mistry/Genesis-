@@ -72,10 +72,10 @@ export class WorkplaceGenerator {
         for (const building of buildings) {
           if (building.type === 'OFFICE') {
             this.createUrbanWorkplace(city.regionId, building.id, WorkplaceType.OFFICE, JobType.OFFICE_WORKER, SkillType.ADMINISTRATION, Math.floor(building.capacity * 0.8));
-          } else if (building.type === 'STORE' || building.type === 'COMMERCIAL') {
+          } else if (building.type === 'STORE') {
              this.createUrbanWorkplace(city.regionId, building.id, WorkplaceType.SHOP, JobType.SHOPKEEPER, SkillType.COMMERCE, 4);
              this.createUrbanWorkplace(city.regionId, building.id, WorkplaceType.BUSINESS, JobType.SALESPERSON, SkillType.COMMERCE, 6);
-          } else if (building.type === 'FACTORY' || building.type === 'INDUSTRIAL') {
+          } else if (building.type === 'FACTORY') {
              this.createUrbanWorkplace(city.regionId, building.id, WorkplaceType.FACTORY, JobType.FACTORY_WORKER, SkillType.GENERAL_LABOR, Math.floor(building.capacity * 0.9));
              this.createUrbanWorkplace(city.regionId, building.id, WorkplaceType.FACTORY, JobType.ENGINEER, SkillType.ENGINEERING, Math.floor(building.capacity * 0.1));
           }

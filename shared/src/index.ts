@@ -14,3 +14,4 @@ export * from './types/citizen';
 export { ResourceCategory, ResourceType } from './types/resources';
 export * from './types/spatial';
 export * from './types/occupation';
+export * from './types/decision';

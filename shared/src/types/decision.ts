@@ -1,0 +1,69 @@
+import { VitalState } from './citizen';
+import { Skill, EmploymentStatus } from './occupation';
+
+export enum ActionType {
+  EAT = 'EAT',
+  DRINK = 'DRINK',
+  REST = 'REST',
+  GO_TO_WORK = 'GO_TO_WORK',
+  WORK = 'WORK',
+  GO_HOME = 'GO_HOME',
+  GO_TO_SCHOOL = 'GO_TO_SCHOOL',
+  SEEK_FOOD = 'SEEK_FOOD',
+  SEEK_WATER = 'SEEK_WATER',
+  SEEK_MEDICAL_HELP = 'SEEK_MEDICAL_HELP',
+}
+
+export enum ActionResult {
+  SUCCESS = 'SUCCESS',
+  FAILED = 'FAILED',
+  BLOCKED = 'BLOCKED',
+  CANCELLED = 'CANCELLED',
+  DEFERRED = 'DEFERRED',
+}
+
+export enum DecisionTriggerType {
+  NEED_THRESHOLD_CROSSED = 'NEED_THRESHOLD_CROSSED',
+  SCHEDULE_START = 'SCHEDULE_START',
+  SCHEDULE_END = 'SCHEDULE_END',
+  MOVEMENT_COMPLETED = 'MOVEMENT_COMPLETED',
+  PERIODIC_FALLBACK = 'PERIODIC_FALLBACK',
+  EVENT_DRIVEN = 'EVENT_DRIVEN',
+}
+
+export interface Action {
+  type: ActionType;
+  metadata?: Record<string, any>;
+}
+
+export interface DecisionContext {
+  citizenId: string;
+  age: number;
+  vitalState: VitalState;
+  skills: Skill[];
+  employmentStatus: EmploymentStatus;
+  workplaceId: string | null;
+  currentLocationId: string;
+  currentDestinationId: string | null;
+  simulationTime: Date;
+  // Extensible for future attributes like weather, wealth, traits, etc.
+  [key: string]: any;
+}
+
+export interface Decision {
+  action: Action;
+  score: number;
+  citizenId: string;
+  reasoning: Record<string, any>;
+  timestamp: Date;
+}
+
+export interface DecisionRecord {
+  citizenId: string;
+  timestamp: Date;
+  candidateActions: ActionType[];
+  scores: Record<ActionType, number>;
+  selectedAction: ActionType;
+  trigger: DecisionTriggerType;
+  result?: ActionResult;
+}

@@ -575,3 +575,61 @@ flowchart TD
     Movement --> Time[Time Engine]
     Movement --> Scheduler[Event Scheduler]
 ```
+
+## Phase 4 — AI Decision Engine
+
+The AI Decision Engine provides the foundational framework for citizen intelligence. It strictly separates **decision-making** from **execution**, orchestrating the sequence of perceiving state, scoring options, and finalizing a choice.
+
+### Responsibilities
+- **Decision Framework:** Abstractions for \DecisionContext\, \Decision\, and \Action\ represent what a citizen perceives, evaluates, and selects.
+- **Scoring:** The engine delegates to a \DecisionEvaluator\ that deterministically produces a \[0, 100]\ score for candidate actions (e.g., \EAT\, \GO_TO_WORK\, \REST\).
+- **Selection:** A \DecisionSelector\ selects the highest-scoring action and resolves ties deterministically.
+- **Determinism:** The pipeline mathematically maps context inputs to final decisions without randomness, ensuring simulation consistency.
+- **Event-Driven & Fallback Decisions:** Citizens evaluate actions triggered by specific events (like needs crossing a threshold or schedules starting) or via periodic fallback checks.
+- **Action Execution Boundary:** The chosen \Decision\ is passed to an \ActionExecutor\, cleanly handing off side-effects to other engines (Movement, Future Economy).
+- **Decision History:** A bounded \DecisionRecord\ log retains recent choices per citizen for inspection and debugging.
+
+### Future Extensibility
+The Decision Engine is explicitly architected to support future additions without major rewrites:
+- **Personality Traits:** Traits will modify the \DecisionEvaluator\ logic to prefer certain actions.
+- **Socioeconomic State:** Wealth and class context will be ingested via the \DecisionContext\.
+
+### Decision Architecture
+
+\\\mermaid
+flowchart TD
+
+    Citizen[Citizen Engine]
+    World[World Engine]
+    Environment[Environment Engine]
+    Resources[Resource Engine]
+    Spatial[Spatial Engine]
+    Time[Time Engine]
+    Scheduler[Event Scheduler]
+
+    Citizen --> Context[Decision Context]
+    World --> Context
+    Environment --> Context
+    Resources --> Context
+    Spatial --> Context
+    Time --> Context
+
+    Scheduler --> Trigger[Decision Trigger]
+
+    Context --> Evaluator[Decision Evaluator]
+    Trigger --> Evaluator
+
+    Evaluator --> Scoring[0-100 Scoring]
+    Scoring --> Selector[Decision Selector]
+
+    Selector --> Decision[Selected Decision]
+
+    Decision --> Executor[Action Executor]
+
+    Executor --> Movement[Movement Engine]
+    Executor --> CitizenState[Citizen State]
+    Executor --> FutureSystems[Future Economy / Food / Healthcare]
+
+    Decision --> History[Decision History]
+\\\
+
