@@ -38,4 +38,23 @@ export const getCandidateActions = async (
     });
   }
 };
+export const getDecision = async (
+  request: FastifyRequest<{ Params: { citizenId: string } }>,
+  reply: FastifyReply
+) => {
+  const { citizenId } = request.params;
+  try {
+    const context = await perceptionService.engine.buildDecisionContext(citizenId);
+    const candidateSet = decisionService.needSystem.generateCandidateActions(context);
+    
+    // Evaluate via DecisionEngine (which now wraps UtilityEngine and records history but skips execution)
+    const decisionResult = decisionService.engine.requestDecision(context, candidateSet, 'EVENT_DRIVEN' as any);
 
+    return reply.status(200).send(decisionResult);
+  } catch (error: any) {
+    return reply.status(400).send({
+      success: false,
+      message: error.message || 'Failed to retrieve decision result',
+    });
+  }
+};

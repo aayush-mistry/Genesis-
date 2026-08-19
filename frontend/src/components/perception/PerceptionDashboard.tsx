@@ -50,6 +50,17 @@ export function PerceptionDashboard() {
     refetchInterval: 2000
   });
 
+  const { data: decisionResult, isLoading: isLoadingDecision, error: decisionError } = useQuery({
+    queryKey: ['decision', activeCitizenId],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE_URL}/citizens/${activeCitizenId}/decision`);
+      if (!res.ok) throw new Error('Failed to fetch decision');
+      return res.json();
+    },
+    enabled: !!activeCitizenId,
+    refetchInterval: 2000
+  });
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setActiveCitizenId(citizenId);
@@ -295,6 +306,65 @@ export function PerceptionDashboard() {
                               {action.target && (
                                 <div className="text-xs text-blue-400 mt-1">Target: {action.target.type} ({action.target.id})</div>
                               )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Decision Result (Phase 4.4) */}
+                <div className="bg-[#121212] rounded-xl border border-[#2a2a2a] p-4 shadow-xl col-span-2 mt-4">
+                  <h3 className="text-sm font-semibold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <User size={16} className="text-pink-400" />
+                    Phase 4.4: Utility & Priority System
+                  </h3>
+                  
+                  {isLoadingDecision ? (
+                     <div className="flex justify-center p-4"><RefreshCw className="animate-spin text-[#666]" size={16} /></div>
+                  ) : decisionError ? (
+                    <div className="text-red-400 text-sm">Failed to load Decision Result</div>
+                  ) : decisionResult && (
+                    <div className="space-y-6">
+                      <div className="bg-[#1a1a1a] p-4 rounded-lg border border-indigo-500/30">
+                        <div className="text-xs text-indigo-400 font-bold mb-1 uppercase tracking-wider">Selected Action</div>
+                        <div className="text-2xl text-white font-bold">{decisionResult.selectedAction.type}</div>
+                        <div className="text-sm text-[#888] mt-1">{decisionResult.selectedAction.reason}</div>
+                        {decisionResult.selectedAction.target && (
+                          <div className="text-xs text-blue-400 mt-1">Target: {decisionResult.selectedAction.target.type} ({decisionResult.selectedAction.target.id})</div>
+                        )}
+                      </div>
+
+                      <div>
+                        <div className="text-xs text-[#666] uppercase tracking-wider mb-3 font-bold">Ranked Candidates</div>
+                        <div className="space-y-3">
+                          {decisionResult.rankedActions.map((ra: any) => (
+                            <div key={ra.rank} className="bg-[#1a1a1a] rounded p-3 border border-[#333]">
+                              <div className="flex justify-between items-center mb-2">
+                                <div className="flex items-center gap-3">
+                                  <span className="w-6 h-6 rounded-full bg-[#222] flex items-center justify-center text-xs font-bold text-[#888]">
+                                    {ra.rank}
+                                  </span>
+                                  <span className="text-white font-bold">{ra.action.type}</span>
+                                </div>
+                                <div className="text-indigo-400 font-bold text-lg">{ra.score}</div>
+                              </div>
+                              
+                              <div className="text-[10px] text-[#666] uppercase mb-1">Utility Breakdown</div>
+                              <div className="grid grid-cols-4 gap-2 text-xs">
+                                {Object.entries(ra.breakdown).map(([key, val]: [string, any]) => {
+                                  if (key === 'total') return null;
+                                  return (
+                                    <div key={key} className="flex justify-between bg-[#111] px-2 py-1 rounded">
+                                      <span className="text-[#888]">{key}</span>
+                                      <span className={val > 0 ? 'text-green-400' : val < 0 ? 'text-red-400' : 'text-[#444]'}>
+                                        {val > 0 ? '+' : ''}{val}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
                             </div>
                           ))}
                         </div>

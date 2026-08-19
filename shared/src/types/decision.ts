@@ -84,6 +84,37 @@ export interface DecisionContext {
   [key: string]: any;
 }
 
+export interface UtilityBreakdown {
+  needUrgency: number;
+  schedule: number;
+  safety: number;
+  resourceAvailability: number;
+  travel: number;
+  transportation: number;
+  energy: number;
+  duration: number;
+  environment: number;
+  job: number;
+  personality: number;
+  total: number;
+}
+
+export interface RankedAction {
+  action: CandidateAction;
+  rank: number;
+  score: number;
+  breakdown: UtilityBreakdown;
+}
+
+export interface DecisionResult {
+  citizenId: string;
+  timestamp: Date;
+  selectedAction: CandidateAction;
+  rankedActions: RankedAction[];
+  reasoning?: Record<string, any>;
+}
+
+// Deprecated in favor of DecisionResult for Phase 4.4+
 export interface Decision {
   action: Action;
   score: number;

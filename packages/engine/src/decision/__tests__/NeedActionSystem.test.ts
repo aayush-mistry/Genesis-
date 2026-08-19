@@ -30,7 +30,7 @@ describe('NeedActionSystem', () => {
         citizenId: 'c1',
         self: { citizenId: 'c1', age: 30, vitalState: vitals, employmentStatus: EmploymentStatus.EMPLOYED, workplaceId: 'b1', activeRoute: null },
         location: { worldId: 'w1', regionId: 'r1', cityId: 'city1', districtId: null, buildingId: 'home1', coordinates: { x: 0, y: 0 } },
-        environment: { season: 'SPRING', weather: 'CLEAR', temperature: 20, humidity: 50, dayPhase: 'DAY' },
+        environment: { season: 'Spring', weather: 'Sunny', temperature: 20, humidity: 50, dayPhase: 'Morning' },
         nearbyResources: [],
         nearbyBuildings: [],
         nearbyEntities: [],

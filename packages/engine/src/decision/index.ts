@@ -7,3 +7,4 @@ export * from './NeedAnalyzer';
 export * from './CandidateGenerator';
 export * from './EligibilityFilter';
 export * from './NeedActionSystem';
+export * from './utility';

@@ -1,74 +1,47 @@
-import { Action, ActionType, Decision, DecisionContext, DecisionRecord, DecisionTriggerType } from '@genesis/shared';
-import { IDecisionEvaluator, DecisionEvaluator } from './DecisionEvaluator';
-import { DecisionSelector, EvaluatedAction } from './DecisionSelector';
-import { IActionExecutor, ActionExecutor } from './ActionExecutor';
+import { ActionType, DecisionContext, DecisionRecord, DecisionTriggerType, CandidateActionSet, DecisionResult, ActionResult } from '@genesis/shared';
+import { UtilityEngine } from './utility/UtilityEngine';
 
 /**
  * The core AI Decision Engine framework.
- * Orchestrates Perception -> Evaluation -> Scoring -> Selection -> Execution -> Recording.
+ * For Phase 4.4, it orchestrates the UtilityEngine to produce a DecisionResult.
+ * Action execution is deferred to Phase 4.5.
  */
 export class DecisionEngine {
-  private evaluator: IDecisionEvaluator;
-  private selector: DecisionSelector;
-  private executor: IActionExecutor;
+  private utilityEngine: UtilityEngine;
   
   // History storage: Map of citizenId to a bounded list of DecisionRecords.
   private history: Map<string, DecisionRecord[]> = new Map();
   private readonly MAX_HISTORY_PER_CITIZEN = 50;
 
   constructor(
-    evaluator: IDecisionEvaluator = new DecisionEvaluator(),
-    selector: DecisionSelector = new DecisionSelector(),
-    executor: IActionExecutor = new ActionExecutor()
+    utilityEngine: UtilityEngine = new UtilityEngine()
   ) {
-    this.evaluator = evaluator;
-    this.selector = selector;
-    this.executor = executor;
+    this.utilityEngine = utilityEngine;
   }
 
   /**
-   * Main entrypoint for a citizen to make a decision.
-   * Does NOT load the entire world context; assumes context is already narrowed down.
+   * Main entrypoint for a citizen to make a decision from a set of candidates.
+   * Does NOT execute the action. Returns the structured DecisionResult.
    */
   public requestDecision(
-    citizenId: string,
     context: DecisionContext,
-    candidateActions: Action[],
+    candidateSet: CandidateActionSet,
     trigger: DecisionTriggerType
-  ): Decision {
+  ): DecisionResult {
     
-    // 1. Evaluate candidate actions
-    const evaluatedActions: EvaluatedAction[] = candidateActions.map(action => ({
-      action,
-      score: this.evaluator.evaluate(context, action)
-    }));
+    // Evaluate and rank candidates using Phase 4.4 UtilityEngine
+    const result = this.utilityEngine.evaluate(candidateSet, context);
 
-    // 2. Select the best action
-    const bestEvaluated = this.selector.selectBestAction(evaluatedActions, context);
-
-    // 3. Formulate the Decision
-    const decision: Decision = {
-      action: bestEvaluated.action,
-      score: bestEvaluated.score,
-      citizenId,
-      reasoning: {
-        trigger,
-        // For basic debugging, record the top candidate scores
-        evaluatedScores: evaluatedActions.reduce((acc, ea) => {
-          acc[ea.action.type] = ea.score;
-          return acc;
-        }, {} as Record<string, number>)
-      },
-      timestamp: context.simulationTime
+    // Add trigger context to reasoning
+    result.reasoning = {
+      trigger,
+      generatedAt: new Date()
     };
 
-    // 4. Delegate to the Executor to try and perform the action
-    const result = this.executor.execute(decision.action, context);
+    // Record the history
+    this.recordDecision(context.citizenId, result, trigger);
 
-    // 5. Record the history
-    this.recordDecision(citizenId, decision, evaluatedActions, trigger, result);
-
-    return decision;
+    return result;
   }
 
   /**
@@ -83,10 +56,8 @@ export class DecisionEngine {
    */
   private recordDecision(
     citizenId: string, 
-    decision: Decision, 
-    evaluatedActions: EvaluatedAction[],
-    trigger: DecisionTriggerType,
-    result: any
+    result: DecisionResult, 
+    trigger: DecisionTriggerType
   ): void {
     let citizenHistory = this.history.get(citizenId);
     if (!citizenHistory) {
@@ -96,22 +67,21 @@ export class DecisionEngine {
 
     const record: DecisionRecord = {
       citizenId,
-      timestamp: decision.timestamp,
-      candidateActions: evaluatedActions.map(ea => ea.action.type),
-      scores: evaluatedActions.reduce((acc, ea) => {
-        acc[ea.action.type] = ea.score;
+      timestamp: result.timestamp,
+      candidateActions: result.rankedActions.map(ra => ra.action.type),
+      scores: result.rankedActions.reduce((acc, ra) => {
+        acc[ra.action.type] = ra.score;
         return acc;
       }, {} as Record<ActionType, number>),
-      selectedAction: decision.action.type,
+      selectedAction: result.selectedAction.type,
       trigger,
-      result
+      result: ActionResult.DEFERRED // Action execution happens in Phase 4.5
     };
 
     citizenHistory.push(record);
 
-    // Bound the history size to prevent memory leaks
     if (citizenHistory.length > this.MAX_HISTORY_PER_CITIZEN) {
-      citizenHistory.shift(); // Remove oldest
+      citizenHistory.shift();
     }
   }
 }
