@@ -39,6 +39,17 @@ export function PerceptionDashboard() {
     refetchInterval: 2000
   });
 
+  const { data: candidateSet, isLoading: isLoadingCandidates, error: candidatesError } = useQuery({
+    queryKey: ['candidates', activeCitizenId],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE_URL}/citizens/${activeCitizenId}/candidates`);
+      if (!res.ok) throw new Error('Failed to fetch candidates');
+      return res.json();
+    },
+    enabled: !!activeCitizenId,
+    refetchInterval: 2000
+  });
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setActiveCitizenId(citizenId);
@@ -236,6 +247,60 @@ export function PerceptionDashboard() {
                       <div className="text-[10px] text-[#888] uppercase tracking-wider">Citizens</div>
                     </div>
                   </div>
+                </div>
+
+                {/* Candidate Actions (Phase 4.3) */}
+                <div className="bg-[#121212] rounded-xl border border-[#2a2a2a] p-4 shadow-xl col-span-2">
+                  <h3 className="text-sm font-semibold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <User size={16} className="text-orange-400" />
+                    Phase 4.3: Need → Action System
+                  </h3>
+                  
+                  {isLoadingCandidates ? (
+                     <div className="flex justify-center p-4"><RefreshCw className="animate-spin text-[#666]" size={16} /></div>
+                  ) : candidatesError ? (
+                    <div className="text-red-400 text-sm">Failed to load Candidate Actions</div>
+                  ) : candidateSet && (
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <div className="text-xs text-[#666] uppercase tracking-wider mb-2 font-bold">Triggered Needs</div>
+                        <div className="space-y-2">
+                          {candidateSet.triggeredNeeds.map((need: any, i: number) => (
+                            <div key={i} className="bg-[#1a1a1a] rounded px-3 py-2 flex justify-between items-center border border-[#333]">
+                              <span className="text-[#eee] text-sm">{need.needType}</span>
+                              <span className={`text-xs font-bold px-2 py-1 rounded ${
+                                need.level === 'CRITICAL' ? 'bg-red-500/20 text-red-400' :
+                                need.level === 'HIGH' ? 'bg-orange-500/20 text-orange-400' :
+                                need.level === 'MODERATE' ? 'bg-yellow-500/20 text-yellow-400' :
+                                need.level === 'LOW' ? 'bg-blue-500/20 text-blue-400' :
+                                'bg-gray-500/20 text-gray-400'
+                              }`}>
+                                {need.level} ({need.urgency})
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <div className="text-xs text-[#666] uppercase tracking-wider mb-2 font-bold">Candidate Actions</div>
+                        <div className="space-y-2">
+                          {candidateSet.candidates.map((action: any, i: number) => (
+                            <div key={i} className="bg-[#1a1a1a] rounded px-3 py-2 border border-[#333]">
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="text-emerald-400 font-bold text-sm">{action.type}</span>
+                                <span className="text-[10px] text-[#888] bg-[#222] px-1.5 py-0.5 rounded">{action.source}</span>
+                              </div>
+                              <div className="text-xs text-[#888] italic">{action.reason}</div>
+                              {action.target && (
+                                <div className="text-xs text-blue-400 mt-1">Target: {action.target.type} ({action.target.id})</div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
               </div>

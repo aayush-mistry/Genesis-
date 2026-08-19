@@ -82,9 +82,9 @@ describe('AI Decision Framework (Phase 4.1)', () => {
     expect(decision.score).toBeGreaterThan(0);
   });
 
-  it('TEST 6: No IDLE action exists in ActionType', () => {
-    expect((ActionType as any).IDLE).toBeUndefined();
-    expect(Object.values(ActionType).includes('IDLE' as any)).toBe(false);
+  it('TEST 6: IDLE action exists in ActionType as fallback (Phase 4.3)', () => {
+    expect((ActionType as any).IDLE).toBeDefined();
+    expect(Object.values(ActionType).includes('IDLE' as any)).toBe(true);
   });
 
   it('TEST 7: Decision context can be created', () => {

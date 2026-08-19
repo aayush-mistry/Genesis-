@@ -3,3 +3,7 @@ export * from './DecisionEvaluator';
 export * from './DecisionSelector';
 export * from './ActionExecutor';
 export * from './DecisionEngine';
+export * from './NeedAnalyzer';
+export * from './CandidateGenerator';
+export * from './EligibilityFilter';
+export * from './NeedActionSystem';

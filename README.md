@@ -627,12 +627,14 @@ The AI Decision Engine provides the foundational framework for citizen intellige
 ### Phase 4: Citizen Systems
 - `[x]` **Phase 4.1: AI Decision Framework** (Needs parsing, basic decision loops)
 - `[x]` **Phase 4.2: Perception System** (State gathering, DecisionContext generation)
-- `[ ]` Phase 4.3: Memory & Learning (Historical tracking, experience-based adjustment)
+- `[x]` **Phase 4.3: Need → Action System** (Need thresholds, candidate generation, IDLE fallback)
 - `[ ]` Phase 4.4: Social Framework (Relationships, family units, communication)
 
 ### Responsibilities
-- **Decision Framework:** Abstractions for \DecisionContext\, \Decision\, and \Action\ represent what a citizen perceives, evaluates, and selects.
-- **Scoring:** The engine delegates to a \DecisionEvaluator\ that deterministically produces a \[0, 100]\ score for candidate actions (e.g., \EAT\, \GO_TO_WORK\, \REST\).
+- **Phase 4.1 (Decision Framework):** Core `DecisionEngine` orchestration, execution, and historical recording.
+- **Phase 4.2 (Perception):** `PerceptionService` isolates the citizen's sensory input from raw world data.
+- **Phase 4.3 (Need → Action System):** Maps perception and vital state to candidate actions deterministically using `NeedAnalyzer`, `CandidateGenerator`, and `EligibilityFilter`. Does NOT score actions.
+- **Scoring:** The engine delegates to a \DecisionEvaluator\ that deterministically produces a \[0, 100]\ score for candidate actions.
 - **Selection:** A \DecisionSelector\ selects the highest-scoring action and resolves ties deterministically.
 - **Determinism:** The pipeline mathematically maps context inputs to final decisions without randomness, ensuring simulation consistency.
 - **Event-Driven & Fallback Decisions:** Citizens evaluate actions triggered by specific events (like needs crossing a threshold or schedules starting) or via periodic fallback checks.

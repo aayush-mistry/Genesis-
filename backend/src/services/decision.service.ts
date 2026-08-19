@@ -1,10 +1,12 @@
-import { DecisionEngine } from '@genesis/engine';
+import { DecisionEngine, NeedActionSystem } from '@genesis/engine';
 
 class BackendDecisionService {
   public engine: DecisionEngine;
+  public needSystem: NeedActionSystem;
 
   constructor() {
     this.engine = new DecisionEngine();
+    this.needSystem = new NeedActionSystem();
   }
 
   public initialize() {

@@ -9,9 +9,42 @@ export enum ActionType {
   WORK = 'WORK',
   GO_HOME = 'GO_HOME',
   GO_TO_SCHOOL = 'GO_TO_SCHOOL',
+  STUDY = 'STUDY',
   SEEK_FOOD = 'SEEK_FOOD',
   SEEK_WATER = 'SEEK_WATER',
   SEEK_MEDICAL_HELP = 'SEEK_MEDICAL_HELP',
+  GO_TO_FOOD_SOURCE = 'GO_TO_FOOD_SOURCE',
+  GO_TO_WATER_SOURCE = 'GO_TO_WATER_SOURCE',
+  IDLE = 'IDLE',
+}
+
+export enum NeedUrgencyLevel {
+  VERY_LOW = 'VERY_LOW',
+  LOW = 'LOW',
+  MODERATE = 'MODERATE',
+  HIGH = 'HIGH',
+  CRITICAL = 'CRITICAL'
+}
+
+export interface NeedState {
+  needType: string;
+  rawValue: number;
+  level: NeedUrgencyLevel;
+  urgency: number;
+}
+
+export interface CandidateAction extends Action {
+  source: string;
+  reason: string;
+  target?: { type: string; id: string };
+}
+
+export interface CandidateActionSet {
+  citizenId: string;
+  timestamp: Date;
+  triggeredNeeds: NeedState[];
+  candidates: CandidateAction[];
+  metadata?: Record<string, any>;
 }
 
 export enum ActionResult {
