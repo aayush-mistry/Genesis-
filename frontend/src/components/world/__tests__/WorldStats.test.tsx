@@ -4,7 +4,7 @@ import { World, Region, City, District, Building } from '@genesis/shared';
 
 describe('WorldStats', () => {
   it('renders correct stats', () => {
-    const mockWorld = { id: '1', name: 'Test', currentTick: 100 } as World;
+    const mockWorld = { id: 'w1', name: 'Test World', currentTick: 0 } as unknown as World;
     const mockRegions = [{ id: 'r1' }, { id: 'r2' }] as Region[];
     const mockCities = [{ id: 'c1' }] as City[];
     const mockDistricts = [{ id: 'd1' }, { id: 'd2' }, { id: 'd3' }] as District[];

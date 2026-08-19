@@ -14,6 +14,7 @@ import { systemRoutes } from './routes/system.routes';
 import { citizenRoutes } from './routes/citizen.routes';
 import { workplaceRoutes } from './routes/workplace.routes';
 import decisionRoutes from './routes/decision.routes';
+import { perceptionRoutes } from './routes/perception.routes';
 
 export async function buildApp() {
   const app = Fastify({
@@ -34,6 +35,7 @@ export async function buildApp() {
   app.register(citizenRoutes, { prefix: '/api/v1' });
   app.register(workplaceRoutes, { prefix: '/api/v1' });
   app.register(decisionRoutes, { prefix: '/api/v1' });
+  app.register(perceptionRoutes, { prefix: '/api/v1' });
 
   // Initialize engines
   import('./services/world.service').then(m => m.worldService.initialize());
@@ -42,6 +44,7 @@ export async function buildApp() {
   import('./services/spatial.service').then(m => m.spatialService.initialize());
   import('./services/citizen.service').then(m => m.citizenService.initialize());
   import('./services/decision.service').then(m => m.decisionService.initialize());
+  import('./services/perception.service').then(m => m.perceptionService.initialize());
 
   return app;
 }

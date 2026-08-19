@@ -6,7 +6,7 @@ import { EnvironmentEngine } from '../environment/EnvironmentEngine';
 import { EventScheduler } from '../events/EventScheduler';
 import { SimulationEvent } from '../events/SimulationEvent';
 import { TimeEngine } from '../time/TimeEngine';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 
 export class ResourceEngine {
   public resourceManager: ResourceManager;
@@ -58,7 +58,7 @@ export class ResourceEngine {
     // We want this to run every simulation day (24 hours) for performance, 
     // but the calculator supports hourly if needed. Let's do Daily.
     const event: SimulationEvent = {
-      id: uuidv4(),
+      id: randomUUID(),
       name: 'Resource Regeneration Tick',
       description: 'Periodic check to update renewable resources based on environment.',
       scheduledTime: { ...time },

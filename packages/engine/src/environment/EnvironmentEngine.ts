@@ -8,7 +8,7 @@ import { DayCycleManager } from './DayCycleManager';
 import { WeatherManager } from './WeatherManager';
 import { EnvironmentCalculator } from './EnvironmentCalculator';
 import { EnvironmentalState } from '@genesis/shared';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 
 export class EnvironmentEngine {
   public climateManager: ClimateManager;
@@ -52,7 +52,7 @@ export class EnvironmentEngine {
     
     // We want this to run every simulation hour
     const event: SimulationEvent = {
-      id: uuidv4(),
+      id: randomUUID(),
       name: 'Environment State Check',
       description: 'Periodic check to update day phase, seasons, and weather transitions.',
       scheduledTime: { ...time }, // Start immediately

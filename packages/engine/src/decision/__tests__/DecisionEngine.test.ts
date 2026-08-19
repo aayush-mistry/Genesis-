@@ -16,6 +16,17 @@ describe('AI Decision Framework (Phase 4.1)', () => {
     currentLocationId: 'loc-1',
     currentDestinationId: null,
     simulationTime: new Date('2025-01-01T12:00:00Z'),
+    perception: {
+      timestamp: new Date('2025-01-01T12:00:00Z'),
+      citizenId: 'citizen-1',
+      self: {} as any,
+      location: {} as any,
+      environment: {} as any,
+      nearbyResources: [],
+      nearbyBuildings: [],
+      nearbyEntities: [],
+      schedule: {} as any
+    },
     ...overrides
   });
 

@@ -13,6 +13,7 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
     { id: 'environment', label: 'Environment Engine', icon: Cloud },
     { id: 'resources', label: 'Resource Engine', icon: Leaf },
     { id: 'spatial', label: 'Spatial Engine', icon: Map },
+    { id: 'perception', label: 'Perception System', icon: Eye },
     { id: 'queue', label: 'Queue', icon: ListOrdered },
     { id: 'history', label: 'History', icon: History },
     { id: 'logs', label: 'Live Logs', icon: ScrollText },

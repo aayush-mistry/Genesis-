@@ -13,3 +13,5 @@ export * from './spatial';
 export * from './utils/SeededRandom';
 export * from './citizen';
 export * from './decision';
+export * from './perception/PerceptionConfig';
+export * from './perception/PerceptionService';

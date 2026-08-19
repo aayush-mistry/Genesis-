@@ -5,7 +5,7 @@ import { WeatherData, WeatherType, SeasonType } from '@genesis/shared';
 import { EventScheduler } from '../events/EventScheduler';
 import { SimulationEvent } from '../events/SimulationEvent';
 import { SimulationTime } from '../time/SimulationTime';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 
 // Weighted probabilities [Sunny, Cloudy, Fog, Light Rain, Rain, Storm, Light Snow, Heavy Snow]
 type TransitionWeights = Record<WeatherType, number>;
@@ -84,7 +84,7 @@ export class WeatherManager {
     
     // Random duration between 2 to 12 hours for a weather event
     weather.durationHours = Math.floor(Math.random() * 10) + 2;
-    weather.frontId = uuidv4(); // Generate a new front id for tracking storms across regions
+    weather.frontId = randomUUID(); // Generate a new front id for tracking storms across regions
 
     if (oldWeather !== newWeather) {
       this.emitWeatherChangeEvent(weather.regionId, oldWeather, newWeather, time);
@@ -188,7 +188,7 @@ export class WeatherManager {
 
   private emitWeatherChangeEvent(regionId: string, oldWeather: WeatherType, newWeather: WeatherType, time: SimulationTime, frontId?: string): void {
     const event: SimulationEvent = {
-      id: uuidv4(),
+      id: randomUUID(),
       name: `Weather Update in ${regionId}`,
       description: `Weather transitioned from ${oldWeather} to ${newWeather}.`,
       scheduledTime: { ...time },

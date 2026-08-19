@@ -2,7 +2,7 @@ import { SimulationTime } from '../time/SimulationTime';
 import { DayPhaseType } from '@genesis/shared';
 import { EventScheduler } from '../events/EventScheduler';
 import { SimulationEvent } from '../events/SimulationEvent';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 
 export class DayCycleManager {
   private currentPhase: DayPhaseType = 'Night';
@@ -43,29 +43,28 @@ export class DayCycleManager {
   }
 
   private emitPhaseChangeEvent(time: SimulationTime, oldPhase: DayPhaseType, newPhase: DayPhaseType): void {
-    const event: SimulationEvent = {
-      id: uuidv4(),
-      name: `Day Phase Changed to ${newPhase}`,
-      description: `Transitioned from ${oldPhase} to ${newPhase}.`,
+    const changeEvent: SimulationEvent = {
+      id: randomUUID(),
+      name: `Day Phase Change: ${newPhase}`,
+      description: `Transitioned to ${newPhase}.`,
       scheduledTime: { ...time },
       createdTime: { ...time },
-      priority: 'Normal',
+      priority: 'High',
       status: 'Completed',
       cancelFlag: false,
       retryCount: 0,
       sourceModule: 'EnvironmentEngine',
       targetModule: 'Global',
-      tags: ['environment', 'day-cycle'],
+      tags: ['environment', 'day-cycle', newPhase],
       metadata: { oldPhase, newPhase },
-      handler: async () => {}
+      handler: async () => {} // The event itself is the notification
     };
-
-    this.eventScheduler.scheduleEvent(event);
+    this.eventScheduler.scheduleEvent(changeEvent);
   }
 
   private emitSunriseEvent(time: SimulationTime): void {
-    const event: SimulationEvent = {
-      id: uuidv4(),
+    const sunriseEvent: SimulationEvent = {
+      id: randomUUID(),
       name: `Sunrise`,
       description: `The sun is rising.`,
       scheduledTime: { ...time },
@@ -80,12 +79,12 @@ export class DayCycleManager {
       metadata: {},
       handler: async () => {}
     };
-    this.eventScheduler.scheduleEvent(event);
+    this.eventScheduler.scheduleEvent(sunriseEvent);
   }
 
   private emitSunsetEvent(time: SimulationTime): void {
     const event: SimulationEvent = {
-      id: uuidv4(),
+      id: randomUUID(),
       name: `Sunset`,
       description: `The sun is setting.`,
       scheduledTime: { ...time },

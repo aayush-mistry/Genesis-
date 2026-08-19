@@ -46,6 +46,7 @@ export interface DecisionContext {
   currentLocationId: string;
   currentDestinationId: string | null;
   simulationTime: Date;
+  perception: import('./perception').PerceptionSnapshot;
   // Extensible for future attributes like weather, wealth, traits, etc.
   [key: string]: any;
 }

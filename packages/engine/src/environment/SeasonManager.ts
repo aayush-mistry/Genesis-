@@ -2,7 +2,7 @@ import { SimulationTime } from '../time/SimulationTime';
 import { SeasonType } from '@genesis/shared';
 import { EventScheduler } from '../events/EventScheduler';
 import { SimulationEvent } from '../events/SimulationEvent';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 
 export class SeasonManager {
   private currentSeason: SeasonType = 'Spring';
@@ -35,7 +35,7 @@ export class SeasonManager {
 
   private emitSeasonChangeEvent(time: SimulationTime, oldSeason: SeasonType, newSeason: SeasonType): void {
     const event: SimulationEvent = {
-      id: uuidv4(),
+      id: randomUUID(),
       name: `Season Changed to ${newSeason}`,
       description: `The season transitioned from ${oldSeason} to ${newSeason}.`,
       scheduledTime: { ...time },

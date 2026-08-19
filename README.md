@@ -624,6 +624,12 @@ flowchart TD
 
 The AI Decision Engine provides the foundational framework for citizen intelligence. It strictly separates **decision-making** from **execution**, orchestrating the sequence of perceiving state, scoring options, and finalizing a choice.
 
+### Phase 4: Citizen Systems
+- `[x]` **Phase 4.1: AI Decision Framework** (Needs parsing, basic decision loops)
+- `[x]` **Phase 4.2: Perception System** (State gathering, DecisionContext generation)
+- `[ ]` Phase 4.3: Memory & Learning (Historical tracking, experience-based adjustment)
+- `[ ]` Phase 4.4: Social Framework (Relationships, family units, communication)
+
 ### Responsibilities
 - **Decision Framework:** Abstractions for \DecisionContext\, \Decision\, and \Action\ represent what a citizen perceives, evaluates, and selects.
 - **Scoring:** The engine delegates to a \DecisionEvaluator\ that deterministically produces a \[0, 100]\ score for candidate actions (e.g., \EAT\, \GO_TO_WORK\, \REST\).

@@ -100,7 +100,7 @@ export class WorldEngine {
 
     return undefined;
   }
-  public resolveLocationHierarchy(locationId: string | null): { regionId?: string, cityId?: string } {
+  public resolveLocationHierarchy(locationId: string | null): { regionId?: string, cityId?: string, districtId?: string, buildingId?: string } {
     if (!locationId) return {};
 
     const region = this.regionManager.getRegion(locationId);
@@ -112,7 +112,7 @@ export class WorldEngine {
     const district = this.districtManager.getDistrict(locationId);
     if (district) {
       const parentCity = this.cityManager.getCity(district.cityId);
-      if (parentCity) return { regionId: parentCity.regionId, cityId: parentCity.id };
+      if (parentCity) return { regionId: parentCity.regionId, cityId: parentCity.id, districtId: district.id };
     }
 
     const building = this.buildingManager.getBuilding(locationId);
@@ -120,7 +120,7 @@ export class WorldEngine {
       const parentDistrict = this.districtManager.getDistrict(building.districtId);
       if (parentDistrict) {
         const parentCity = this.cityManager.getCity(parentDistrict.cityId);
-        if (parentCity) return { regionId: parentCity.regionId, cityId: parentCity.id };
+        if (parentCity) return { regionId: parentCity.regionId, cityId: parentCity.id, districtId: parentDistrict.id, buildingId: building.id };
       }
     }
 

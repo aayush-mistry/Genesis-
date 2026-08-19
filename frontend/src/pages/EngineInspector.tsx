@@ -11,6 +11,7 @@ import { HistoryInspector } from '../components/inspector/HistoryInspector';
 import { LiveLogs } from '../components/inspector/LiveLogs';
 import { PerformanceView } from '../components/inspector/PerformanceView';
 import { EventInjectionPanel } from '../components/inspector/EventInjectionPanel';
+import { PerceptionDashboard } from '../components/perception/PerceptionDashboard';
 
 export default function EngineInspector() {
   const [activeTab, setActiveTab] = useState('inspector');
@@ -27,6 +28,7 @@ export default function EngineInspector() {
           {activeTab === 'environment' && <EnvironmentDashboard />}
           {activeTab === 'resources' && <ResourceInspector />}
           {activeTab === 'spatial' && <SpatialDashboard />}
+          {activeTab === 'perception' && <PerceptionDashboard />}
           {activeTab === 'queue' && <QueueInspector />}
           {activeTab === 'history' && <HistoryInspector />}
           {activeTab === 'logs' && <LiveLogs />}
