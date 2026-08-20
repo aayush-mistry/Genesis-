@@ -52,4 +52,5 @@ export interface Citizen {
   workplaceId: string | null;
   jobType: import('./occupation').JobType | null;
   jobSchedule: import('./occupation').WorkSchedule | null;
+  currentAction?: import('./execution').ActionInstance;
 }

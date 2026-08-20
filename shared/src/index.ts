@@ -16,3 +16,4 @@ export * from './types/spatial';
 export * from './types/occupation';
 export * from './types/decision';
 export * from './types/perception';
+export * from './types/execution';

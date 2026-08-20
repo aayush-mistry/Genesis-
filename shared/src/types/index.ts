@@ -8,3 +8,4 @@ export * from './spatial';
 export * from './occupation';
 export * from './decision';
 export * from './perception';
+export * from './execution';

@@ -27,7 +27,7 @@ export class PerceptionService {
     private spatialQueryService: SpatialQueryService
   ) {}
 
-  public async generateSnapshot(citizenId: string): Promise<PerceptionSnapshot> {
+  public generateSnapshot(citizenId: string): PerceptionSnapshot {
     const citizen = this.citizenService.getCitizen(citizenId);
     if (!citizen) {
       throw new Error(`PerceptionService: Citizen ${citizenId} not found.`);
@@ -175,13 +175,13 @@ export class PerceptionService {
   /**
    * Builds the complete DecisionContext for the DecisionEngine.
    */
-  public async buildDecisionContext(citizenId: string): Promise<import('@genesis/shared').DecisionContext> {
+  public buildDecisionContext(citizenId: string): import('@genesis/shared').DecisionContext {
     const citizen = this.citizenService.getCitizen(citizenId);
     if (!citizen) {
       throw new Error(`PerceptionService: Citizen ${citizenId} not found.`);
     }
 
-    const perception = await this.generateSnapshot(citizenId);
+    const perception = this.generateSnapshot(citizenId);
 
     return {
       citizenId,

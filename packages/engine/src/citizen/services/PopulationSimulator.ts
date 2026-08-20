@@ -85,6 +85,12 @@ export class PopulationSimulator {
   }
 
   private onTimeTick(time: SimulationTime): void {
+    // Tick all citizens every simulation step to progress their actions
+    const citizens = this.citizenService.listCitizens().filter(c => c.status === CitizenStatus.ACTIVE);
+    for (const citizen of citizens) {
+      this.citizenService.tickCitizen(citizen.id);
+    }
+
     // Process demographics once per simulation month
     if (time.year > this.lastProcessedYear || 
        (time.year === this.lastProcessedYear && time.month > this.lastProcessedMonth)) {

@@ -9,6 +9,11 @@ import { NeedsService } from './NeedsService';
 import { MovementService } from './MovementService';
 import { EventScheduler } from '../../events/EventScheduler';
 import { SpatialQueryService } from '../../spatial/SpatialQueryService';
+import { ActionState } from '@genesis/shared';
+import { ActionExecutor } from '../../execution';
+import { DecisionEngine, CandidateGenerator, NeedAnalyzer } from '../../decision';
+import { DecisionTriggerType, DecisionContext } from '@genesis/shared';
+import { PerceptionService } from '../../perception/PerceptionService';
 
 let citizenIdCounter = 1;
 
@@ -18,6 +23,11 @@ export class CitizenService {
   private timeEngine: TimeEngine;
   public needsService: NeedsService;
   public movementService: MovementService;
+  public actionExecutor: ActionExecutor;
+  private decisionEngine: DecisionEngine;
+  private candidateGenerator: CandidateGenerator;
+  private needAnalyzer: NeedAnalyzer;
+  private perceptionService?: PerceptionService;
 
   constructor(
     repository: CitizenRepository, 
@@ -36,6 +46,14 @@ export class CitizenService {
       eventScheduler,
       timeEngine
     );
+    this.decisionEngine = new DecisionEngine();
+    this.candidateGenerator = new CandidateGenerator();
+    this.needAnalyzer = new NeedAnalyzer();
+    this.actionExecutor = new ActionExecutor(timeEngine, eventScheduler, this.movementService, this.needsService);
+  }
+
+  public setPerceptionService(perceptionService: PerceptionService): void {
+    this.perceptionService = perceptionService;
   }
 
   /**
@@ -120,6 +138,53 @@ export class CitizenService {
    */
   public getCitizenAge(citizen: Citizen): number {
     return AgeCalculator.calculateAge(citizen.birthDate, this.timeEngine.getCurrentTime());
+  }
+
+  public tickCitizen(citizenId: string): void {
+    const citizen = this.getCitizen(citizenId);
+    if (!citizen || citizen.status !== CitizenStatus.ACTIVE || !citizen.locationId) return;
+
+    // 1. Tick existing action
+    this.actionExecutor.tick(citizen);
+
+    // 2. If no active action, or action is finished, decide next action
+    if (!citizen.currentAction || 
+        citizen.currentAction.state === ActionState.COMPLETED || 
+        citizen.currentAction.state === ActionState.CANCELLED ||
+        citizen.currentAction.state === ActionState.FAILED) {
+        
+        const context: DecisionContext = {
+          citizenId: citizen.id,
+          age: this.getCitizenAge(citizen),
+          vitalState: citizen.vitalState,
+          skills: citizen.skills,
+          employmentStatus: citizen.employmentStatus,
+          workplaceId: citizen.workplaceId,
+          currentLocationId: citizen.locationId || '',
+          currentDestinationId: null,
+          simulationTime: new Date() as any, // fallback or real simulation time mapped to Date
+          perception: this.perceptionService!.generateSnapshot(citizen.id)
+        };
+
+        const needStates = this.needAnalyzer.analyzeNeeds(citizen.vitalState);
+
+        const candidates = this.candidateGenerator.generateCandidates(context, needStates);
+        
+        const candidateSet = {
+          citizenId: citizen.id,
+          timestamp: new Date() as any,
+          triggeredNeeds: needStates,
+          candidates
+        };
+
+        if (candidates.length > 0) {
+          const decision = this.decisionEngine.requestDecision(context, candidateSet, DecisionTriggerType.PERIODIC_FALLBACK);
+          if (decision && decision.selectedAction) {
+            this.actionExecutor.executeAction(citizen, decision.selectedAction);
+            this.repository.update(citizen);
+          }
+        }
+    }
   }
 
   public clear(): void {

@@ -15,3 +15,4 @@ export * from './citizen';
 export * from './decision';
 export * from './perception/PerceptionConfig';
 export * from './perception/PerceptionService';
+export * from './execution';

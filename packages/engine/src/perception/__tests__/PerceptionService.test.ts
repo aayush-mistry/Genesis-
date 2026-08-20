@@ -217,9 +217,13 @@ describe('Perception System (Phase 4.2)', () => {
   });
 
   it('TEST 12 & 13: Missing citizen/location produces error', async () => {
-    await expect(perceptionService.generateSnapshot('non-existent')).rejects.toThrow(/not found/);
+    expect(() => {
+      perceptionService.generateSnapshot('non-existent');
+    }).toThrow('PerceptionService: Citizen non-existent not found.');
     
     const citizen = citizenService.createCitizen(CitizenGender.MALE); // No location
-    await expect(perceptionService.generateSnapshot(citizen.id)).rejects.toThrow(/no location/);
+    expect(() => {
+      perceptionService.generateSnapshot(citizen.id);
+    }).toThrow(/no location/);
   });
 });

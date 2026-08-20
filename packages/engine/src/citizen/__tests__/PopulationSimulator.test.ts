@@ -4,6 +4,7 @@ import { InMemoryCitizenRepository } from '../repositories/InMemoryCitizenReposi
 import { TimeEngine } from '../../time/TimeEngine';
 import { WorldEngine } from '../../world/WorldEngine';
 import { CitizenStatus } from '@genesis/shared';
+import { PerceptionService } from '../../perception/PerceptionService';
 
 describe('PopulationSimulator', () => {
   let timeEngine: TimeEngine;
@@ -20,11 +21,32 @@ describe('PopulationSimulator', () => {
     worldEngine = new WorldEngine();
     repository = new InMemoryCitizenRepository();
     
+    worldEngine.worldManager.createWorld('world-1', 'Test World');
+    worldEngine.regionManager.createRegion('region-1', 'world-1', 'Region 1', {x: 0, y: 0});
+
     eventScheduler = new (require('../../events/EventScheduler').EventScheduler)(timeEngine);
     spatialEngine = new (require('../../spatial/SpatialEngine').SpatialEngine)(worldEngine, eventScheduler);
     
     citizenService = new CitizenService(repository, worldEngine, timeEngine, eventScheduler, spatialEngine.queryService);
-    simulator = new PopulationSimulator(citizenService, timeEngine);
+    
+    // Inject PerceptionService for CitizenService
+    const perceptionService = new PerceptionService(
+      citizenService,
+      worldEngine,
+      {} as any, // environmentEngine mock
+      {} as any, // resourceEngine mock
+      timeEngine,
+      spatialEngine.queryService
+    );
+    citizenService.setPerceptionService(perceptionService);
+
+    simulator = new PopulationSimulator(
+      citizenService, 
+      timeEngine, 
+      undefined, 
+      undefined, 
+      () => null
+    );
   });
 
   it('initializes the population with the specified count', () => {

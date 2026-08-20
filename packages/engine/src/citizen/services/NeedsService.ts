@@ -120,6 +120,18 @@ export class NeedsService {
     this.repository.update(citizen);
   }
 
+  public satisfyHunger(citizen: Citizen, amount: number): void {
+    citizen.vitalState.hunger -= amount;
+    this.clampVitalState(citizen.vitalState);
+    this.repository.update(citizen);
+  }
+
+  public satisfyThirst(citizen: Citizen, amount: number): void {
+    citizen.vitalState.thirst -= amount;
+    this.clampVitalState(citizen.vitalState);
+    this.repository.update(citizen);
+  }
+
   private clampVitalState(state: VitalState): void {
     state.hunger = this.clamp(state.hunger, 0, 100);
     state.thirst = this.clamp(state.thirst, 0, 100);

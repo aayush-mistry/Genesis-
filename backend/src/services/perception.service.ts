@@ -21,6 +21,7 @@ class BackendPerceptionService {
   }
 
   public initialize() {
+    citizenService.engine.setPerceptionService(this.engine);
     console.log('[Perception Engine] Initialized');
   }
 }

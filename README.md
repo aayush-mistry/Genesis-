@@ -628,7 +628,9 @@ The AI Decision Engine provides the foundational framework for citizen intellige
 - `[x]` **Phase 4.1: AI Decision Framework** (Needs parsing, basic decision loops)
 - `[x]` **Phase 4.2: Perception System** (State gathering, DecisionContext generation)
 - `[x]` **Phase 4.3: Need → Action System** (Need thresholds, candidate generation, IDLE fallback)
-- `[ ]` Phase 4.4: Social Framework (Relationships, family units, communication)
+- `[x]` **Phase 4.4: Utility & Priority System** (Action scoring, tied rankings, determinism)
+- `[x]` **Phase 4.5: Action Execution System** (Action state lifecycle, Specialized Executors, Autonomy)
+- `[ ]` Phase 4.6: Social Framework (Relationships, family units, communication)
 
 ### Responsibilities
 - **Phase 4.1 (Decision Framework):** Core `DecisionEngine` orchestration, execution, and historical recording.
