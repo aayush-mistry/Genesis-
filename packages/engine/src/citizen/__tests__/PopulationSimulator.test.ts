@@ -22,7 +22,16 @@ describe('PopulationSimulator', () => {
     repository = new InMemoryCitizenRepository();
     
     worldEngine.worldManager.createWorld('world-1', 'Test World');
-    worldEngine.regionManager.createRegion('region-1', 'world-1', 'Region 1', {x: 0, y: 0});
+    worldEngine.regionManager.createRegion({
+      name: 'Region 1',
+      climate: 'Temperate',
+      description: 'Test Region',
+      population: 0,
+      coordinates: { x: 0, y: 0 },
+      worldId: 'world-1',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
 
     eventScheduler = new (require('../../events/EventScheduler').EventScheduler)(timeEngine);
     spatialEngine = new (require('../../spatial/SpatialEngine').SpatialEngine)(worldEngine, eventScheduler);
@@ -45,7 +54,7 @@ describe('PopulationSimulator', () => {
       timeEngine, 
       undefined, 
       undefined, 
-      () => null
+      () => 'region-1'
     );
   });
 

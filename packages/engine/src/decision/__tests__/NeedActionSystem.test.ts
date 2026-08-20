@@ -106,7 +106,7 @@ describe('NeedActionSystem', () => {
 
   describe('Schedule Actions', () => {
     it('generates GO_TO_WORK if schedule says WORK and not at workplace', () => {
-      mockContext.perception.schedule.currentActivity = 'WORK';
+      mockContext.currentRoutineActivity = { id: 'act1', type: 'WORK' as any, startTime: 0, endTime: 24, interruptible: true, destinationType: 'WORKPLACE' };
       mockContext.currentLocationId = 'home1';
       mockContext.workplaceId = 'work1';
       
@@ -118,7 +118,7 @@ describe('NeedActionSystem', () => {
     });
 
     it('generates WORK if schedule says WORK and already at workplace', () => {
-      mockContext.perception.schedule.currentActivity = 'WORK';
+      mockContext.currentRoutineActivity = { id: 'act1', type: 'WORK' as any, startTime: 0, endTime: 24, interruptible: true, destinationType: 'WORKPLACE' };
       mockContext.workplaceId = 'work1';
       mockContext.currentLocationId = 'work1'; // At work
       
@@ -133,7 +133,7 @@ describe('NeedActionSystem', () => {
   describe('Eligibility', () => {
     it('prevents GO_TO_WORK for citizens above 75', () => {
       mockContext.age = 80;
-      mockContext.perception.schedule.currentActivity = 'WORK';
+      mockContext.currentRoutineActivity = { id: 'act1', type: 'WORK' as any, startTime: 0, endTime: 24, interruptible: true, destinationType: 'WORKPLACE' };
       mockContext.workplaceId = 'work1';
       mockContext.currentLocationId = 'home1';
       
@@ -145,7 +145,7 @@ describe('NeedActionSystem', () => {
 
     it('prevents GO_TO_WORK for citizens below 18', () => {
       mockContext.age = 12;
-      mockContext.perception.schedule.currentActivity = 'WORK';
+      mockContext.currentRoutineActivity = { id: 'act1', type: 'WORK' as any, startTime: 0, endTime: 24, interruptible: true, destinationType: 'WORKPLACE' };
       mockContext.workplaceId = 'work1';
       
       const result = system.generateCandidateActions(mockContext);

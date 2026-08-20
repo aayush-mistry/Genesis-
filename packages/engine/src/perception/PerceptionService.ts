@@ -101,12 +101,18 @@ export class PerceptionService {
       if (spatialEntity.type === 'BUILDING') {
         const building = this.worldEngine.buildingManager.getBuilding(spatialEntity.id);
         if (building) {
-          nearbyBuildings.push({
-            id: building.id,
-            type: building.type,
-            distance: spatialEntity.distance,
-            coordinates: spatialEntity.position
-          });
+          // Food Source Check
+          const foodSource = this.worldEngine.foodDistributionManager.getFoodSource(building.id);
+          const isAvailableFoodSource = foodSource ? foodSource.available : false;
+          
+          if (!foodSource || isAvailableFoodSource) {
+            nearbyBuildings.push({
+              id: building.id,
+              type: building.type,
+              distance: spatialEntity.distance,
+              coordinates: spatialEntity.position
+            });
+          }
         }
       } else if (spatialEntity.type === 'CITIZEN' && spatialEntity.id !== citizenId) {
         nearbyEntities.push({
@@ -193,7 +199,9 @@ export class PerceptionService {
       currentLocationId: citizen.locationId || '', // Assuming citizens must have a location
       currentDestinationId: citizen.activeRoute?.destinationId ?? null,
       simulationTime: new Date(), // Fallback, could be mapped from TimeEngine more precisely
-      perception
+      perception,
+      currentRoutine: citizen.currentRoutine,
+      currentRoutineActivity: citizen.currentRoutineActivity
     };
   }
 }

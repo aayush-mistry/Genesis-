@@ -36,9 +36,6 @@ export class NeedsService {
     };
   }
 
-  /**
-   * Calculates how much simulation time has passed and updates needs accordingly.
-   */
   public updateNeeds(citizen: Citizen, currentTime: SimulationTime): void {
     const lastTime = citizen.vitalState.lastUpdatedSimulationTime;
     
@@ -48,9 +45,35 @@ export class NeedsService {
 
     citizen.vitalState.hunger += elapsedHours * NeedsConfig.HUNGER_RATE_PER_HOUR;
     citizen.vitalState.thirst += elapsedHours * NeedsConfig.THIRST_RATE_PER_HOUR;
-    citizen.vitalState.energy -= elapsedHours * NeedsConfig.ENERGY_DRAIN_PER_HOUR;
-    citizen.vitalState.energy += elapsedHours * NeedsConfig.ENERGY_RECOVERY_PER_HOUR;
 
+    // Determine energy modifier based on current action or routine activity
+    let energyModifier = NeedsConfig.ENERGY_DRAIN_PER_HOUR; // Base drain
+    
+    // Activity-based modifiers
+    const actionType = citizen.currentAction?.actionType;
+    const routineType = citizen.currentRoutineActivity?.type;
+
+    if (actionType === 'REST' || routineType === 'SLEEP' || routineType === 'REST') {
+      energyModifier = -10.0; // Recover energy
+    } else if (actionType === 'WORK' || routineType === 'WORK') {
+      energyModifier = 5.0; // Drain faster
+    } else if (routineType === 'EXERCISE') {
+      energyModifier = 15.0; // Drain very fast
+    }
+    
+    // Apply Action Modifiers
+    if (citizen.currentAction?.state === 'IN_PROGRESS') {
+      if (citizen.currentAction.actionType === 'WORK') {
+        energyModifier -= 3.0; // Hard work drains more energy
+      } else if (citizen.currentAction.actionType === 'REST') {
+        energyModifier += 4.0; // Extra rest bonus
+      }
+    } else if (actionType === 'GO_TO_WORK' || actionType === 'GO_TO_SCHOOL' || actionType === 'GO_TO_FOOD_SOURCE') {
+      energyModifier = 3.0; // Travel drain
+    }
+
+    citizen.vitalState.energy -= elapsedHours * energyModifier;
+    
     this.clampVitalState(citizen.vitalState);
 
     citizen.vitalState.lastUpdatedSimulationTime = TimeUtils.clone(currentTime);

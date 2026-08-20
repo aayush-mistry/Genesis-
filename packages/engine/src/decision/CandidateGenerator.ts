@@ -63,13 +63,13 @@ export class CandidateGenerator {
           target: { type: 'RESOURCE', id: foodResource.id }
         });
       } else {
-        const farm = perception.nearbyBuildings.find(b => b.type === 'FARM' || b.type === 'RESTAURANT');
-        if (farm) {
+        const foodShop = perception.nearbyBuildings.find(b => b.type === 'STORE' || b.type === 'RESTAURANT');
+        if (foodShop) {
           candidates.push({
             type: ActionType.GO_TO_FOOD_SOURCE,
             source: need.needType,
             reason: `Hunger is ${need.level} and food source perceived`,
-            target: { type: 'BUILDING', id: farm.id }
+            target: { type: 'BUILDING', id: foodShop.id }
           });
         }
       }
@@ -131,44 +131,43 @@ export class CandidateGenerator {
   }
 
   private generateScheduleCandidates(context: DecisionContext, candidates: CandidateAction[]) {
-    const schedule = context.perception.schedule;
-    
-    // Check Work
-    if (schedule.currentActivity === 'WORK') {
-      if (context.currentLocationId === context.workplaceId) {
-        candidates.push({
-          type: ActionType.WORK,
-          source: 'WORK_SCHEDULE',
-          reason: 'Currently at workplace during work hours'
-        });
-      } else {
-        candidates.push({
-          type: ActionType.GO_TO_WORK,
-          source: 'WORK_SCHEDULE',
-          reason: 'Work schedule is active but not at workplace',
-          target: context.workplaceId ? { type: 'BUILDING', id: context.workplaceId } : undefined
-        });
+    const activity = context.currentRoutineActivity;
+    if (!activity) return;
+
+    let target: { type: string, id: string } | undefined = undefined;
+
+    // Resolve target if needed
+    if (activity.destinationType === 'WORKPLACE' && context.workplaceId) {
+      target = { type: 'BUILDING', id: context.workplaceId };
+    } else if (activity.destinationType === 'SCHOOL') {
+      // Stub for school logic
+      if (context.schoolId) {
+        target = { type: 'BUILDING', id: context.schoolId };
+      }
+    } else if (activity.destinationType === 'HOME') {
+      // Stub for home logic
+      if (context.homeId) {
+        target = { type: 'BUILDING', id: context.homeId };
       }
     }
 
-    // Check School
-    if (schedule.currentActivity === 'SCHOOL' || schedule.currentActivity === 'STUDY') {
-      // Simplification: We assume citizen has a schoolId in context or metadata, but for now we just use a generic check.
-      const schoolId = context.schoolId; // If we had it
-      if (schoolId && context.currentLocationId === schoolId) {
-        candidates.push({
-          type: ActionType.STUDY,
-          source: 'SCHOOL_SCHEDULE',
-          reason: 'Currently at school during study hours'
-        });
-      } else {
-        candidates.push({
-          type: ActionType.GO_TO_SCHOOL,
-          source: 'SCHOOL_SCHEDULE',
-          reason: 'School schedule is active',
-          target: schoolId ? { type: 'BUILDING', id: schoolId } : undefined
-        });
-      }
+    // Map routine activity type to ActionType
+    let actionType = ActionType.IDLE;
+    switch (activity.type) {
+      case 'WORK': actionType = target && context.currentLocationId !== target.id ? ActionType.GO_TO_WORK : ActionType.WORK; break;
+      case 'STUDY': actionType = target && context.currentLocationId !== target.id ? ActionType.GO_TO_SCHOOL : ActionType.STUDY; break;
+      case 'SLEEP': actionType = ActionType.REST; break; // SLEEP maps to REST
+      case 'REST': actionType = ActionType.REST; break;
+      case 'MEAL': actionType = ActionType.EAT; break; // Needs will likely override or work together
+      default: actionType = ActionType.IDLE; break;
     }
+
+    // Always push the routine action as a baseline candidate
+    candidates.push({
+      type: actionType,
+      source: 'ROUTINE',
+      reason: `Scheduled routine activity: ${activity.type}`,
+      target
+    });
   }
 }

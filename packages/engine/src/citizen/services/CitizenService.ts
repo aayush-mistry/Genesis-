@@ -27,6 +27,7 @@ export class CitizenService {
   private decisionEngine: DecisionEngine;
   private candidateGenerator: CandidateGenerator;
   private needAnalyzer: NeedAnalyzer;
+  private routineEngine: import('./RoutineEngine').RoutineEngine;
   private perceptionService?: PerceptionService;
 
   constructor(
@@ -49,6 +50,7 @@ export class CitizenService {
     this.decisionEngine = new DecisionEngine();
     this.candidateGenerator = new CandidateGenerator();
     this.needAnalyzer = new NeedAnalyzer();
+    this.routineEngine = new (require('./RoutineEngine').RoutineEngine)();
     this.actionExecutor = new ActionExecutor(timeEngine, eventScheduler, this.movementService, this.needsService);
   }
 
@@ -100,8 +102,13 @@ export class CitizenService {
       employmentStatus: EmploymentStatus.UNEMPLOYED,
       workplaceId: null,
       jobType: null,
-      jobSchedule: null
+      jobSchedule: null,
+      currentAction: undefined,
+      currentRoutine: undefined
     };
+
+    const age = new Date().getFullYear() - actualBirthDate.year; // Simple fallback age
+    citizen.currentRoutine = this.routineEngine.generateRoutineWithAge(citizen, age);
 
     this.repository.create(citizen);
     
@@ -147,7 +154,12 @@ export class CitizenService {
     // 1. Tick existing action
     this.actionExecutor.tick(citizen);
 
-    // 2. If no active action, or action is finished, decide next action
+    const currentTime = this.timeEngine.getCurrentTime();
+    
+    // 2. Update routine activity
+    citizen.currentRoutineActivity = this.routineEngine.getCurrentActivity(citizen, currentTime);
+
+    // 3. Request decision if no active action or action just finished, decide next action
     if (!citizen.currentAction || 
         citizen.currentAction.state === ActionState.COMPLETED || 
         citizen.currentAction.state === ActionState.CANCELLED ||

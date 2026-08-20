@@ -166,6 +166,20 @@ export function PerceptionDashboard() {
                     <div><span className="text-[#666] block text-xs">Age</span><span className="text-[#eee]">{snapshot.self.age}</span></div>
                     
                     <div className="col-span-2 mt-2 pt-2 border-t border-[#2a2a2a]">
+                      <span className="text-[#666] block text-xs mb-2">Routine</span>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="bg-[#1a1a1a] rounded px-2 py-1 flex justify-between">
+                          <span className="text-[#888]">Type</span>
+                          <span className="text-white">{context?.currentRoutine?.scheduleType || 'Unknown'}</span>
+                        </div>
+                        <div className="bg-[#1a1a1a] rounded px-2 py-1 flex justify-between">
+                          <span className="text-[#888]">Current Activity</span>
+                          <span className="text-white">{context?.currentRoutineActivity?.type || 'None'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="col-span-2 mt-2 pt-2 border-t border-[#2a2a2a]">
                       <span className="text-[#666] block text-xs mb-2">Vitals</span>
                       <div className="grid grid-cols-2 gap-2">
                         <div className="bg-[#1a1a1a] rounded px-2 py-1 flex justify-between">

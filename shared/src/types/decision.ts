@@ -80,6 +80,8 @@ export interface DecisionContext {
   currentDestinationId: string | null;
   simulationTime: Date;
   perception: import('./perception').PerceptionSnapshot;
+  currentRoutine?: import('./routine').CitizenRoutine;
+  currentRoutineActivity?: import('./routine').RoutineActivity;
   // Extensible for future attributes like weather, wealth, traits, etc.
   [key: string]: any;
 }

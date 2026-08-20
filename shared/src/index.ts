@@ -17,3 +17,4 @@ export * from './types/occupation';
 export * from './types/decision';
 export * from './types/perception';
 export * from './types/execution';
+export * from './types/routine';

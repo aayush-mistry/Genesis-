@@ -53,4 +53,6 @@ export interface Citizen {
   jobType: import('./occupation').JobType | null;
   jobSchedule: import('./occupation').WorkSchedule | null;
   currentAction?: import('./execution').ActionInstance;
+  currentRoutine?: import('./routine').CitizenRoutine;
+  currentRoutineActivity?: import('./routine').RoutineActivity;
 }
