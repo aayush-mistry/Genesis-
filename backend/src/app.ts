@@ -23,6 +23,15 @@ export async function buildApp() {
 
   app.setErrorHandler((error, request, reply) => errorHandler(error, request, reply));
 
+  // Root routes to prevent 404s when accessed directly via browser
+  app.get('/', async (request, reply) => {
+    return { status: 'OK', service: 'Genesis Backend API', message: 'API is running. Please access the frontend at http://localhost:5173 during development.' };
+  });
+
+  app.get('/favicon.ico', async (request, reply) => {
+    reply.code(204).send(); // No content for favicon
+  });
+
   // Register domain routes
   app.register(healthRoutes, { prefix: '/api/v1' });
   app.register(timeRoutes, { prefix: '/api/v1' });

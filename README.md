@@ -80,38 +80,51 @@ npm run dev:frontend
 npm run dev
 ```
 
-## Current Phase Status (Phase 1.2)
-- **Completed:** Foundation monorepo structure.
-- **Completed:** Time Engine module (`packages/engine`) decoupled from frontend and backend.
-- **Completed:** Backend REST API mapping to Time Engine.
-- **Completed:** Frontend React Dashboard visualization of Time Engine.
+## Current Phase Status (Phase 4.5)
+- **Completed:** Phase 1 (Core Engine) including Time Engine, Event Scheduler, and Foundation.
+- **Completed:** Phase 2 (World Engine) including Environment, Resource, and Spatial engines.
+- **Completed:** Phase 3 (Citizen Engine) including Needs, Movement, and Occupation systems.
+- **Completed:** Phase 4 (AI Decision Engine) up to Phase 4.5 (Action Execution System).
+- **In Progress:** Phase 4.6 (Social Framework).
 
 ## Future Roadmap
 
 ```text
 Genesis Roadmap
 
-Phase 1 âœ… Core Engine
-â”œâ”€â”€ Project Foundation
-â”œâ”€â”€ Time Engine
-â”œâ”€â”€ Event Scheduler
-â””â”€â”€ Engine Inspector
+Phase 1 ✅ Core Engine
+├── Project Foundation
+├── Time Engine
+├── Event Scheduler
+└── Engine Inspector
 
-Phase 2 ðŸš§ World Engine
-â”œâ”€â”€ 2.1 World Model
-â”œâ”€â”€ 2.2 Environment Engine
-â”œâ”€â”€ 2.3 Resource Engine
-â”œâ”€â”€ 2.4 Spatial Engine
-â””â”€â”€ 2.5 World Inspector
+Phase 2 ✅ World Engine
+├── 2.1 World Model
+├── 2.2 Environment Engine
+├── 2.3 Resource Engine
+├── 2.4 Spatial Engine
+└── 2.5 World Inspector
 
-Phase 3 ðŸ”œ Citizen Engine
-Phase 4 ðŸ”œ AI Decision Engine
-Phase 5 ðŸ”œ Economy Engine
-Phase 6 ðŸ”œ Relationship Engine
-Phase 7 ðŸ”œ History Engine
-Phase 8 ðŸ”œ Visualization
-Phase 9 ðŸ”œ Persistence
-Phase 10 ðŸ”œ Optimization & Scale
+Phase 3 ✅ Citizen Engine
+├── 3.1 Citizen Model
+├── 3.3 Needs & Vital State
+├── 3.4 Location, Routes & Movement
+└── 3.5 Occupation, Skills & Workplaces
+
+Phase 4 🚧 AI Decision Engine
+├── 4.1 AI Decision Framework
+├── 4.2 Perception System
+├── 4.3 Need → Action System
+├── 4.4 Utility & Priority System
+├── 4.5 Action Execution System
+└── 4.6 Social Framework (Pending)
+
+Phase 5 🔜 Economy Engine
+Phase 6 🔜 Relationship Engine
+Phase 7 🔜 History Engine
+Phase 8 🔜 Visualization
+Phase 9 🔜 Persistence
+Phase 10 🔜 Optimization & Scale
 ```
 
 ## Phase 2 â€“ World Engine
