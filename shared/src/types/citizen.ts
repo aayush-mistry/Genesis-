@@ -45,6 +45,7 @@ export interface Citizen {
   createdAt: SimulationTime;
   locationId: string | null;
   vitalState: VitalState;
+  wallet: import('./market').Wallet;
   movementState: MovementState;
   activeRoute: Route | null;
   skills: import('./occupation').Skill[];

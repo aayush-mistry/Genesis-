@@ -14,6 +14,9 @@ export interface Order {
   productId: string;
   quantity: number;
   unit: string;
+  unitPrice?: number;
+  totalPrice?: number;
+  currency?: string;
   status: OrderStatus;
   createdAt: number; // Timestamp or SimulationTime representation
   expectedDelivery?: number;

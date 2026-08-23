@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { worldService } from '../services/world.service';
-import { Region, City, District, Building } from '@genesis/shared';
+import { Region, City, District, Building, DistrictType, BuildingType } from '@genesis/shared';
+import { supplyService } from '../services/supply.service';
 
 export const WorldController = {
   // --- World ---
@@ -35,6 +36,70 @@ export const WorldController = {
     import('../services/resource.service').then(m => {
       m.resourceService.engine.generateResourcesForRegion(defaultRegion.id, world.randomSeed);
     });
+
+    // Generate basic urban hierarchy to allow workplaces to spawn
+    const city = worldService.engine.cityManager.createCity({
+      name: 'Genesis City',
+      regionId: defaultRegion.id,
+      coordinates: { x: 0, y: 0 },
+      population: 0,
+      area: 100,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+    worldService.engine.regionManager.addCity(defaultRegion.id, city.id);
+
+    const district = worldService.engine.districtManager.createDistrict({
+      name: 'Central District',
+      cityId: city.id,
+      type: DistrictType.COMMERCIAL,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+    worldService.engine.cityManager.addDistrict(city.id, district.id);
+
+    const factoryBuilding = worldService.engine.buildingManager.createBuilding({
+      name: 'Central Factory',
+      districtId: district.id,
+      type: BuildingType.FACTORY,
+      capacity: 100,
+      coordinates: { x: 0, y: 0 },
+      status: 'ACTIVE',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+    worldService.engine.districtManager.addBuilding(district.id, factoryBuilding.id);
+    
+    const storeBuilding = worldService.engine.buildingManager.createBuilding({
+      name: 'General Store',
+      districtId: district.id,
+      type: BuildingType.STORE,
+      capacity: 50,
+      coordinates: { x: 0, y: 0 },
+      status: 'ACTIVE',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+    worldService.engine.districtManager.addBuilding(district.id, storeBuilding.id);
+
+    // Generate Workplaces
+    worldService.engine.workplaceGenerator.generateWorkplaces();
+
+    // Initialize Inventories for Producers
+    const workplaces = worldService.engine.workplaceRepository.findAll();
+    for (const wp of workplaces) {
+      if (['FARM', 'MINE', 'FISHING_SITE', 'FOREST_SITE', 'FACTORY', 'SHOP', 'BUSINESS'].includes(wp.type)) {
+        // Create an inventory for this workplace
+        const inventoryId = `inv-${wp.id}`;
+        const storageCapacity = wp.capacity * 1000; // 1000 units per worker capacity
+        supplyService.inventoryManager.createInventory(inventoryId, wp.id, storageCapacity);
+        
+        // Update workplace with inventory reference
+        wp.inventoryId = inventoryId;
+        wp.storageCapacity = storageCapacity;
+        worldService.engine.workplaceRepository.update(wp);
+      }
+    }
 
     // Initialize population
     import('../services/citizen.service').then(m => {

@@ -91,6 +91,9 @@ export interface Workplace {
   positions: JobPosition[];
   inventoryId?: string;
   storageCapacity?: number;
-  moneyBalance?: number;
+  wallet?: import('./market').Wallet;
+  revenue?: number; // Daily or current period revenue
+  expenses?: number; // Daily or current period expenses
+  profit?: number; // Daily or current period profit
   metadata?: Record<string, unknown>;
 }

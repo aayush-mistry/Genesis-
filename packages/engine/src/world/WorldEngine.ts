@@ -5,6 +5,7 @@ import { DistrictManager } from './DistrictManager';
 import { BuildingManager } from './BuildingManager';
 import { WorkplaceRepository } from './repositories/WorkplaceRepository';
 import { FoodDistributionManager } from './services/FoodDistributionManager';
+import { WorkplaceGenerator } from './services/WorkplaceGenerator';
 
 export class WorldEngine {
   public worldManager: WorldManager;
@@ -13,6 +14,7 @@ export class WorldEngine {
   public districtManager: DistrictManager;
   public buildingManager: BuildingManager;
   public workplaceRepository: WorkplaceRepository;
+  public workplaceGenerator: WorkplaceGenerator;
   public foodDistributionManager: FoodDistributionManager;
 
   constructor() {
@@ -22,6 +24,7 @@ export class WorldEngine {
     this.districtManager = new DistrictManager();
     this.buildingManager = new BuildingManager();
     this.workplaceRepository = new WorkplaceRepository();
+    this.workplaceGenerator = new WorkplaceGenerator(this, this.workplaceRepository);
     this.foodDistributionManager = new FoodDistributionManager(this);
   }
 

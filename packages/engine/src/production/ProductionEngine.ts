@@ -85,15 +85,20 @@ export class ProductionEngine {
   private processProductionForWorkplace(workplace: Workplace): void {
     if (!workplace.inventoryId) return;
 
-    // For simplicity, determine what they produce based on WorkplaceType
+    // Determine what they produce
     let producedProductId = null;
     
-    // This mapping would ideally be data-driven or in the Workplace metadata
-    if (workplace.type === WorkplaceType.FARM) producedProductId = 'wheat'; // hardcoded for now, or get from metadata
+    // 1. Check metadata
     if (workplace.metadata?.producesProductId) {
        producedProductId = workplace.metadata.producesProductId as string;
-    } else if (workplace.type === WorkplaceType.FARM) {
-       producedProductId = 'wheat';
+    } else {
+       // 2. Fallback to definitions by workplaceType
+       for (const def of this.productionDefinitions.values()) {
+         if (def.workplaceType === workplace.type) {
+           producedProductId = def.productId;
+           break;
+         }
+       }
     }
 
     if (!producedProductId) return;
@@ -111,12 +116,23 @@ export class ProductionEngine {
     const workerEfficiency = workplace.occupiedPositions / workplace.capacity;
     let actualProduction = baseCapacity * workerEfficiency;
 
-    // 3. Environment & Resources (Simplified)
-    // If it's a farm, we should ideally check ResourceEngine for water, etc.
-    // For now, if it requires water, verify it exists.
+    // 3. Environment & Resources
+    // If the definition requires a specific environmental resource, verify the region has it
+    if (definition.requiredResource) {
+      const resourceQuantity = this.resourceEngine.getResourceQuantity(workplace.regionId, definition.requiredResource);
+      if (resourceQuantity <= 0) {
+        // No resource available, production is zero
+        actualProduction = 0;
+      } else {
+        // In a full simulation, we would consume the resource here.
+        // For now, just ensure it exists.
+        // actualProduction = Math.min(actualProduction, resourceQuantity);
+      }
+    }
+
     if (definition.waterRequirement && definition.waterRequirement > 0) {
-      // Stub check
-      actualProduction *= 1.0; // Assuming enough water
+      // Stub check for water
+      actualProduction *= 1.0; 
     }
 
     if (actualProduction > 0) {

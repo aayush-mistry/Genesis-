@@ -1,4 +1,8 @@
+import { WorkplaceType } from './occupation';
+
 export interface ProductionDefinition {
+  workplaceType?: WorkplaceType;
+  requiredResource?: string;
   productId: string;
   unit: string;
   baseYieldPerArea: number; // e.g. per 1000m² or per workplace capacity

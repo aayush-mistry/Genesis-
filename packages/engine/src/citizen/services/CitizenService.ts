@@ -104,7 +104,13 @@ export class CitizenService {
       jobType: null,
       jobSchedule: null,
       currentAction: undefined,
-      currentRoutine: undefined
+      currentRoutine: undefined,
+      wallet: {
+        balance: 0,
+        totalIncome: 0,
+        totalExpenses: 0,
+        currency: 'INR'
+      }
     };
 
     const age = new Date().getFullYear() - actualBirthDate.year; // Simple fallback age

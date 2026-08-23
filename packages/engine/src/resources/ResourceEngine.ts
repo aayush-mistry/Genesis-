@@ -106,4 +106,15 @@ export class ResourceEngine {
       });
     });
   }
+
+  public getResourceQuantity(regionId: string, resourceType: string): number {
+    const resources = this.resourceManager.getResourcesByRegion(regionId);
+    let total = 0;
+    for (const res of resources) {
+      if (res.type === resourceType) {
+        total += res.currentAmount;
+      }
+    }
+    return total;
+  }
 }

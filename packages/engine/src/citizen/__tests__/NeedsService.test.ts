@@ -28,7 +28,8 @@ describe('NeedsService', () => {
     employmentStatus: 'UNEMPLOYED' as any,
     workplaceId: null,
     jobType: null,
-    jobSchedule: null
+    jobSchedule: null,
+    wallet: { balance: 0, totalIncome: 0, totalExpenses: 0, currency: 'INR' }
   });
 
   it('initializes deterministically based on seed', () => {

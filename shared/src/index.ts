@@ -22,3 +22,4 @@ export * from './types/economy';
 export * from './types/inventory';
 export * from './types/production';
 export * from './types/supply';
+export * from './types/market';
