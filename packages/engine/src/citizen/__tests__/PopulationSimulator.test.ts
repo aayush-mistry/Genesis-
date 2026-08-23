@@ -22,7 +22,7 @@ describe('PopulationSimulator', () => {
     repository = new InMemoryCitizenRepository();
     
     worldEngine.worldManager.createWorld('world-1', 'Test World');
-    worldEngine.regionManager.createRegion({
+    const region = worldEngine.regionManager.createRegion({
       name: 'Region 1',
       climate: 'Temperate',
       description: 'Test Region',
@@ -42,8 +42,8 @@ describe('PopulationSimulator', () => {
     const perceptionService = new PerceptionService(
       citizenService,
       worldEngine,
-      {} as any, // environmentEngine mock
-      {} as any, // resourceEngine mock
+      { getEnvironmentalState: jest.fn().mockReturnValue(null), weatherManager: { getRegionWeather: jest.fn().mockReturnValue(null) }, seasonManager: { getCurrentSeason: jest.fn().mockReturnValue('Spring') }, dayCycleManager: { getCurrentPhase: jest.fn().mockReturnValue('Morning') } } as any, // environmentEngine mock
+      { resourceManager: { getResourcesByRegion: jest.fn().mockReturnValue([]) } } as any, // resourceEngine mock
       timeEngine,
       spatialEngine.queryService
     );
@@ -54,7 +54,7 @@ describe('PopulationSimulator', () => {
       timeEngine, 
       undefined, 
       undefined, 
-      () => 'region-1'
+      () => region.id
     );
   });
 

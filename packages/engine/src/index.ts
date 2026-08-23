@@ -16,3 +16,6 @@ export * from './decision';
 export * from './perception/PerceptionConfig';
 export * from './perception/PerceptionService';
 export * from './execution';
+export * from './inventory/InventoryManager';
+export * from './production/ProductionEngine';
+export * from './supply/SupplyChainEngine';

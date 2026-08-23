@@ -1,4 +1,4 @@
-import { LayoutDashboard, ListOrdered, History, ScrollText, ActivitySquare, PlusSquare, Globe, Cloud, Leaf, Map, Eye } from 'lucide-react';
+import { LayoutDashboard, ListOrdered, History, ScrollText, ActivitySquare, PlusSquare, Globe, Cloud, Leaf, Map, Eye, Briefcase } from 'lucide-react';
 
 interface SidebarProps {
   activeTab: string;
@@ -14,6 +14,7 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
     { id: 'resources', label: 'Resource Engine', icon: Leaf },
     { id: 'spatial', label: 'Spatial Engine', icon: Map },
     { id: 'perception', label: 'Perception System', icon: Eye },
+    { id: 'supply', label: 'Supply Chain', icon: Briefcase },
     { id: 'queue', label: 'Queue', icon: ListOrdered },
     { id: 'history', label: 'History', icon: History },
     { id: 'logs', label: 'Live Logs', icon: ScrollText },

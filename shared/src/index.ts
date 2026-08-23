@@ -18,3 +18,7 @@ export * from './types/decision';
 export * from './types/perception';
 export * from './types/execution';
 export * from './types/routine';
+export * from './types/economy';
+export * from './types/inventory';
+export * from './types/production';
+export * from './types/supply';

@@ -1,0 +1,139 @@
+import { WorldEngine } from '../world/WorldEngine';
+import { EventScheduler } from '../events/EventScheduler';
+import { TimeEngine } from '../time/TimeEngine';
+import { InventoryManager } from '../inventory/InventoryManager';
+import { ResourceEngine } from '../resources/ResourceEngine';
+import { Commodity, ProductionDefinition, Workplace, WorkplaceType } from '@genesis/shared';
+import { SimulationEvent } from '../events/SimulationEvent';
+import { randomUUID } from 'crypto';
+
+export class ProductionEngine {
+  private isInitialized = false;
+  
+  public commodities: Map<string, Commodity> = new Map();
+  public productionDefinitions: Map<string, ProductionDefinition> = new Map();
+
+  constructor(
+    private worldEngine: WorldEngine,
+    private eventScheduler: EventScheduler,
+    private timeEngine: TimeEngine,
+    private inventoryManager: InventoryManager,
+    private resourceEngine: ResourceEngine
+  ) {}
+
+  public registerCommodity(commodity: Commodity) {
+    this.commodities.set(commodity.id, commodity);
+  }
+
+  public registerProductionDefinition(definition: ProductionDefinition) {
+    this.productionDefinitions.set(definition.productId, definition);
+  }
+
+  public initialize(): void {
+    if (this.isInitialized) return;
+    this.isInitialized = true;
+
+    this.scheduleProductionCycle();
+  }
+
+  private scheduleProductionCycle(): void {
+    const time = this.timeEngine.getCurrentTime();
+    
+    // We want this to run every simulation day (or could be Hour, but daily is good for bulk production)
+    // Actually, maybe let's do it daily to match "growingPeriod: days"
+    const event: SimulationEvent = {
+      id: randomUUID(),
+      name: 'Daily Production Cycle',
+      description: 'Calculates production for all producers and updates inventories.',
+      scheduledTime: { ...time }, 
+      createdTime: { ...time },
+      priority: 'Normal',
+      status: 'Scheduled',
+      cancelFlag: false,
+      retryCount: 0,
+      sourceModule: 'ProductionEngine',
+      targetModule: 'ProductionEngine',
+      recurrence: { interval: 'Day' }, // Daily recurring
+      handler: async (e: SimulationEvent) => {
+        this.runProductionCycle();
+      }
+    };
+
+    this.eventScheduler.scheduleEvent(event);
+  }
+
+  private runProductionCycle(): void {
+    const workplaces = this.worldEngine.workplaceRepository.findAll();
+
+    for (const workplace of workplaces) {
+      if (this.isProducer(workplace)) {
+        this.processProductionForWorkplace(workplace);
+      }
+    }
+  }
+
+  private isProducer(workplace: Workplace): boolean {
+    return [
+      WorkplaceType.FARM, 
+      WorkplaceType.FISHING_SITE, 
+      WorkplaceType.MINE, 
+      WorkplaceType.FOREST_SITE, 
+      WorkplaceType.FACTORY
+    ].includes(workplace.type);
+  }
+
+  private processProductionForWorkplace(workplace: Workplace): void {
+    if (!workplace.inventoryId) return;
+
+    // For simplicity, determine what they produce based on WorkplaceType
+    let producedProductId = null;
+    
+    // This mapping would ideally be data-driven or in the Workplace metadata
+    if (workplace.type === WorkplaceType.FARM) producedProductId = 'wheat'; // hardcoded for now, or get from metadata
+    if (workplace.metadata?.producesProductId) {
+       producedProductId = workplace.metadata.producesProductId as string;
+    } else if (workplace.type === WorkplaceType.FARM) {
+       producedProductId = 'wheat';
+    }
+
+    if (!producedProductId) return;
+
+    const definition = this.productionDefinitions.get(producedProductId);
+    if (!definition) return;
+
+    const commodity = this.commodities.get(producedProductId);
+    if (!commodity) return;
+
+    // 1. Capacity based on land/size
+    const baseCapacity = (workplace.capacity / definition.workersRequiredPerUnitArea) * definition.baseYieldPerArea;
+
+    // 2. Adjust based on workers actually present (occupiedPositions vs capacity)
+    const workerEfficiency = workplace.occupiedPositions / workplace.capacity;
+    let actualProduction = baseCapacity * workerEfficiency;
+
+    // 3. Environment & Resources (Simplified)
+    // If it's a farm, we should ideally check ResourceEngine for water, etc.
+    // For now, if it requires water, verify it exists.
+    if (definition.waterRequirement && definition.waterRequirement > 0) {
+      // Stub check
+      actualProduction *= 1.0; // Assuming enough water
+    }
+
+    if (actualProduction > 0) {
+      // Produce goods
+      const success = this.inventoryManager.addItemQuantity(workplace.inventoryId, producedProductId, actualProduction, commodity.unit);
+
+      if (success) {
+        // Emit Event
+        this.eventScheduler.emitter.emit('ProductionCompleted', {
+          producerId: workplace.id,
+          productId: producedProductId,
+          quantity: actualProduction,
+          unit: commodity.unit,
+          regionId: workplace.regionId,
+          timestamp: this.timeEngine.getCurrentTime()
+        });
+      }
+    }
+  }
+}

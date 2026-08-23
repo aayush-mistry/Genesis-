@@ -66,7 +66,9 @@ export enum WorkplaceType {
   SCHOOL = 'SCHOOL',
   FIRE_STATION = 'FIRE_STATION',
   POLICE_STATION = 'POLICE_STATION',
-  BUSINESS = 'BUSINESS'
+  BUSINESS = 'BUSINESS',
+  WHOLESALE = 'WHOLESALE',
+  RETAIL = 'RETAIL'
 }
 
 export interface JobPosition {
@@ -87,5 +89,8 @@ export interface Workplace {
   occupiedPositions: number;
   vacancies: number;
   positions: JobPosition[];
+  inventoryId?: string;
+  storageCapacity?: number;
+  moneyBalance?: number;
   metadata?: Record<string, unknown>;
 }
