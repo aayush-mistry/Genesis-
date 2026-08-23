@@ -28,6 +28,20 @@ export class WorldEngine {
     this.foodDistributionManager = new FoodDistributionManager(this);
   }
 
+  public reset(): void {
+    this.worldManager.resetWorld();
+    // Assuming these managers have a clear method, but actually we can just re-instantiate them!
+    this.regionManager = new RegionManager();
+    this.cityManager = new CityManager();
+    this.districtManager = new DistrictManager();
+    this.buildingManager = new BuildingManager();
+    this.workplaceRepository = new WorkplaceRepository();
+    
+    // We must re-instantiate these since they depend on the repository
+    this.workplaceGenerator = new WorkplaceGenerator(this, this.workplaceRepository);
+    this.foodDistributionManager = new FoodDistributionManager(this);
+  }
+
   // Deletion orchestrations to maintain relational integrity
   public deleteRegion(regionId: string): void {
     const region = this.regionManager.getRegion(regionId);

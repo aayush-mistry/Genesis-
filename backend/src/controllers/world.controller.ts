@@ -88,7 +88,7 @@ export const WorldController = {
     // Initialize Inventories for Producers
     const workplaces = worldService.engine.workplaceRepository.findAll();
     for (const wp of workplaces) {
-      if (['FARM', 'MINE', 'FISHING_SITE', 'FOREST_SITE', 'FACTORY', 'SHOP', 'BUSINESS'].includes(wp.type)) {
+      if (['FARM', 'MINE', 'FISHING_SITE', 'FOREST_SITE', 'FACTORY', 'SHOP', 'BUSINESS', 'WHOLESALE'].includes(wp.type)) {
         // Create an inventory for this workplace
         const inventoryId = `inv-${wp.id}`;
         const storageCapacity = wp.capacity * 1000; // 1000 units per worker capacity
@@ -110,7 +110,8 @@ export const WorldController = {
   },
 
   deleteWorld: async (_request: FastifyRequest, _reply: FastifyReply) => {
-    worldService.engine.worldManager.resetWorld();
+    worldService.engine.reset();
+    import('../services/supply.service').then(m => m.supplyService.reset());
     return { success: true };
   },
 

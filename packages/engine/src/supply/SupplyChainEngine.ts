@@ -51,13 +51,27 @@ export class SupplyChainEngine {
     return Array.from(this.orders.values()).filter(o => o.buyerId === businessId || o.sellerId === businessId);
   }
 
+  public getAllActiveShipments(): Shipment[] {
+    return Array.from(this.shipments.values()).filter(s => s.status === ShipmentStatus.IN_TRANSIT);
+  }
+
+  public getPendingIncomingQuantity(buyerId: string, productId: string): number {
+    return Array.from(this.orders.values())
+      .filter(o => 
+        o.buyerId === buyerId && 
+        o.productId === productId && 
+        [OrderStatus.CREATED, OrderStatus.CONFIRMED, OrderStatus.DISPATCHED].includes(o.status)
+      )
+      .reduce((sum, o) => sum + o.quantity, 0);
+  }
+
   public getShipment(shipmentId: string): Shipment | undefined {
     return this.shipments.get(shipmentId);
   }
 
   private processOrder(orderId: string): void {
     const order = this.orders.get(orderId);
-    if (!order || order.status !== OrderStatus.CREATED) return;
+    if (!order || !(order.status === OrderStatus.CREATED || order.status === OrderStatus.PENDING)) return;
 
     const seller = this.worldEngine.workplaceRepository.findById(order.sellerId);
     if (!seller || !seller.inventoryId) {
@@ -70,7 +84,18 @@ export class SupplyChainEngine {
       order.status = OrderStatus.CONFIRMED;
       this.dispatchShipmentForOrder(order);
     } else {
-      order.status = OrderStatus.FAILED; // Simplified: fail if not immediately available
+      // If seller is Wholesale, we pend the order and try to restock
+      if (seller.type === 'WHOLESALE') {
+        order.status = OrderStatus.PENDING;
+        this.eventScheduler.emitter.emit('WholesaleRestockNeeded', {
+          orderId: order.orderId,
+          wholesaleId: seller.id,
+          productId: order.productId,
+          quantity: order.quantity
+        });
+      } else {
+        order.status = OrderStatus.FAILED;
+      }
     }
   }
 
@@ -169,10 +194,24 @@ export class SupplyChainEngine {
         destinationId: buyer.id,
         timestamp: this.timeEngine.getCurrentTime()
       });
+
+      // After receiving goods, check if the buyer has any PENDING orders it needs to fulfill as a seller
+      this.retryPendingOrdersForSeller(buyer.id);
+
     } else {
       shipment.status = ShipmentStatus.FAILED;
       order.status = OrderStatus.FAILED;
       // Goods are lost or need return mechanism (not implemented for now)
+    }
+  }
+
+  private retryPendingOrdersForSeller(sellerId: string): void {
+    const pendingOrders = Array.from(this.orders.values())
+      .filter(o => o.sellerId === sellerId && o.status === OrderStatus.PENDING)
+      .sort((a, b) => a.createdAt - b.createdAt); // FIFO
+
+    for (const po of pendingOrders) {
+      this.processOrder(po.orderId);
     }
   }
 }

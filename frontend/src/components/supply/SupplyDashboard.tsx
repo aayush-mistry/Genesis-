@@ -3,6 +3,8 @@ import React, { useEffect, useState } from 'react';
 export const SupplyDashboard: React.FC<{ regionId: string }> = ({ regionId }) => {
   const [producers, setProducers] = useState<any[]>([]);
   const [inventories, setInventories] = useState<any[]>([]);
+  const [wholesales, setWholesales] = useState<any[]>([]);
+  const [shipments, setShipments] = useState<any[]>([]);
 
   useEffect(() => {
     if (!regionId) return;
@@ -12,6 +14,8 @@ export const SupplyDashboard: React.FC<{ regionId: string }> = ({ regionId }) =>
         const prodRes = await fetch(`/api/v1/regions/${regionId}/production`);
         const prodData = await prodRes.json();
         if (prodData.producers) setProducers(prodData.producers);
+        if (prodData.wholesale) setWholesales(prodData.wholesale);
+        if (prodData.shipments) setShipments(prodData.shipments);
 
         const invRes = await fetch(`/api/v1/regions/${regionId}/inventory`);
         const invData = await invRes.json();
@@ -90,25 +94,56 @@ export const SupplyDashboard: React.FC<{ regionId: string }> = ({ regionId }) =>
         </div>
       </div>
 
-      {/* Wholesale Centers Panel Placeholder */}
+      {/* Wholesale Centers Panel */}
       <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-xl shadow-lg p-6 flex flex-col min-h-[300px]">
         <div className="mb-4 flex justify-between items-center border-b border-[#2a2a2a] pb-2">
           <h3 className="text-sm font-bold text-white uppercase tracking-wider">Wholesale Centers</h3>
-          <span className="text-purple-400 font-mono text-sm">0</span>
+          <span className="text-purple-400 font-mono text-sm">{wholesales.length}</span>
         </div>
-        <div className="flex-1 flex items-center justify-center text-center">
-          <p className="text-sm text-gray-500 italic">No wholesale centers available.</p>
+        <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+          {wholesales.length === 0 ? (
+            <div className="h-full flex items-center justify-center text-center">
+              <p className="text-sm text-gray-500 italic">No wholesale centers available.</p>
+            </div>
+          ) : (
+            wholesales.map(w => (
+              <div key={w.id} className="mb-4 border-b border-[#2a2a2a] pb-2">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="font-medium text-sm text-[#e5e5e5]">{w.id}</span>
+                </div>
+                <div className="text-xs text-gray-500 font-mono">
+                  Cap: {w.capacity} | Vac: {w.vacancies}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
-      {/* Shipments Panel Placeholder */}
+      {/* Shipments Panel */}
       <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-xl shadow-lg p-6 flex flex-col min-h-[300px]">
         <div className="mb-4 flex justify-between items-center border-b border-[#2a2a2a] pb-2">
           <h3 className="text-sm font-bold text-white uppercase tracking-wider">Shipments</h3>
-          <span className="text-orange-400 font-mono text-sm">0</span>
+          <span className="text-orange-400 font-mono text-sm">{shipments.length}</span>
         </div>
-        <div className="flex-1 flex items-center justify-center text-center">
-          <p className="text-sm text-gray-500 italic">No active shipments.</p>
+        <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+          {shipments.length === 0 ? (
+            <div className="h-full flex items-center justify-center text-center">
+              <p className="text-sm text-gray-500 italic">No active shipments.</p>
+            </div>
+          ) : (
+            shipments.map((s: any) => (
+              <div key={s.id} className="mb-4 border-b border-[#2a2a2a] pb-2">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="font-medium text-sm text-[#e5e5e5]">Order: {s.orderId}</span>
+                  <span className="px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider border border-orange-500/30 text-orange-400 bg-orange-500/10">IN TRANSIT</span>
+                </div>
+                <div className="text-[10px] text-gray-500 font-mono uppercase">
+                  ETA: Day {s.estimatedArrivalDay} | From: {s.originLocationId} | To: {s.destinationLocationId}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>

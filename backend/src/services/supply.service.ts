@@ -1,4 +1,4 @@
-import { InventoryManager, ProductionEngine, SupplyChainEngine } from '@genesis/engine';
+import { InventoryManager, ProductionEngine, SupplyChainEngine, CommerceAutomation } from '@genesis/engine';
 import { worldService } from './world.service';
 import { eventService } from './event.service';
 import { timeService } from './time.service';
@@ -10,6 +10,7 @@ class SupplyService {
   public inventoryManager: InventoryManager;
   public productionEngine: ProductionEngine;
   public supplyChainEngine: SupplyChainEngine;
+  public commerceAutomation: CommerceAutomation;
 
   constructor() {
     this.inventoryManager = new InventoryManager();
@@ -26,6 +27,14 @@ class SupplyService {
       timeService.engine,
       this.inventoryManager,
       spatialService.engine.queryService
+    );
+    this.commerceAutomation = new CommerceAutomation(
+      worldService.engine,
+      this.supplyChainEngine,
+      this.inventoryManager,
+      spatialService.engine.queryService,
+      eventService.scheduler,
+      timeService.engine
     );
   }
 
@@ -77,6 +86,35 @@ class SupplyService {
     });
 
     this.productionEngine.initialize();
+    this.commerceAutomation.initialize();
+  }
+
+  public reset(): void {
+    // Re-instantiate internal managers and engines
+    this.inventoryManager = new InventoryManager();
+    this.productionEngine = new ProductionEngine(
+      worldService.engine,
+      eventService.scheduler,
+      timeService.engine,
+      this.inventoryManager,
+      resourceService.engine
+    );
+    this.supplyChainEngine = new SupplyChainEngine(
+      worldService.engine,
+      eventService.scheduler,
+      timeService.engine,
+      this.inventoryManager,
+      spatialService.engine.queryService
+    );
+    this.commerceAutomation = new CommerceAutomation(
+      worldService.engine,
+      this.supplyChainEngine,
+      this.inventoryManager,
+      spatialService.engine.queryService,
+      eventService.scheduler,
+      timeService.engine
+    );
+    this.initialize();
   }
 }
 

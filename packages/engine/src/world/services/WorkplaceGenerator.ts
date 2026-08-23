@@ -45,6 +45,15 @@ export class WorkplaceGenerator {
     // In a real implementation this would query the ResourceEngine.
     // For Phase 3.5, we approximate based on region data.
     for (const region of regions) {
+      // Generate Wholesale centers for the region (minimum 2 per populated region)
+      // We will place them in the first city found in the region.
+      const regionCities = allCities.filter(c => c.regionId === region.id);
+      if (regionCities.length > 0) {
+        const city = regionCities[0];
+        this.createUrbanWorkplace(region.id, city.id, WorkplaceType.WHOLESALE, JobType.WHOLESALER, SkillType.COMMERCE, 20);
+        this.createUrbanWorkplace(region.id, city.id, WorkplaceType.WHOLESALE, JobType.WHOLESALER, SkillType.COMMERCE, 20);
+      }
+
       // Assuming climate or metadata has clues.
       // We will generate 1 Farm per region as a base if it's not Arctic.
       if (region.climate !== 'Arctic') {

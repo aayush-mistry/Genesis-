@@ -33,11 +33,13 @@ export const supplyController = {
 
   getRegionProduction: async (request: FastifyRequest<{ Params: { regionId: string } }>, reply: FastifyReply) => {
     const { regionId } = request.params;
-    // Just returning definitions and workplaces that produce
     const workplaces = worldService.engine.workplaceRepository.findAll().filter(w => w.regionId === regionId);
-    const producers = workplaces.filter(w => ['FARM', 'MINE', 'FISHING_SITE', 'FOREST_SITE', 'FACTORY'].includes(w.type));
     
-    return reply.send({ producers });
+    const producers = workplaces.filter(w => ['FARM', 'MINE', 'FISHING_SITE', 'FOREST_SITE', 'FACTORY'].includes(w.type));
+    const wholesale = workplaces.filter(w => w.type === 'WHOLESALE');
+    const shipments = supplyService.supplyChainEngine.getAllActiveShipments();
+    
+    return reply.send({ producers, wholesale, shipments });
   },
 
   getRegionInventory: async (request: FastifyRequest<{ Params: { regionId: string } }>, reply: FastifyReply) => {
