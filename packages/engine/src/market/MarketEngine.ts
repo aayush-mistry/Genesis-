@@ -4,6 +4,8 @@ import { TimeEngine } from '../time/TimeEngine';
 import { TimeUtils } from '../utils/TimeUtils';
 import { randomUUID } from 'crypto';
 import { WorldEngine } from '../world/WorldEngine';
+import { InventoryManager } from '../inventory/InventoryManager';
+import { RegionalPriceAdjustment } from '@genesis/shared';
 
 export class MarketEngine {
   private transactions: Map<string, TransactionRecord> = new Map();
@@ -12,8 +14,22 @@ export class MarketEngine {
     private worldEngine: WorldEngine,
     private timeEngine: TimeEngine,
     private eventScheduler: EventScheduler,
-    private citizenWalletLookup?: (citizenId: string) => Wallet | undefined
+    private citizenWalletLookup?: (citizenId: string) => Wallet | undefined,
+    private inventoryManager?: InventoryManager,
+    private citizenInventoryLookup?: (citizenId: string) => string | undefined
   ) {}
+
+  private regionalAdjustments: Map<string, RegionalPriceAdjustment> = new Map();
+
+  public setRegionalAdjustment(adjustment: RegionalPriceAdjustment): void {
+    this.regionalAdjustments.set(`${adjustment.regionId}-${adjustment.productId}`, adjustment);
+  }
+
+  public calculateEffectivePrice(productId: string, regionId: string, basePrice: number): number {
+    const adjustment = this.regionalAdjustments.get(`${regionId}-${productId}`);
+    if (!adjustment) return basePrice;
+    return Math.max(0, (basePrice * adjustment.adjustmentMultiplier) + adjustment.adjustmentOffset);
+  }
 
   public processTransaction(
     buyerId: string,
@@ -52,6 +68,25 @@ export class MarketEngine {
       sellerWallet.totalIncome += totalPrice;
     }
 
+    // Handle inventory if goods are involved
+    if (productId && quantity && this.inventoryManager) {
+      const sellerInvId = this.getInventoryId(sellerId);
+      const buyerInvId = this.getInventoryId(buyerId);
+
+      if (sellerInvId) {
+        // Decrement seller
+        this.inventoryManager.removeItemQuantity(sellerInvId, productId, quantity);
+      }
+      if (buyerInvId) {
+        // Increment buyer
+        // Need to ensure inventory exists. In Genesis, createInventory might be needed.
+        if (!this.inventoryManager.getInventory(buyerInvId)) {
+          this.inventoryManager.createInventory(buyerInvId, buyerId, 100); // default capacity for citizen/entity
+        }
+        this.inventoryManager.addItemQuantity(buyerInvId, productId, quantity, unit || 'kg');
+      }
+    }
+
     const transaction: TransactionRecord = {
       transactionId: randomUUID(),
       timestamp: TimeUtils.toSeconds(this.timeEngine.getCurrentTime()),
@@ -85,6 +120,22 @@ export class MarketEngine {
     // Check workplace
     const workplace = this.worldEngine.workplaceRepository.findById(entityId);
     if (workplace && workplace.wallet) return workplace.wallet;
+
+    return undefined;
+  }
+
+  private getInventoryId(entityId: string): string | undefined {
+    // Check citizen
+    if (this.citizenInventoryLookup) {
+      const invId = this.citizenInventoryLookup(entityId);
+      if (invId) return invId;
+    } else if (entityId.startsWith('citizen-')) {
+      return `inv-${entityId}`;
+    }
+
+    // Check workplace
+    const workplace = this.worldEngine.workplaceRepository.findById(entityId);
+    if (workplace && workplace.inventoryId) return workplace.inventoryId;
 
     return undefined;
   }

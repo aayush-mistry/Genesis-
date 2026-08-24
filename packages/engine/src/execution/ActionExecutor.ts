@@ -5,7 +5,9 @@ import { MovementActionExecutor } from './MovementActionExecutor';
 import { NeedActionExecutor } from './NeedActionExecutor';
 import { RoutineActionExecutor } from './RoutineActionExecutor';
 import { ResourceInteractionExecutor } from './ResourceInteractionExecutor';
+import { PurchaseActionExecutor } from './PurchaseActionExecutor';
 import { FailureRecoveryManager } from './FailureRecoveryManager';
+import { MarketEngine } from '../market/MarketEngine';
 import { TimeEngine } from '../time/TimeEngine';
 import { MovementService } from '../citizen/services/MovementService';
 import { NeedsService } from '../citizen/services/NeedsService';
@@ -20,7 +22,7 @@ export class ActionExecutor {
   constructor(
     private timeEngine: TimeEngine,
     private eventScheduler: EventScheduler,
-    movementService: MovementService,
+    private movementService: MovementService,
     needsService: NeedsService
   ) {
     this.lifecycleManager = new ActionLifecycleManager(eventScheduler, timeEngine);
@@ -32,6 +34,12 @@ export class ActionExecutor {
       new NeedActionExecutor(this.lifecycleManager, needsService),
       new RoutineActionExecutor(this.lifecycleManager),
       new ResourceInteractionExecutor(this.lifecycleManager)
+    );
+  }
+
+  public setMarketEngine(marketEngine: MarketEngine): void {
+    this.executors.push(
+      new PurchaseActionExecutor(this.lifecycleManager, marketEngine, this.movementService)
     );
   }
 

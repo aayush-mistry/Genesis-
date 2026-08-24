@@ -45,6 +45,7 @@ export class EligibilityFilter {
       case ActionType.GO_TO_FOOD_SOURCE:
       case ActionType.GO_TO_WATER_SOURCE:
       case ActionType.SEEK_MEDICAL_HELP:
+      case ActionType.PURCHASE:
         // These require a valid target
         if (!action.target || !action.target.id) return false;
         return true;

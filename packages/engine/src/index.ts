@@ -12,6 +12,7 @@ export * from './resources';
 export * from './spatial';
 export * from './utils/SeededRandom';
 export * from './citizen';
+export * from './market';
 export * from './decision';
 export * from './perception/PerceptionConfig';
 export * from './perception/PerceptionService';

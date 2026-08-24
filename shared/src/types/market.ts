@@ -38,3 +38,10 @@ export interface RegionalMarketState {
   surplus: number;
   lastUpdated: number;
 }
+
+export interface RegionalPriceAdjustment {
+  regionId: string;
+  productId: string;
+  adjustmentMultiplier: number;
+  adjustmentOffset: number;
+}

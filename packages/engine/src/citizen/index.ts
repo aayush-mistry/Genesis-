@@ -8,3 +8,5 @@ export * from './services/NeedsService';
 export * from './services/MovementService';
 export * from './generators/SkillGenerator';
 export * from './services/OccupationService';
+export * from './services/SalaryService';
+export * from './services/SalaryConfig';

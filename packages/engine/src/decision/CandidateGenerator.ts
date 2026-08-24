@@ -63,13 +63,25 @@ export class CandidateGenerator {
           target: { type: 'RESOURCE', id: foodResource.id }
         });
       } else {
-        const foodShop = perception.nearbyBuildings.find(b => b.type === 'STORE' || b.type === 'RESTAURANT');
-        if (foodShop) {
+        const foodShops = perception.nearbyBuildings.filter(b => b.type === 'STORE' || b.type === 'RESTAURANT' || b.type === 'WHOLESALE' || b.type === 'RETAIL');
+        for (const foodShop of foodShops) {
+          // Generate go to action
           candidates.push({
             type: ActionType.GO_TO_FOOD_SOURCE,
             source: need.needType,
             reason: `Hunger is ${need.level} and food source perceived`,
             target: { type: 'BUILDING', id: foodShop.id }
+          });
+
+          // Generate purchase action
+          candidates.push({
+            type: ActionType.PURCHASE,
+            source: need.needType,
+            reason: `Hunger is ${need.level}, need to buy food`,
+            target: { type: 'BUILDING', id: foodShop.id },
+            metadata: {
+              productId: 'wheat' // Simplified: they buy wheat or raw_fish for food
+            }
           });
         }
       }

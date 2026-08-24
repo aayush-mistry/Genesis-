@@ -4,5 +4,6 @@ export * from './BaseActionExecutor';
 export * from './FailureRecoveryManager';
 export * from './MovementActionExecutor';
 export * from './NeedActionExecutor';
+export * from './PurchaseActionExecutor';
 export * from './ResourceInteractionExecutor';
 export * from './RoutineActionExecutor';

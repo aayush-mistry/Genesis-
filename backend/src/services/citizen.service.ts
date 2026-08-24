@@ -33,6 +33,11 @@ class BackendCitizenService {
     // In the future, this might load existing citizens from a database.
     this.simulator.start();
     
+    // Connect SalaryService to MarketEngine
+    import('./market.service').then(({ marketService }) => {
+      this.engine.initializeSalaryService(marketService.engine);
+    });
+    
     // Schedule Needs updates
     this.engine.needsService.scheduleNeedsUpdate(eventService.scheduler, timeService.engine.getCurrentTime());
     

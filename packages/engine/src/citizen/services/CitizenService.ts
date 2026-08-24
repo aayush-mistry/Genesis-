@@ -14,6 +14,8 @@ import { ActionExecutor } from '../../execution';
 import { DecisionEngine, CandidateGenerator, NeedAnalyzer } from '../../decision';
 import { DecisionTriggerType, DecisionContext } from '@genesis/shared';
 import { PerceptionService } from '../../perception/PerceptionService';
+import { MarketEngine } from '../../market/MarketEngine';
+import { SalaryService } from './SalaryService';
 
 let citizenIdCounter = 1;
 
@@ -26,9 +28,11 @@ export class CitizenService {
   public actionExecutor: ActionExecutor;
   private decisionEngine: DecisionEngine;
   private candidateGenerator: CandidateGenerator;
+  private eventScheduler: EventScheduler;
   private needAnalyzer: NeedAnalyzer;
   private routineEngine: import('./RoutineEngine').RoutineEngine;
   private perceptionService?: PerceptionService;
+  public salaryService?: SalaryService;
 
   constructor(
     repository: CitizenRepository, 
@@ -40,6 +44,7 @@ export class CitizenService {
     this.repository = repository;
     this.worldEngine = worldEngine;
     this.timeEngine = timeEngine;
+    this.eventScheduler = eventScheduler;
     this.needsService = new NeedsService(this.repository);
     this.movementService = new MovementService(
       this.repository,
@@ -56,6 +61,18 @@ export class CitizenService {
 
   public setPerceptionService(perceptionService: PerceptionService): void {
     this.perceptionService = perceptionService;
+  }
+
+  public initializeSalaryService(marketEngine: MarketEngine): void {
+    this.salaryService = new SalaryService(
+      this,
+      this.worldEngine,
+      marketEngine,
+      this.eventScheduler,
+      this.timeEngine
+    );
+    this.salaryService.initialize();
+    this.actionExecutor.setMarketEngine(marketEngine);
   }
 
   /**
