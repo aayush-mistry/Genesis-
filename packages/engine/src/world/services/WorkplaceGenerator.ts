@@ -4,6 +4,8 @@ import { WorkplaceRepository } from '../repositories/WorkplaceRepository';
 
 let workplaceIdCounter = 1;
 
+const MIN_WHOLESALE_CENTERS_PER_REGION = 2;
+
 export class WorkplaceGenerator {
   constructor(
     private worldEngine: WorldEngine,
@@ -50,8 +52,9 @@ export class WorkplaceGenerator {
       const regionCities = allCities.filter(c => c.regionId === region.id);
       if (regionCities.length > 0) {
         const city = regionCities[0];
-        this.createUrbanWorkplace(region.id, city.id, WorkplaceType.WHOLESALE, JobType.WHOLESALER, SkillType.COMMERCE, 20);
-        this.createUrbanWorkplace(region.id, city.id, WorkplaceType.WHOLESALE, JobType.WHOLESALER, SkillType.COMMERCE, 20);
+        for (let i = 0; i < MIN_WHOLESALE_CENTERS_PER_REGION; i++) {
+          this.createUrbanWorkplace(region.id, city.id, WorkplaceType.WHOLESALE, JobType.WHOLESALER, SkillType.COMMERCE, 20);
+        }
       }
 
       // Assuming climate or metadata has clues.

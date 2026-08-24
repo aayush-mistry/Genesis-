@@ -179,6 +179,10 @@ export class TimeEngine {
     }
   }
 
+  public advance(secondsToAdd: number): void {
+    this.advanceTime(secondsToAdd);
+  }
+
   private advanceTime(secondsToAdd: number): void {
     let { year, month, day, hour, minute, second } = this.time;
 

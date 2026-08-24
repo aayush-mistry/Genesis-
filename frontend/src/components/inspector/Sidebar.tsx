@@ -36,7 +36,7 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto py-6 px-3 space-y-1">
+      <div className="flex-1 overflow-y-auto no-scrollbar py-6 px-3 space-y-1">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;

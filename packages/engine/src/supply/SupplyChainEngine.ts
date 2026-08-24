@@ -60,7 +60,7 @@ export class SupplyChainEngine {
       .filter(o => 
         o.buyerId === buyerId && 
         o.productId === productId && 
-        [OrderStatus.CREATED, OrderStatus.CONFIRMED, OrderStatus.DISPATCHED].includes(o.status)
+        [OrderStatus.CREATED, OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.DISPATCHED].includes(o.status)
       )
       .reduce((sum, o) => sum + o.quantity, 0);
   }

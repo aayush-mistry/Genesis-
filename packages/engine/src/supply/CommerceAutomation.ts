@@ -139,49 +139,58 @@ export class CommerceAutomation {
   }
 
   private placeOrder(buyer: Workplace, productId: string, quantity: number, suppliers: Workplace[]): void {
-    // Filter to valid suppliers that actually have the product in stock
-    const suppliersWithStock = suppliers.filter(s => {
-      if (!s.inventoryId) return false;
-      const inv = this.inventoryManager.getInventory(s.inventoryId);
-      if (!inv) return false;
-      const item = inv.items[productId];
-      return item && (item.totalQuantity - item.reservedQuantity) >= quantity; // Require FULL fulfillment for now
-    });
-
-    let targetSuppliers = suppliersWithStock;
-
-    // If no supplier has stock, and the buyer is Retail, fallback to any available Wholesale to act as broker
-    if (targetSuppliers.length === 0 && buyer.type !== WorkplaceType.WHOLESALE) {
-       targetSuppliers = suppliers.filter(s => s.type === WorkplaceType.WHOLESALE && !!s.inventoryId);
-    }
+    let targetSuppliers = suppliers.filter(s => !!s.inventoryId && s.id !== buyer.id);
 
     if (targetSuppliers.length === 0) return;
 
-    // Sort by distance (and region preference)
-    const sortedSuppliers = targetSuppliers.sort((a, b) => {
-      if (a.regionId === buyer.regionId && b.regionId !== buyer.regionId) return -1;
-      if (a.regionId !== buyer.regionId && b.regionId === buyer.regionId) return 1;
-      
-      const distA = this.spatialQueryService.calculateRoute(buyer.locationId, a.locationId).distance;
-      const distB = this.spatialQueryService.calculateRoute(buyer.locationId, b.locationId).distance;
-      return distA - distB;
-    });
-
-    // Try alternative suppliers (fallback) but do not split order
-    for (const supplier of sortedSuppliers) {
-      const isWholesaleBroker = supplier.type === WorkplaceType.WHOLESALE && targetSuppliers !== suppliersWithStock;
-      
+    // Helper to check stock
+    const getAvailableStock = (supplier: Workplace) => {
       const inv = this.inventoryManager.getInventory(supplier.inventoryId!)!;
       const item = inv.items[productId];
-      const availableToSell = item ? (item.totalQuantity - item.reservedQuantity) : 0;
+      return item ? (item.totalQuantity - item.reservedQuantity) : 0;
+    };
+
+    // Sort deterministic
+    targetSuppliers.sort((a, b) => {
+      const aStock = getAvailableStock(a) >= quantity;
+      const bStock = getAvailableStock(b) >= quantity;
       
-      if (availableToSell >= quantity || isWholesaleBroker) {
+      const aSameRegion = a.regionId === buyer.regionId;
+      const bSameRegion = b.regionId === buyer.regionId;
+
+      const aWholesale = a.type === WorkplaceType.WHOLESALE;
+      const bWholesale = b.type === WorkplaceType.WHOLESALE;
+
+      // 1. Prefer Wholesale over Producer
+      if (aWholesale && !bWholesale) return -1;
+      if (!aWholesale && bWholesale) return 1;
+
+      // 2. Prefer those with sufficient stock over those without
+      if (aStock && !bStock) return -1;
+      if (!aStock && bStock) return 1;
+
+      // 3. Prefer same region
+      if (aSameRegion && !bSameRegion) return -1;
+      if (!aSameRegion && bSameRegion) return 1;
+
+      // 4. Distance tie-breaker
+      const distA = this.spatialQueryService.calculateRoute(buyer.locationId, a.locationId).distance;
+      const distB = this.spatialQueryService.calculateRoute(buyer.locationId, b.locationId).distance;
+      if (distA !== distB) return distA - distB;
+
+      // 5. ID tie-breaker for strict determinism
+      return a.id.localeCompare(b.id);
+    });
+
+    for (const supplier of targetSuppliers) {
+      const hasStock = getAvailableStock(supplier) >= quantity;
+      const isWholesaleBroker = supplier.type === WorkplaceType.WHOLESALE && buyer.type !== WorkplaceType.WHOLESALE;
+      
+      // If supplier has stock, or if it's a wholesale and can act as a broker
+      if (hasStock || isWholesaleBroker) {
         this.supplyChainEngine.createOrder(buyer.id, supplier.id, productId, quantity, 'kg');
-        return; // Success, break out (no split orders yet)
+        return; // No split orders yet
       }
     }
-    
-    // If we reach here, no single supplier could fulfill the whole quantity.
-    // The requirement remains pending (next tick will retry).
   }
 }

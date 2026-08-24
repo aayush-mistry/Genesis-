@@ -87,6 +87,21 @@ class SupplyService {
 
     this.productionEngine.initialize();
     this.commerceAutomation.initialize();
+
+    // Initialize inventories for commercial and production workplaces
+    const workplaces = worldService.engine.workplaceRepository.findAll();
+    const typesNeedingInventory = ['WHOLESALE', 'SHOP', 'BUSINESS', 'FARM', 'MINE', 'FISHING_SITE', 'FOREST_SITE', 'FACTORY'];
+    
+    for (const wp of workplaces) {
+      if (typesNeedingInventory.includes(wp.type)) {
+        if (!wp.inventoryId) {
+          wp.inventoryId = `inv-${wp.id}`;
+          // Allocate storage capacity based on workplace capacity
+          const storageCapacity = wp.capacity * 100;
+          this.inventoryManager.createInventory(wp.inventoryId, wp.id, storageCapacity);
+        }
+      }
+    }
   }
 
   public reset(): void {
