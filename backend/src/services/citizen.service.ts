@@ -41,6 +41,17 @@ class BackendCitizenService {
     // Schedule Needs updates
     this.engine.needsService.scheduleNeedsUpdate(eventService.scheduler, timeService.engine.getCurrentTime());
     
+    import('./supply.service').then(({ supplyService }) => {
+      const { ConsumptionEngine } = require('@genesis/engine');
+      const getCommodity = (id: string) => supplyService.productionEngine.commodities.get(id);
+      const consumptionEngine = new ConsumptionEngine(
+        supplyService.inventoryManager,
+        this.engine.needsService,
+        getCommodity
+      );
+      this.engine.actionExecutor.setConsumptionEngine(consumptionEngine);
+    });
+
     console.log('[Citizen Engine] Initialized and Simulator started');
   }
 }

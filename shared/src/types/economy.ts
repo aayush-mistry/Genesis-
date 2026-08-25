@@ -22,5 +22,12 @@ export interface Commodity {
   basePrice: number;
   isBiological: boolean;
   storageRequirements?: Record<string, unknown>;
+  consumable?: {
+    restorationNeed: 'HUNGER' | 'THIRST';
+    restorationValue: number;
+  };
+  perishable?: {
+    shelfLifeHours: number;
+  };
   metadata?: Record<string, unknown>;
 }

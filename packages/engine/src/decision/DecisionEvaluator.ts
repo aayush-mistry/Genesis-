@@ -18,15 +18,15 @@ export class DecisionEvaluator implements IDecisionEvaluator {
     let score = 0;
 
     switch (action.type) {
-      case ActionType.EAT:
+      case ActionType.CONSUME_FOOD:
       case ActionType.SEEK_FOOD:
-        // EAT urgency is driven by hunger (0 = full, 100 = starving)
+        // CONSUME_FOOD urgency is driven by hunger (0 = full, 100 = starving)
         score = ScoreUtils.normalizeToScore(context.vitalState.hunger, 0, 100);
         break;
 
-      case ActionType.DRINK:
+      case ActionType.CONSUME_WATER:
       case ActionType.SEEK_WATER:
-        // DRINK urgency is driven by thirst
+        // CONSUME_WATER urgency is driven by thirst
         score = ScoreUtils.normalizeToScore(context.vitalState.thirst, 0, 100);
         break;
 

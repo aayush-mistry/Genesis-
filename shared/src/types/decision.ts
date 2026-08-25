@@ -2,8 +2,8 @@ import { VitalState } from './citizen';
 import { Skill, EmploymentStatus } from './occupation';
 
 export enum ActionType {
-  EAT = 'EAT',
-  DRINK = 'DRINK',
+  CONSUME_FOOD = 'CONSUME_FOOD',
+  CONSUME_WATER = 'CONSUME_WATER',
   REST = 'REST',
   GO_TO_WORK = 'GO_TO_WORK',
   WORK = 'WORK',

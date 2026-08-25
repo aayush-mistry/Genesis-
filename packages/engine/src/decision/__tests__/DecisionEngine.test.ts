@@ -60,13 +60,13 @@ describe('AI Decision Framework (Phase 4.1)', () => {
     const context = createMockContext({ vitalState: { ...createMockContext().vitalState, hunger: 90, energy: 100 } });
     const actions: CandidateActionSet = {
       citizenId: 'cit-1', timestamp: new Date(), triggeredNeeds: [], candidates: [
-        { type: ActionType.EAT, source: 'HUNGER', reason: '' },
+        { type: ActionType.CONSUME_FOOD, source: 'HUNGER', reason: '' },
         { type: ActionType.REST, source: 'ENERGY', reason: '' }
       ]
     };
     const decision = engine.requestDecision(context, actions, DecisionTriggerType.EVENT_DRIVEN);
     
-    expect(decision.selectedAction.type).toBe(ActionType.EAT);
+    expect(decision.selectedAction.type).toBe(ActionType.CONSUME_FOOD);
   });
 
   it('TEST 8 & 9: Decision record is generated and history is bounded', () => {

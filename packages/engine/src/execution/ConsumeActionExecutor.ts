@@ -1,21 +1,21 @@
 import { ActionState, ActionType, SimulationTime } from '@genesis/shared';
 import { BaseActionExecutor, ActionExecutorContext } from './BaseActionExecutor';
 import { ActionLifecycleManager } from './ActionLifecycleManager';
-import { NeedsService } from '../citizen/services/NeedsService';
+import { ConsumptionEngine } from '../consumption/ConsumptionEngine';
 import { TimeUtils } from '../utils/TimeUtils';
 
-export class NeedActionExecutor extends BaseActionExecutor {
+export class ConsumeActionExecutor extends BaseActionExecutor {
   constructor(
     lifecycleManager: ActionLifecycleManager,
-    private needsService: NeedsService
+    private consumptionEngine: ConsumptionEngine
   ) {
     super(lifecycleManager);
   }
 
   public canHandle(actionType: string): boolean {
     return [
-      ActionType.REST,
-      ActionType.SEEK_MEDICAL_HELP
+      ActionType.CONSUME_FOOD,
+      ActionType.CONSUME_WATER
     ].includes(actionType as ActionType);
   }
 
@@ -41,29 +41,25 @@ export class NeedActionExecutor extends BaseActionExecutor {
     
     if (expectedCompletionTime && TimeUtils.compare(currentTime, expectedCompletionTime) >= 0) {
       // Action is done, apply the effect
-      this.applyEffect(citizen, action.actionType);
-      this.lifecycleManager.transition(action, ActionState.COMPLETED);
+      const currentSeconds = TimeUtils.toSeconds(currentTime);
+      const needType = action.actionType === ActionType.CONSUME_FOOD ? 'HUNGER' : 'THIRST';
+      
+      const success = this.consumptionEngine.consume(citizen, needType, currentSeconds);
+      
+      if (success) {
+        this.lifecycleManager.transition(action, ActionState.COMPLETED);
+      } else {
+        // Consumption failed, likely due to no inventory or expiration
+        this.lifecycleManager.transition(action, ActionState.FAILED);
+      }
     }
   }
 
   private getDurationForAction(actionType: ActionType): number {
     switch (actionType) {
-
-      case ActionType.REST: return 8 * 60; // 8 hours
-      case ActionType.SEEK_MEDICAL_HELP: return 60;
+      case ActionType.CONSUME_FOOD: return 30; // 30 minutes
+      case ActionType.CONSUME_WATER: return 10;
       default: return 15;
-    }
-  }
-
-  private applyEffect(citizen: import('@genesis/shared').Citizen, actionType: ActionType): void {
-    switch (actionType) {
-
-      case ActionType.REST:
-        this.needsService.recoverEnergy(citizen, 100);
-        break;
-      case ActionType.SEEK_MEDICAL_HELP:
-        this.needsService.restoreHealth(citizen, 50);
-        break;
     }
   }
 }

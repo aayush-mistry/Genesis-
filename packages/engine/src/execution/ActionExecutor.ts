@@ -6,6 +6,7 @@ import { NeedActionExecutor } from './NeedActionExecutor';
 import { RoutineActionExecutor } from './RoutineActionExecutor';
 import { ResourceInteractionExecutor } from './ResourceInteractionExecutor';
 import { PurchaseActionExecutor } from './PurchaseActionExecutor';
+import { ConsumeActionExecutor } from './ConsumeActionExecutor';
 import { FailureRecoveryManager } from './FailureRecoveryManager';
 import { MarketEngine } from '../market/MarketEngine';
 import { TimeEngine } from '../time/TimeEngine';
@@ -40,6 +41,12 @@ export class ActionExecutor {
   public setMarketEngine(marketEngine: MarketEngine): void {
     this.executors.push(
       new PurchaseActionExecutor(this.lifecycleManager, marketEngine, this.movementService)
+    );
+  }
+
+  public setConsumptionEngine(consumptionEngine: import('../consumption/ConsumptionEngine').ConsumptionEngine): void {
+    this.executors.push(
+      new ConsumeActionExecutor(this.lifecycleManager, consumptionEngine)
     );
   }
 

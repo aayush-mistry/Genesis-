@@ -37,9 +37,9 @@ export class CandidateGenerator {
   private generateHungerCandidates(need: NeedState, perception: PerceptionSnapshot, candidates: CandidateAction[]) {
     if (need.level === NeedUrgencyLevel.VERY_LOW) return;
 
-    // Always can EAT if they have food (or as a generic action)
+    // Always can CONSUME_FOOD if they have food (or as a generic action)
     candidates.push({
-      type: ActionType.EAT,
+      type: ActionType.CONSUME_FOOD,
       source: need.needType,
       reason: `Hunger is ${need.level}`
     });
@@ -92,7 +92,7 @@ export class CandidateGenerator {
     if (need.level === NeedUrgencyLevel.VERY_LOW) return;
 
     candidates.push({
-      type: ActionType.DRINK,
+      type: ActionType.CONSUME_WATER,
       source: need.needType,
       reason: `Thirst is ${need.level}`
     });
@@ -170,7 +170,7 @@ export class CandidateGenerator {
       case 'STUDY': actionType = target && context.currentLocationId !== target.id ? ActionType.GO_TO_SCHOOL : ActionType.STUDY; break;
       case 'SLEEP': actionType = ActionType.REST; break; // SLEEP maps to REST
       case 'REST': actionType = ActionType.REST; break;
-      case 'MEAL': actionType = ActionType.EAT; break; // Needs will likely override or work together
+      case 'MEAL': actionType = ActionType.CONSUME_FOOD; break; // Needs will likely override or work together
       default: actionType = ActionType.IDLE; break;
     }
 

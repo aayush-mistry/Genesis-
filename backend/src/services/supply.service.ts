@@ -40,14 +40,16 @@ class SupplyService {
 
   public initialize() {
     // Register initial commodities
-    const wheat: Commodity = { id: 'wheat', name: 'Wheat', category: ProductCategory.FOOD, unit: 'kg', basePrice: 10, isBiological: true };
+    const wheat: Commodity = { id: 'wheat', name: 'Wheat', category: ProductCategory.FOOD, unit: 'kg', basePrice: 10, isBiological: true, consumable: { restorationNeed: 'HUNGER', restorationValue: 20 }, perishable: { shelfLifeHours: 72 } };
     const ironOre: Commodity = { id: 'iron_ore', name: 'Iron Ore', category: ProductCategory.RAW_MATERIAL, unit: 'kg', basePrice: 50, isBiological: false };
-    const rawFish: Commodity = { id: 'raw_fish', name: 'Raw Fish', category: ProductCategory.FOOD, unit: 'kg', basePrice: 15, isBiological: true };
+    const rawFish: Commodity = { id: 'raw_fish', name: 'Raw Fish', category: ProductCategory.FOOD, unit: 'kg', basePrice: 15, isBiological: true, consumable: { restorationNeed: 'HUNGER', restorationValue: 30 }, perishable: { shelfLifeHours: 24 } };
+    const water: Commodity = { id: 'water', name: 'Water', category: ProductCategory.FOOD, unit: 'L', basePrice: 2, isBiological: true, consumable: { restorationNeed: 'THIRST', restorationValue: 25 }, perishable: { shelfLifeHours: 168 } };
     const timber: Commodity = { id: 'timber', name: 'Timber', category: ProductCategory.RAW_MATERIAL, unit: 'kg', basePrice: 20, isBiological: true };
     
     this.productionEngine.registerCommodity(wheat);
     this.productionEngine.registerCommodity(ironOre);
     this.productionEngine.registerCommodity(rawFish);
+    this.productionEngine.registerCommodity(water);
     this.productionEngine.registerCommodity(timber);
 
     this.productionEngine.registerProductionDefinition({
@@ -102,6 +104,26 @@ class SupplyService {
         }
       }
     }
+
+    // Schedule daily expiry check
+    const time = timeService.engine.getCurrentTime();
+    eventService.scheduler.scheduleEvent({
+      id: `expiry-check-${Date.now()}`,
+      name: 'Daily Expiry Check',
+      description: 'Removes expired inventory items.',
+      scheduledTime: { ...time },
+      createdTime: { ...time },
+      priority: 'Normal',
+      status: 'Scheduled',
+      cancelFlag: false,
+      retryCount: 0,
+      sourceModule: 'SupplyService',
+      targetModule: 'InventoryManager',
+      recurrence: { interval: 'Day' },
+      handler: async () => {
+        this.inventoryManager.removeExpiredItems(timeService.engine.getCurrentTimeInSeconds());
+      }
+    });
   }
 
   public reset(): void {

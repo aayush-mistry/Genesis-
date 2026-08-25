@@ -68,7 +68,7 @@ describe('NeedActionSystem', () => {
       const result = system.generateCandidateActions(mockContext);
       
       const actions = result.candidates.map(c => c.type);
-      expect(actions).toContain(ActionType.EAT);
+      expect(actions).toContain(ActionType.CONSUME_FOOD);
       expect(actions).toContain(ActionType.SEEK_FOOD);
       expect(actions).not.toContain(ActionType.GO_TO_FOOD_SOURCE); // No food source nearby
     });
@@ -168,7 +168,7 @@ describe('NeedActionSystem', () => {
       const result = system.generateCandidateActions(mockContext);
       
       const actions = result.candidates.map(c => c.type);
-      expect(actions).toContain(ActionType.EAT);
+      expect(actions).toContain(ActionType.CONSUME_FOOD);
       expect(actions).not.toContain(ActionType.IDLE);
     });
   });
