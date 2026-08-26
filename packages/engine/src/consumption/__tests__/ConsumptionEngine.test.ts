@@ -46,17 +46,17 @@ describe('ConsumptionEngine', () => {
     citizen = {
       id: 'citizen-1',
       name: 'Test',
-      birthDate: { year: 1, month: 1, day: 1, hour: 0, minute: 0 },
+      birthDate: { year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0 },
       gender: CitizenGender.MALE,
       status: CitizenStatus.ACTIVE,
-      createdAt: { year: 1, month: 1, day: 1, hour: 0, minute: 0 },
+      createdAt: { year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0 },
       locationId: 'loc-1',
       vitalState: {
         hunger: 80,
         thirst: 70,
         energy: 100,
         health: 100,
-        lastUpdatedSimulationTime: { year: 1, month: 1, day: 1, hour: 0, minute: 0 }
+        lastUpdatedSimulationTime: { year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0 }
       },
       wallet: { balance: 0, totalIncome: 0, totalExpenses: 0, currency: 'INR' },
       movementState: 'IDLE' as any,

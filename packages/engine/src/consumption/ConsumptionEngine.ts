@@ -1,7 +1,7 @@
 import { Citizen, Commodity } from '@genesis/shared';
 import { InventoryManager } from '../inventory/InventoryManager';
 import { NeedsService } from '../citizen/services/NeedsService';
-import { ProductManager } from '../supply/ProductManager'; // Assume there is some way to get commodities
+
 
 export class ConsumptionEngine {
   constructor(

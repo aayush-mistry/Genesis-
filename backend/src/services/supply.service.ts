@@ -121,7 +121,7 @@ class SupplyService {
       targetModule: 'InventoryManager',
       recurrence: { interval: 'Day' },
       handler: async () => {
-        this.inventoryManager.removeExpiredItems(timeService.engine.getCurrentTimeInSeconds());
+        this.inventoryManager.removeExpiredItems(timeService.engine.getUptimeSeconds());
       }
     });
   }

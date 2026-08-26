@@ -44,7 +44,7 @@ describe('AI Decision Framework (Phase 4.1)', () => {
     const context = createMockContext({ vitalState: { ...createMockContext().vitalState, hunger: 90 } });
     const actions: CandidateActionSet = {
       citizenId: 'cit-1', timestamp: new Date(), triggeredNeeds: [], candidates: [
-        { type: ActionType.EAT, source: 'HUNGER', reason: '' },
+        { type: ActionType.CONSUME_FOOD, source: 'HUNGER', reason: '' },
         { type: ActionType.REST, source: 'ENERGY', reason: '' }
       ]
     };

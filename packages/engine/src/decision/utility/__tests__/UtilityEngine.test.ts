@@ -46,7 +46,7 @@ describe('UtilityEngine (Phase 4.4)', () => {
       vitalState: { ...createMockContext().vitalState, hunger: 100 }, // Base 100 * CRITICAL = 250
     });
     const candidates = createCandidateSet([
-      { type: ActionType.EAT, source: 'HUNGER', reason: '' }
+      { type: ActionType.CONSUME_FOOD, source: 'HUNGER', reason: '' }
     ]);
 
     const result = engine.evaluate(candidates, context);
@@ -57,7 +57,7 @@ describe('UtilityEngine (Phase 4.4)', () => {
     const contextModerate = createMockContext({ vitalState: { ...createMockContext().vitalState, hunger: 60 } }); // 60 * 1.0 = 60
     const contextCritical = createMockContext({ vitalState: { ...createMockContext().vitalState, hunger: 90 } }); // 90 * 2.5 = 225 -> 100
     
-    const candidates = createCandidateSet([{ type: ActionType.EAT, source: 'HUNGER', reason: '' }]);
+    const candidates = createCandidateSet([{ type: ActionType.CONSUME_FOOD, source: 'HUNGER', reason: '' }]);
 
     const resModerate = engine.evaluate(candidates, contextModerate);
     const resCritical = engine.evaluate(candidates, contextCritical);
@@ -69,7 +69,7 @@ describe('UtilityEngine (Phase 4.4)', () => {
 
   it('TEST 3: Higher thirst increases water utility', () => {
     const context = createMockContext({ vitalState: { ...createMockContext().vitalState, thirst: 70 } }); // HIGH -> 70 * 1.5 = 105 -> 100
-    const candidates = createCandidateSet([{ type: ActionType.DRINK, source: 'THIRST', reason: '' }]);
+    const candidates = createCandidateSet([{ type: ActionType.CONSUME_WATER, source: 'THIRST', reason: '' }]);
     const result = engine.evaluate(candidates, context);
     expect(result.rankedActions[0].score).toBe(100);
   });
@@ -154,18 +154,19 @@ describe('UtilityEngine (Phase 4.4)', () => {
     
     const candidates = createCandidateSet([
       { type: ActionType.REST, source: 'ENERGY', reason: '' }, // 50 energy -> 50 base * 1.0 = 50
-      { type: ActionType.EAT, source: 'HUNGER', reason: '' }, // 60 hunger -> 60 base * 1.0 = 60
-      { type: ActionType.DRINK, source: 'THIRST', reason: '' } // 60 thirst -> 60 base * 1.0 = 60
+      { type: ActionType.CONSUME_FOOD, source: 'HUNGER', reason: '' }, // 60 hunger -> 60 base * 1.0 = 60
+      { type: ActionType.CONSUME_WATER, source: 'THIRST', reason: '' } // 60 thirst -> 60 base * 1.0 = 60
     ]);
 
     const result = engine.evaluate(candidates, context);
     
     // DRINK and EAT tie at 60. Deterministic tie breaker: ActionType alphabet.
-    // 'DRINK' < 'EAT', so DRINK should be selected.
+    // 'CONSUME_FOOD' < 'CONSUME_WATER' < 'REST', wait. 
+    // Wait, CONSUME_FOOD is selected over CONSUME_WATER because F < W.
     expect(result.rankedActions.length).toBe(3);
-    expect(result.selectedAction.type).toBe(ActionType.DRINK);
-    expect(result.rankedActions[0].action.type).toBe(ActionType.DRINK);
-    expect(result.rankedActions[1].action.type).toBe(ActionType.EAT);
+    expect(result.selectedAction.type).toBe(ActionType.CONSUME_FOOD);
+    expect(result.rankedActions[0].action.type).toBe(ActionType.CONSUME_FOOD);
+    expect(result.rankedActions[1].action.type).toBe(ActionType.CONSUME_WATER);
     expect(result.rankedActions[2].action.type).toBe(ActionType.REST);
     
     expect(result.rankedActions[0].rank).toBe(1);
@@ -177,7 +178,7 @@ describe('UtilityEngine (Phase 4.4)', () => {
     const context = createMockContext();
     const originalContextJson = JSON.stringify(context);
     
-    const candidates = createCandidateSet([{ type: ActionType.EAT, source: 'HUNGER', reason: '' }]);
+    const candidates = createCandidateSet([{ type: ActionType.CONSUME_FOOD, source: 'HUNGER', reason: '' }]);
     engine.evaluate(candidates, context);
     
     expect(JSON.stringify(context)).toBe(originalContextJson);
@@ -202,7 +203,7 @@ describe('UtilityEngine (Phase 4.4)', () => {
     });
     
     const candidates = createCandidateSet([
-      { type: ActionType.EAT, source: 'HUNGER', reason: '' },
+      { type: ActionType.CONSUME_FOOD, source: 'HUNGER', reason: '' },
       { type: ActionType.GO_TO_WORK, source: 'WORK_SCHEDULE', reason: '' }
     ]);
     
@@ -211,7 +212,7 @@ describe('UtilityEngine (Phase 4.4)', () => {
     // GO_TO_WORK schedule bonus = 40
     // EAT hunger bonus = 100 (clamped)
     
-    expect(result.selectedAction.type).toBe(ActionType.EAT);
+    expect(result.selectedAction.type).toBe(ActionType.CONSUME_FOOD);
     expect(result.rankedActions.find(r => r.action.type === ActionType.GO_TO_WORK)?.score).toBe(40);
   });
 });
