@@ -123,11 +123,13 @@ export class CitizenService {
       currentAction: undefined,
       currentRoutine: undefined,
       wallet: {
+        id: `wallet-${id}`,
+        ownerId: id,
         balance: 0,
         totalIncome: 0,
         totalExpenses: 0,
-        currency: 'INR'
-      }
+        currency: 'GEN'
+      },
     };
 
     const age = new Date().getFullYear() - actualBirthDate.year; // Simple fallback age

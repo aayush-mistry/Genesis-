@@ -55,5 +55,15 @@ export const supplyController = {
     }
     
     return reply.send(inventories);
+  },
+
+  getProcurementRequirements: async (request: FastifyRequest, reply: FastifyReply) => {
+    const requirements = supplyService.businessProcurementEngine.getPendingRequirements();
+    return reply.send(requirements);
+  },
+
+  getProcurementHistory: async (request: FastifyRequest, reply: FastifyReply) => {
+    const history = supplyService.businessProcurementEngine.getHistory();
+    return reply.send(history);
   }
 };

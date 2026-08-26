@@ -58,7 +58,14 @@ describe('ConsumptionEngine', () => {
         health: 100,
         lastUpdatedSimulationTime: { year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0 }
       },
-      wallet: { balance: 0, totalIncome: 0, totalExpenses: 0, currency: 'INR' },
+      wallet: {
+        id: 'w-c1',
+        ownerId: 'c1',
+        balance: 1000,
+        totalIncome: 0,
+        totalExpenses: 0,
+        currency: 'GEN'
+      },
       movementState: 'IDLE' as any,
       activeRoute: null,
       skills: [],

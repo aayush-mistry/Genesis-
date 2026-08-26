@@ -8,6 +8,11 @@ export enum OrderStatus {
   CANCELLED = 'CANCELLED'
 }
 
+export interface PriceTier {
+  minimumQuantity: number;
+  unitPrice: number;
+}
+
 export interface Order {
   orderId: string;
   buyerId: string;

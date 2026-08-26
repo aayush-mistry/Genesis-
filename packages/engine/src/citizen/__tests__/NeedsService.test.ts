@@ -29,7 +29,14 @@ describe('NeedsService', () => {
     workplaceId: null,
     jobType: null,
     jobSchedule: null,
-    wallet: { balance: 0, totalIncome: 0, totalExpenses: 0, currency: 'INR' }
+    wallet: {
+      id: `w-citizen-001`,
+      ownerId: 'citizen-001',
+      balance: 100,
+      totalIncome: 0,
+      totalExpenses: 0,
+      currency: 'GEN'
+    }
   });
 
   it('initializes deterministically based on seed', () => {

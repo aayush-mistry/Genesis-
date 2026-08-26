@@ -95,5 +95,6 @@ export interface Workplace {
   revenue?: number; // Daily or current period revenue
   expenses?: number; // Daily or current period expenses
   profit?: number; // Daily or current period profit
+  inventoryConfiguration?: Record<string, { reorderPoint: number; targetStock: number }>;
   metadata?: Record<string, unknown>;
 }

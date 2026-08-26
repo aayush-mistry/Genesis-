@@ -5,6 +5,7 @@ export const SupplyDashboard: React.FC<{ regionId: string }> = ({ regionId }) =>
   const [inventories, setInventories] = useState<any[]>([]);
   const [wholesales, setWholesales] = useState<any[]>([]);
   const [shipments, setShipments] = useState<any[]>([]);
+  const [requirements, setRequirements] = useState<any[]>([]);
 
   useEffect(() => {
     if (!regionId) return;
@@ -20,6 +21,10 @@ export const SupplyDashboard: React.FC<{ regionId: string }> = ({ regionId }) =>
         const invRes = await fetch(`/api/v1/regions/${regionId}/inventory`);
         const invData = await invRes.json();
         setInventories(invData);
+        
+        const reqRes = await fetch(`/api/v1/procurement/requirements`);
+        const reqData = await reqRes.json();
+        setRequirements(reqData);
       } catch (error) {
         console.error("Failed to fetch supply data", error);
       }
@@ -31,7 +36,7 @@ export const SupplyDashboard: React.FC<{ regionId: string }> = ({ regionId }) =>
   }, [regionId]);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
       {/* Producers Panel */}
       <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-xl shadow-lg p-6 flex flex-col min-h-[300px]">
         <div className="mb-4 flex justify-between items-center border-b border-[#2a2a2a] pb-2">
@@ -140,6 +145,35 @@ export const SupplyDashboard: React.FC<{ regionId: string }> = ({ regionId }) =>
                 </div>
                 <div className="text-[10px] text-gray-500 font-mono uppercase">
                   ETA: Day {s.estimatedArrivalDay} | From: {s.originLocationId} | To: {s.destinationLocationId}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Procurement Requirements Panel */}
+      <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-xl shadow-lg p-6 flex flex-col min-h-[300px]">
+        <div className="mb-4 flex justify-between items-center border-b border-[#2a2a2a] pb-2">
+          <h3 className="text-sm font-bold text-white uppercase tracking-wider">Procurement</h3>
+          <span className="text-pink-400 font-mono text-sm">{requirements.length}</span>
+        </div>
+        <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+          {requirements.length === 0 ? (
+            <div className="h-full flex items-center justify-center text-center">
+              <p className="text-sm text-gray-500 italic">No pending requirements.</p>
+            </div>
+          ) : (
+            requirements.map((r: any, idx: number) => (
+              <div key={idx} className="mb-4 border-b border-[#2a2a2a] pb-2">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="font-medium text-sm text-[#e5e5e5]">{r.buyerId}</span>
+                  <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider border ${r.status === 'FAILED' ? 'border-red-500/30 text-red-400 bg-red-500/10' : 'border-pink-500/30 text-pink-400 bg-pink-500/10'}`}>
+                    {r.status}
+                  </span>
+                </div>
+                <div className="text-[10px] text-gray-500 font-mono">
+                  {r.productId} | Req: {r.requestedQuantity} | Stock: {r.currentStock}/{r.targetStock}
                 </div>
               </div>
             ))

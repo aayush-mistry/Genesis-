@@ -1,4 +1,4 @@
-import { InventoryManager, ProductionEngine, SupplyChainEngine, CommerceAutomation } from '@genesis/engine';
+import { InventoryManager, ProductionEngine, SupplyChainEngine, CommerceAutomation, BusinessProcurementEngine } from '@genesis/engine';
 import { worldService } from './world.service';
 import { eventService } from './event.service';
 import { timeService } from './time.service';
@@ -11,6 +11,7 @@ class SupplyService {
   public productionEngine: ProductionEngine;
   public supplyChainEngine: SupplyChainEngine;
   public commerceAutomation: CommerceAutomation;
+  public businessProcurementEngine: BusinessProcurementEngine;
 
   constructor() {
     this.inventoryManager = new InventoryManager();
@@ -35,6 +36,23 @@ class SupplyService {
       spatialService.engine.queryService,
       eventService.scheduler,
       timeService.engine
+    );
+    this.businessProcurementEngine = new BusinessProcurementEngine(
+      worldService.engine,
+      this.inventoryManager,
+      this.supplyChainEngine,
+      spatialService.engine.queryService,
+      eventService.scheduler,
+      timeService.engine
+    );
+    this.businessProcurementEngine = new BusinessProcurementEngine(
+      worldService.engine,
+      this.inventoryManager,
+      this.supplyChainEngine,
+      spatialService.engine.queryService,
+      eventService.scheduler,
+      timeService.engine,
+      // marketEngine can be optionally passed if properly initialized
     );
   }
 
@@ -98,6 +116,7 @@ class SupplyService {
 
     this.productionEngine.initialize();
     this.commerceAutomation.initialize();
+    this.businessProcurementEngine.initialize();
 
     // Initialize inventories for commercial and production workplaces
     const workplaces = worldService.engine.workplaceRepository.findAll();
@@ -109,7 +128,31 @@ class SupplyService {
           wp.inventoryId = `inv-${wp.id}`;
           // Allocate storage capacity based on workplace capacity
           const storageCapacity = wp.capacity * 100;
+          wp.storageCapacity = storageCapacity;
           this.inventoryManager.createInventory(wp.inventoryId, wp.id, storageCapacity);
+        }
+        
+        // Initialize Wallets
+        if (!wp.wallet) {
+          wp.wallet = {
+            id: `wallet-${wp.id}`,
+            ownerId: wp.id,
+            balance: 100000, // Initialize with 100k for testing bulk purchases
+            currency: 'GEN',
+            totalIncome: 0,
+            totalExpenses: 0
+          };
+        }
+        
+        // Initialize Inventory Configuration for Business Procurement
+        if (['SHOP', 'BUSINESS', 'WHOLESALE'].includes(wp.type)) {
+          if (!wp.inventoryConfiguration) {
+            wp.inventoryConfiguration = {
+              'wheat': { reorderPoint: 50, targetStock: 200 },
+              'iron_ore': { reorderPoint: 20, targetStock: 100 },
+              'water': { reorderPoint: 100, targetStock: 500 }
+            };
+          }
         }
       }
     }
@@ -156,6 +199,14 @@ class SupplyService {
       worldService.engine,
       this.supplyChainEngine,
       this.inventoryManager,
+      spatialService.engine.queryService,
+      eventService.scheduler,
+      timeService.engine
+    );
+    this.businessProcurementEngine = new BusinessProcurementEngine(
+      worldService.engine,
+      this.inventoryManager,
+      this.supplyChainEngine,
       spatialService.engine.queryService,
       eventService.scheduler,
       timeService.engine
