@@ -57,34 +57,43 @@ class SupplyService {
       workplaceType: 'FARM' as any, // using 'any' to avoid tight coupling if string is passed
       unit: 'kg',
       baseYieldPerArea: 100,
-      workersRequiredPerUnitArea: 1
+      workersRequiredPerUnitArea: 1,
+      resourceRequirements: [
+        { resourceId: 'WATER', amountPerOutputUnit: 20 },
+      ]
     });
 
     this.productionEngine.registerProductionDefinition({
       productId: 'iron_ore',
       workplaceType: 'MINE' as any,
-      requiredResource: 'iron', // needs iron deposit
       unit: 'kg',
       baseYieldPerArea: 50,
-      workersRequiredPerUnitArea: 2
+      workersRequiredPerUnitArea: 2,
+      resourceRequirements: [
+        { resourceId: 'IRON', amountPerOutputUnit: 1 },
+      ]
     });
 
     this.productionEngine.registerProductionDefinition({
       productId: 'raw_fish',
       workplaceType: 'FISHING_SITE' as any,
-      requiredResource: 'fish_stock', // needs fish
       unit: 'kg',
       baseYieldPerArea: 80,
-      workersRequiredPerUnitArea: 1
+      workersRequiredPerUnitArea: 1,
+      resourceRequirements: [
+        { resourceId: 'FISH', amountPerOutputUnit: 1 },
+      ]
     });
 
     this.productionEngine.registerProductionDefinition({
       productId: 'timber',
       workplaceType: 'FOREST_SITE' as any,
-      requiredResource: 'forest', // needs forest
       unit: 'kg',
       baseYieldPerArea: 60,
-      workersRequiredPerUnitArea: 1
+      workersRequiredPerUnitArea: 1,
+      resourceRequirements: [
+        { resourceId: 'FORESTS', amountPerOutputUnit: 1 },
+      ]
     });
 
     this.productionEngine.initialize();

@@ -61,9 +61,11 @@ describe('ProductionEngine', () => {
     const mineDef: ProductionDefinition = {
       productId: 'iron_ore',
       workplaceType: WorkplaceType.MINE,
-      requiredResource: 'iron',
       unit: 'kg',
       baseYieldPerArea: 50,
+      resourceRequirements: [
+        { resourceId: 'IRON', amountPerOutputUnit: 1 }
+      ],
       workersRequiredPerUnitArea: 2
     };
     productionEngine.registerProductionDefinition(mineDef);
@@ -112,8 +114,24 @@ describe('ProductionEngine', () => {
     worldEngine.workplaceRepository.create(mine);
     inventoryManager.createInventory('inv-mine', 'mine-1', 5000);
     
-    // Mock the resource engine to return iron
-    jest.spyOn(resourceEngine, 'getResourceQuantity').mockReturnValue(1000);
+    // Mock the resource manager to return iron
+    jest.spyOn(resourceEngine.resourceManager, 'getResourcesByRegion').mockReturnValue([{
+      id: 'res-iron',
+      type: 'IRON' as any,
+      name: 'Iron Deposit',
+      category: 'NON_RENEWABLE' as any,
+      unit: 'kg',
+      renewable: false,
+      regionId: 'reg-1',
+      currentAmount: 1000,
+      maximumAmount: 1000,
+      naturalRecoveryRate: null,
+      consumptionRate: null,
+      condition: null,
+      extractionDifficulty: 0,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }]);
 
     productionEngine.initialize();
     (productionEngine as any).runProductionCycle();
@@ -141,8 +159,8 @@ describe('ProductionEngine', () => {
     worldEngine.workplaceRepository.create(mine);
     inventoryManager.createInventory('inv-mine-2', 'mine-2', 5000);
     
-    // Mock the resource engine to return 0 iron
-    jest.spyOn(resourceEngine, 'getResourceQuantity').mockReturnValue(0);
+    // Mock the resource manager to return 0 iron
+    jest.spyOn(resourceEngine.resourceManager, 'getResourcesByRegion').mockReturnValue([]);
 
     productionEngine.initialize();
     (productionEngine as any).runProductionCycle();

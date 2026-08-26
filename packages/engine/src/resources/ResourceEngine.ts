@@ -1,6 +1,7 @@
 import { ResourceManager } from './ResourceManager';
 import { ResourceGenerator } from './ResourceGenerator';
 import { ResourceCalculator } from './ResourceCalculator';
+import { ResourceConsumptionEngine } from './ResourceConsumptionEngine';
 import { WorldEngine } from '../world/WorldEngine';
 import { EnvironmentEngine } from '../environment/EnvironmentEngine';
 import { EventScheduler } from '../events/EventScheduler';
@@ -12,6 +13,7 @@ export class ResourceEngine {
   public resourceManager: ResourceManager;
   public resourceGenerator: ResourceGenerator;
   public resourceCalculator: ResourceCalculator;
+  public resourceConsumptionEngine: ResourceConsumptionEngine;
 
   private worldEngine: WorldEngine;
   private environmentEngine: EnvironmentEngine;
@@ -33,6 +35,7 @@ export class ResourceEngine {
     this.resourceManager = new ResourceManager();
     this.resourceGenerator = new ResourceGenerator();
     this.resourceCalculator = new ResourceCalculator();
+    this.resourceConsumptionEngine = new ResourceConsumptionEngine(this.resourceManager);
   }
 
   public initialize(): void {

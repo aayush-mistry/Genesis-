@@ -117,38 +117,45 @@ export class ProductionEngine {
     let actualProduction = baseCapacity * workerEfficiency;
 
     // 3. Environment & Resources
-    // If the definition requires a specific environmental resource, verify the region has it
-    if (definition.requiredResource) {
-      const resourceQuantity = this.resourceEngine.getResourceQuantity(workplace.regionId, definition.requiredResource);
-      if (resourceQuantity <= 0) {
-        // No resource available, production is zero
-        actualProduction = 0;
-      } else {
-        // In a full simulation, we would consume the resource here.
-        // For now, just ensure it exists.
-        // actualProduction = Math.min(actualProduction, resourceQuantity);
-      }
-    }
+    const maxFeasibleProduction = this.resourceEngine.resourceConsumptionEngine.calculateMaximumProduction(
+      definition,
+      actualProduction,
+      workplace.id,
+      workplace.regionId
+    );
 
-    if (definition.waterRequirement && definition.waterRequirement > 0) {
-      // Stub check for water
-      actualProduction *= 1.0; 
-    }
+    actualProduction = maxFeasibleProduction;
 
     if (actualProduction > 0) {
-      // Produce goods
-      const success = this.inventoryManager.addItemQuantity(workplace.inventoryId, producedProductId, actualProduction, commodity.unit);
+      // Allocate resources
+      const allocation = this.resourceEngine.resourceConsumptionEngine.allocateResources(
+        definition,
+        actualProduction,
+        workplace.id,
+        workplace.regionId
+      );
 
-      if (success) {
-        // Emit Event
-        this.eventScheduler.emitter.emit('ProductionCompleted', {
-          producerId: workplace.id,
-          productId: producedProductId,
-          quantity: actualProduction,
-          unit: commodity.unit,
-          regionId: workplace.regionId,
-          timestamp: this.timeEngine.getCurrentTime()
-        });
+      if (allocation) {
+        // Produce goods
+        const success = this.inventoryManager.addItemQuantity(workplace.inventoryId, producedProductId, actualProduction, commodity.unit);
+
+        if (success) {
+          // Consume resources
+          this.resourceEngine.resourceConsumptionEngine.consumeResources(allocation.allocationId);
+
+          // Emit Event
+          this.eventScheduler.emitter.emit('ProductionCompleted', {
+            producerId: workplace.id,
+            productId: producedProductId,
+            quantity: actualProduction,
+            unit: commodity.unit,
+            regionId: workplace.regionId,
+            timestamp: this.timeEngine.getCurrentTime()
+          });
+        } else {
+          // Revert allocation if inventory failed
+          this.resourceEngine.resourceConsumptionEngine.releaseReservation(allocation.allocationId);
+        }
       }
     }
   }
