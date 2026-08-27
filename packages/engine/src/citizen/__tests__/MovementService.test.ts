@@ -30,7 +30,7 @@ describe('MovementService', () => {
       timeEngine,
       eventScheduler,
       spatialEngine.queryService
-    );
+    , new (require('../../citizen/services/HouseholdService').HouseholdService)(new (require('../../inventory/InventoryManager').InventoryManager)()));
     movementService = citizenService.movementService;
 
     // Set up dummy world locations
@@ -129,3 +129,4 @@ describe('MovementService', () => {
     expect(event?.cancelFlag).toBe(true);
   });
 });
+

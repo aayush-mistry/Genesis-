@@ -7,6 +7,7 @@ import { WorldEngine } from '../../world/WorldEngine';
 import { TimeEngine } from '../../time/TimeEngine';
 import { NeedsService } from './NeedsService';
 import { MovementService } from './MovementService';
+import { HouseholdService } from './HouseholdService';
 import { EventScheduler } from '../../events/EventScheduler';
 import { SpatialQueryService } from '../../spatial/SpatialQueryService';
 import { ActionState } from '@genesis/shared';
@@ -33,19 +34,22 @@ export class CitizenService {
   private routineEngine: import('./RoutineEngine').RoutineEngine;
   private perceptionService?: PerceptionService;
   public salaryService?: SalaryService;
+  public householdService: HouseholdService;
 
   constructor(
     repository: CitizenRepository, 
     worldEngine: WorldEngine, 
     timeEngine: TimeEngine,
     eventScheduler: EventScheduler,
-    spatialQueryService: SpatialQueryService
+    spatialQueryService: SpatialQueryService,
+    householdService: HouseholdService
   ) {
     this.repository = repository;
     this.worldEngine = worldEngine;
     this.timeEngine = timeEngine;
     this.eventScheduler = eventScheduler;
     this.needsService = new NeedsService(this.repository);
+    this.householdService = householdService;
     this.movementService = new MovementService(
       this.repository,
       spatialQueryService,
@@ -63,7 +67,11 @@ export class CitizenService {
     this.perceptionService = perceptionService;
   }
 
-  public initializeSalaryService(marketEngine: MarketEngine): void {
+  public initializeSalaryService(
+    marketEngine: MarketEngine,
+    storeRanker: import('../../decision/scoring/StoreRanker').StoreRanker,
+    spatialQueryService: SpatialQueryService
+  ): void {
     this.salaryService = new SalaryService(
       this,
       this.worldEngine,
@@ -72,7 +80,7 @@ export class CitizenService {
       this.timeEngine
     );
     this.salaryService.initialize();
-    this.actionExecutor.setMarketEngine(marketEngine);
+    this.actionExecutor.setMarketEngine(marketEngine, storeRanker, spatialQueryService);
   }
 
   /**
@@ -104,6 +112,27 @@ export class CitizenService {
     // Generate VitalState
     const vitalState = this.needsService.initializeVitalState(actualSeed, currentTime);
 
+    // Generate Personality
+    // Pseudo-random generation normalized 0-100 based on seed
+    const hash = (actualSeed * 9301 + 49297) % 233280;
+    const rnd = () => ((actualSeed * 9301 + 49297) % 233280) / 233280.0;
+    
+    const basePersonality = {
+      priceSensitivity: 30 + Math.floor(Math.random() * 60),
+      qualityPreference: 30 + Math.floor(Math.random() * 60),
+      conveniencePreference: 30 + Math.floor(Math.random() * 60),
+      planningTendency: 30 + Math.floor(Math.random() * 60),
+      socialEngagement: 30 + Math.floor(Math.random() * 60),
+      riskTolerance: 30 + Math.floor(Math.random() * 60),
+      savingTendency: 30 + Math.floor(Math.random() * 60)
+    };
+
+    // For now, each new citizen gets their own household as default
+    // We can later cluster them.
+    const household = this.householdService.createHousehold(locationId || '');
+    this.householdService.addMember(household.id, id);
+    this.householdService.provisionStarterResources(household.id);
+
     const citizen: Citizen = {
       id,
       name,
@@ -122,10 +151,12 @@ export class CitizenService {
       jobSchedule: null,
       currentAction: undefined,
       currentRoutine: undefined,
+      householdId: household.id,
+      personality: basePersonality,
       wallet: {
         id: `wallet-${id}`,
         ownerId: id,
-        balance: 0,
+        balance: 1000, // Individual starter pocket money
         totalIncome: 0,
         totalExpenses: 0,
         currency: 'GEN'
@@ -190,6 +221,20 @@ export class CitizenService {
         citizen.currentAction.state === ActionState.CANCELLED ||
         citizen.currentAction.state === ActionState.FAILED) {
         
+        let stockLevels: Record<string, number> = {};
+        if (citizen.householdId) {
+          const household = this.householdService.getHousehold(citizen.householdId);
+          if (household) {
+            const inventory = this.householdService['inventoryManager'].getInventory(household.inventoryId);
+            if (inventory) {
+              const currentTimeSeconds = this.timeEngine.getUptimeSeconds(); // or equivalent
+              for (const [productId, item] of Object.entries(inventory.items)) {
+                stockLevels[productId] = this.householdService['inventoryManager'].getUsableQuantity(inventory.id, productId, currentTimeSeconds);
+              }
+            }
+          }
+        }
+
         const context: DecisionContext = {
           citizenId: citizen.id,
           age: this.getCitizenAge(citizen),
@@ -200,7 +245,10 @@ export class CitizenService {
           currentLocationId: citizen.locationId || '',
           currentDestinationId: null,
           simulationTime: new Date() as any, // fallback or real simulation time mapped to Date
-          perception: this.perceptionService!.generateSnapshot(citizen.id)
+          perception: this.perceptionService!.generateSnapshot(citizen.id),
+          householdId: citizen.householdId,
+          personality: citizen.personality,
+          stockLevels
         };
 
         const needStates = this.needAnalyzer.analyzeNeeds(citizen.vitalState);
@@ -226,7 +274,23 @@ export class CitizenService {
 
   public clear(): void {
     this.repository.clear();
+    this.householdService.clear();
     citizenIdCounter = 1;
+  }
+
+  /**
+   * Evolves a personality trait slightly based on observed behavior.
+   */
+  public evolvePersonality(citizenId: string, trait: keyof Citizen['personality'], delta: number): void {
+    const citizen = this.getCitizen(citizenId);
+    if (!citizen) return;
+
+    let newValue = citizen.personality[trait] + delta;
+    if (newValue > 100) newValue = 100;
+    if (newValue < 0) newValue = 0;
+
+    citizen.personality[trait] = newValue;
+    this.repository.update(citizen);
   }
 
   /**

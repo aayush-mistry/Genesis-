@@ -34,7 +34,7 @@ describe('Perception System (Phase 4.2)', () => {
       timeEngine,
       eventScheduler,
       spatialEngine.queryService
-    );
+    , new (require('../../citizen/services/HouseholdService').HouseholdService)(new (require('../../inventory/InventoryManager').InventoryManager)()));
 
     environmentEngine = new EnvironmentEngine(worldEngine, eventScheduler, timeEngine);
     resourceEngine = new ResourceEngine(worldEngine, environmentEngine, eventScheduler, timeEngine);
@@ -227,3 +227,4 @@ describe('Perception System (Phase 4.2)', () => {
     }).toThrow(/no location/);
   });
 });
+

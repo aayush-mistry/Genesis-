@@ -14,16 +14,16 @@ export class CandidateGenerator {
     for (const need of needStates) {
       switch (need.needType) {
         case 'HUNGER':
-          this.generateHungerCandidates(need, perception, candidates);
+          this.generateHungerCandidates(need, context, candidates);
           break;
         case 'THIRST':
-          this.generateThirstCandidates(need, perception, candidates);
+          this.generateThirstCandidates(need, context, candidates);
           break;
         case 'ENERGY':
           this.generateEnergyCandidates(need, candidates);
           break;
         case 'HEALTH':
-          this.generateHealthCandidates(need, perception, candidates);
+          this.generateHealthCandidates(need, context, candidates);
           break;
       }
     }
@@ -34,27 +34,56 @@ export class CandidateGenerator {
     return candidates;
   }
 
-  private generateHungerCandidates(need: NeedState, perception: PerceptionSnapshot, candidates: CandidateAction[]) {
+  private generateHungerCandidates(need: NeedState, context: DecisionContext, candidates: CandidateAction[]) {
+    const perception = context.perception;
+    const foodStock = context.stockLevels?.['wheat'] || 0; // assuming wheat is basic food
+
     if (need.level === NeedUrgencyLevel.VERY_LOW) return;
 
-    // Always can CONSUME_FOOD if they have food (or as a generic action)
-    candidates.push({
-      type: ActionType.CONSUME_FOOD,
-      source: need.needType,
-      reason: `Hunger is ${need.level}`
-    });
-
-    if (need.urgency > 40) { // MODERATE, HIGH, CRITICAL
+    // Always can CONSUME_FOOD if they have food
+    if (foodStock > 0) {
       candidates.push({
-        type: ActionType.SEEK_FOOD,
+        type: ActionType.CONSUME_FOOD,
         source: need.needType,
-        reason: `Hunger is ${need.level}`
+        reason: `Hunger is ${need.level} and food is available`
       });
+    }
 
-      // Find a known food source (e.g. food resources or restaurants in buildings)
-      // Assuming FISH and WILDLIFE act as food sources for now, or just look for 'FARM' buildings
+    // Determine if we need to purchase based on stock and need
+    let shouldPurchase = false;
+    let purchaseReason = '';
+    
+    // Emergency: Critical need and no food
+    if (need.urgency >= 80 && foodStock <= 0) {
+      shouldPurchase = true;
+      purchaseReason = `EMERGENCY: Hunger is ${need.level} and no food in stock`;
+    }
+    // Reactive: Moderate need and low food stock
+    else if (need.urgency >= 40 && foodStock < 5) {
+      shouldPurchase = true;
+      purchaseReason = `REACTIVE: Hunger is ${need.level} and food stock is running low (${foodStock})`;
+    }
+    // Planned: Low need but food stock is getting very low
+    else if (foodStock < 2) {
+      shouldPurchase = true;
+      purchaseReason = `PLANNED: Food stock is very low (${foodStock}), planning procurement`;
+    }
+
+    if (shouldPurchase) {
+      candidates.push({
+        type: ActionType.PURCHASE,
+        source: need.needType,
+        reason: purchaseReason,
+        metadata: {
+          productId: 'wheat',
+          targetQuantity: 10 // Example standard purchase quantity
+        }
+      });
+    }
+
+    // Optional: SEEK_FOOD for immediate scavenging if purchase isn't the only option
+    if (need.urgency > 40 && foodStock <= 0) {
       const foodResource = perception.nearbyResources.find(r => r.type === 'FISH' || r.type === 'WILDLIFE');
-      
       if (foodResource) {
         candidates.push({
           type: ActionType.GO_TO_FOOD_SOURCE,
@@ -62,48 +91,56 @@ export class CandidateGenerator {
           reason: `Hunger is ${need.level} and food source perceived`,
           target: { type: 'RESOURCE', id: foodResource.id }
         });
-      } else {
-        const foodShops = perception.nearbyBuildings.filter(b => b.type === 'STORE' || b.type === 'RESTAURANT' || b.type === 'WHOLESALE' || b.type === 'RETAIL');
-        for (const foodShop of foodShops) {
-          // Generate go to action
-          candidates.push({
-            type: ActionType.GO_TO_FOOD_SOURCE,
-            source: need.needType,
-            reason: `Hunger is ${need.level} and food source perceived`,
-            target: { type: 'BUILDING', id: foodShop.id }
-          });
-
-          // Generate purchase action
-          candidates.push({
-            type: ActionType.PURCHASE,
-            source: need.needType,
-            reason: `Hunger is ${need.level}, need to buy food`,
-            target: { type: 'BUILDING', id: foodShop.id },
-            metadata: {
-              productId: 'wheat' // Simplified: they buy wheat or raw_fish for food
-            }
-          });
-        }
       }
     }
   }
 
-  private generateThirstCandidates(need: NeedState, perception: PerceptionSnapshot, candidates: CandidateAction[]) {
+  private generateThirstCandidates(need: NeedState, context: DecisionContext, candidates: CandidateAction[]) {
+    const perception = context.perception;
+    const waterStock = context.stockLevels?.['water'] || 0;
+
     if (need.level === NeedUrgencyLevel.VERY_LOW) return;
 
-    candidates.push({
-      type: ActionType.CONSUME_WATER,
-      source: need.needType,
-      reason: `Thirst is ${need.level}`
-    });
-
-    if (need.urgency > 40) {
+    if (waterStock > 0) {
       candidates.push({
-        type: ActionType.SEEK_WATER,
+        type: ActionType.CONSUME_WATER,
         source: need.needType,
-        reason: `Thirst is ${need.level}`
+        reason: `Thirst is ${need.level} and water is available`
       });
+    }
 
+    let shouldPurchase = false;
+    let purchaseReason = '';
+    
+    // Emergency
+    if (need.urgency >= 80 && waterStock <= 0) {
+      shouldPurchase = true;
+      purchaseReason = `EMERGENCY: Thirst is ${need.level} and no water in stock`;
+    }
+    // Reactive
+    else if (need.urgency >= 40 && waterStock < 10) {
+      shouldPurchase = true;
+      purchaseReason = `REACTIVE: Thirst is ${need.level} and water stock is running low (${waterStock})`;
+    }
+    // Planned
+    else if (waterStock < 5) {
+      shouldPurchase = true;
+      purchaseReason = `PLANNED: Water stock is very low (${waterStock}), planning procurement`;
+    }
+
+    if (shouldPurchase) {
+      candidates.push({
+        type: ActionType.PURCHASE,
+        source: need.needType,
+        reason: purchaseReason,
+        metadata: {
+          productId: 'water',
+          targetQuantity: 20
+        }
+      });
+    }
+
+    if (need.urgency > 40 && waterStock <= 0) {
       const waterResource = perception.nearbyResources.find(r => r.type === 'WATER');
       if (waterResource) {
         candidates.push({
@@ -127,9 +164,10 @@ export class CandidateGenerator {
     });
   }
 
-  private generateHealthCandidates(need: NeedState, perception: PerceptionSnapshot, candidates: CandidateAction[]) {
+  private generateHealthCandidates(need: NeedState, context: DecisionContext, candidates: CandidateAction[]) {
     if (need.level === NeedUrgencyLevel.VERY_LOW || need.level === NeedUrgencyLevel.LOW) return;
 
+    const perception = context.perception;
     const hospital = perception.nearbyBuildings.find(b => b.type === 'HOSPITAL' || b.type === 'CLINIC');
     
     if (hospital) {

@@ -21,7 +21,7 @@ describe('Citizen Engine (Phase 3.1)', () => {
     worldEngine = new WorldEngine();
     spatialEngine = new (require('../../spatial/SpatialEngine').SpatialEngine)(worldEngine, scheduler);
     repository = new InMemoryCitizenRepository();
-    citizenService = new CitizenService(repository, worldEngine, timeEngine, scheduler, spatialEngine.queryService);
+    citizenService = new CitizenService(repository, worldEngine, timeEngine, scheduler, spatialEngine.queryService, new (require('../../citizen/services/HouseholdService').HouseholdService)(new (require('../../inventory/InventoryManager').InventoryManager)()));
   });
 
   describe('Citizen Creation & Retrieval', () => {
@@ -132,3 +132,4 @@ describe('Citizen Engine (Phase 3.1)', () => {
     });
   });
 });
+

@@ -35,7 +35,8 @@ describe('NeedActionSystem', () => {
         nearbyBuildings: [],
         nearbyEntities: [],
         schedule: { currentTime: { year: 1, month: 1, day: 1, hour: 10, minute: 0, second: 0 }, currentActivity: null, nextActivity: null }
-      }
+      },
+      stockLevels: { wheat: 0, water: 0 }
     };
   });
 
@@ -68,8 +69,8 @@ describe('NeedActionSystem', () => {
       const result = system.generateCandidateActions(mockContext);
       
       const actions = result.candidates.map(c => c.type);
-      expect(actions).toContain(ActionType.CONSUME_FOOD);
-      expect(actions).toContain(ActionType.SEEK_FOOD);
+      expect(actions).toContain(ActionType.PURCHASE);
+      expect(actions).toContain(ActionType.PURCHASE);
       expect(actions).not.toContain(ActionType.GO_TO_FOOD_SOURCE); // No food source nearby
     });
 
@@ -168,8 +169,11 @@ describe('NeedActionSystem', () => {
       const result = system.generateCandidateActions(mockContext);
       
       const actions = result.candidates.map(c => c.type);
-      expect(actions).toContain(ActionType.CONSUME_FOOD);
+      expect(actions).toContain(ActionType.PURCHASE);
       expect(actions).not.toContain(ActionType.IDLE);
     });
   });
 });
+
+
+

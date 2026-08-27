@@ -38,9 +38,13 @@ export class ActionExecutor {
     );
   }
 
-  public setMarketEngine(marketEngine: MarketEngine): void {
+  public setMarketEngine(
+    marketEngine: MarketEngine,
+    storeRanker: import('../decision/scoring/StoreRanker').StoreRanker,
+    spatialQueryService: import('../spatial/SpatialQueryService').SpatialQueryService
+  ): void {
     this.executors.push(
-      new PurchaseActionExecutor(this.lifecycleManager, marketEngine, this.movementService)
+      new PurchaseActionExecutor(this.lifecycleManager, marketEngine, this.movementService, storeRanker, spatialQueryService)
     );
   }
 

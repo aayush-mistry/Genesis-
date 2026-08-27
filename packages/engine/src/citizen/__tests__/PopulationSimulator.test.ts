@@ -36,7 +36,7 @@ describe('PopulationSimulator', () => {
     eventScheduler = new (require('../../events/EventScheduler').EventScheduler)(timeEngine);
     spatialEngine = new (require('../../spatial/SpatialEngine').SpatialEngine)(worldEngine, eventScheduler);
     
-    citizenService = new CitizenService(repository, worldEngine, timeEngine, eventScheduler, spatialEngine.queryService);
+    citizenService = new CitizenService(repository, worldEngine, timeEngine, eventScheduler, spatialEngine.queryService, new (require('../../citizen/services/HouseholdService').HouseholdService)(new (require('../../inventory/InventoryManager').InventoryManager)()));
     
     // Inject PerceptionService for CitizenService
     const perceptionService = new PerceptionService(
@@ -90,3 +90,4 @@ describe('PopulationSimulator', () => {
     expect(newCount).toBeGreaterThan(0);
   });
 });
+

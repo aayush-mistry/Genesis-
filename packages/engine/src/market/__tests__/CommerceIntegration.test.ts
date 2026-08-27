@@ -34,7 +34,7 @@ describe('Commerce Integration (Phase 6.4)', () => {
       timeEngine, 
       eventScheduler, 
       spatialEngine.queryService
-    );
+    , new (require('../../citizen/services/HouseholdService').HouseholdService)(new (require('../../inventory/InventoryManager').InventoryManager)()));
 
     // Provide a mocked perception service to return our store
     citizenService.setPerceptionService({
@@ -60,7 +60,8 @@ describe('Commerce Integration (Phase 6.4)', () => {
       inventoryManager
     );
 
-    citizenService.initializeSalaryService(marketEngine);
+    const { StoreRanker } = require('../../decision/scoring/StoreRanker');
+    citizenService.initializeSalaryService(marketEngine, new StoreRanker(marketEngine, inventoryManager), spatialEngine.queryService);
     salaryService = citizenService.salaryService!;
     citizenService.actionExecutor.setMarketEngine(marketEngine);
   });
@@ -177,3 +178,5 @@ describe('Commerce Integration (Phase 6.4)', () => {
     expect(wp.wallet!.balance).toBe(10000 - 1650);
   });
 });
+
+

@@ -7,7 +7,10 @@ export enum ActionState {
   IN_PROGRESS = 'IN_PROGRESS',
   COMPLETED = 'COMPLETED',
   FAILED = 'FAILED',
-  CANCELLED = 'CANCELLED'
+  CANCELLED = 'CANCELLED',
+  TRAVELING = 'TRAVELING',
+  SHOPPING = 'SHOPPING',
+  PURCHASING = 'PURCHASING'
 }
 
 export interface ActionInstance {

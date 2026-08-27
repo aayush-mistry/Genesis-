@@ -32,17 +32,20 @@ export class ActionLifecycleManager {
   }
 
   private isValidTransition(currentState: ActionState, newState: ActionState): boolean {
-    switch (currentState) {
-      case ActionState.PENDING:
-        return [ActionState.STARTED, ActionState.CANCELLED, ActionState.FAILED].includes(newState);
-      case ActionState.STARTED:
-        return [ActionState.IN_PROGRESS, ActionState.FAILED, ActionState.CANCELLED].includes(newState);
-      case ActionState.IN_PROGRESS:
-        return [ActionState.COMPLETED, ActionState.FAILED, ActionState.CANCELLED].includes(newState);
-      default:
-        // COMPLETED, FAILED, CANCELLED are terminal states
-        return false;
+    const validNextStates: Record<string, string[]> = {
+      [ActionState.PENDING]: [ActionState.STARTED, ActionState.CANCELLED, ActionState.FAILED],
+      [ActionState.STARTED]: [ActionState.IN_PROGRESS, ActionState.TRAVELING, ActionState.SHOPPING, ActionState.FAILED, ActionState.CANCELLED],
+      [ActionState.TRAVELING]: [ActionState.SHOPPING, ActionState.FAILED, ActionState.CANCELLED],
+      [ActionState.SHOPPING]: [ActionState.PURCHASING, ActionState.FAILED, ActionState.CANCELLED],
+      [ActionState.PURCHASING]: [ActionState.COMPLETED, ActionState.FAILED, ActionState.CANCELLED],
+      [ActionState.IN_PROGRESS]: [ActionState.COMPLETED, ActionState.FAILED, ActionState.CANCELLED, ActionState.PURCHASING]
+    };
+    
+    if (validNextStates[currentState]) {
+      return validNextStates[currentState].includes(newState as string);
     }
+    
+    return false;
   }
 
   private emitTransitionEvent(action: ActionInstance, oldState: ActionState, newState: ActionState, time: SimulationTime): void {

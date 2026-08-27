@@ -1,8 +1,9 @@
-import { CitizenService, InMemoryCitizenRepository, PopulationSimulator } from '@genesis/engine';
+import { CitizenService, InMemoryCitizenRepository, PopulationSimulator, HouseholdService } from '@genesis/engine';
 import { worldService } from './world.service';
 import { timeService } from './time.service';
 import { eventService } from './event.service';
 import { spatialService } from './spatial.service';
+import { supplyService } from './supply.service';
 
 class BackendCitizenService {
   public engine: CitizenService;
@@ -10,12 +11,14 @@ class BackendCitizenService {
 
   constructor() {
     const repository = new InMemoryCitizenRepository();
+    const householdService = new HouseholdService(supplyService.inventoryManager);
     this.engine = new CitizenService(
       repository, 
       worldService.engine, 
       timeService.engine,
       eventService.scheduler,
-      spatialService.engine.queryService
+      spatialService.engine.queryService,
+      householdService
     );
     this.simulator = new PopulationSimulator(
       this.engine, 
@@ -35,7 +38,15 @@ class BackendCitizenService {
     
     // Connect SalaryService to MarketEngine
     import('./market.service').then(({ marketService }) => {
-      this.engine.initializeSalaryService(marketService.engine);
+      import('./supply.service').then(({ supplyService }) => {
+        const { StoreRanker } = require('@genesis/engine/src/decision/scoring/StoreRanker');
+        const storeRanker = new StoreRanker(marketService.engine, supplyService.inventoryManager);
+        this.engine.initializeSalaryService(
+          marketService.engine,
+          storeRanker,
+          spatialService.engine.queryService
+        );
+      });
     });
     
     // Schedule Needs updates

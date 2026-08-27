@@ -1,14 +1,18 @@
-import { ActionType, ActionState, TransactionType } from '@genesis/shared';
+import { ActionType, ActionState, TransactionType, DecisionContext } from '@genesis/shared';
 import { BaseActionExecutor, ActionExecutorContext } from './BaseActionExecutor';
 import { ActionLifecycleManager } from './ActionLifecycleManager';
 import { MarketEngine } from '../market/MarketEngine';
 import { MovementService } from '../citizen/services/MovementService';
+import { StoreRanker, StoreCandidate } from '../decision/scoring/StoreRanker';
+import { SpatialQueryService } from '../spatial/SpatialQueryService';
 
 export class PurchaseActionExecutor extends BaseActionExecutor {
   constructor(
     lifecycleManager: ActionLifecycleManager,
     private marketEngine: MarketEngine,
-    private movementService: MovementService
+    private movementService: MovementService,
+    private storeRanker: StoreRanker,
+    private spatialQueryService: SpatialQueryService
   ) {
     super(lifecycleManager);
   }
@@ -20,9 +24,39 @@ export class PurchaseActionExecutor extends BaseActionExecutor {
   public start(context: ActionExecutorContext): void {
     const { citizen, action } = context;
 
+    const productId = action.metadata?.productId || 'wheat';
+    const quantity = action.metadata?.targetQuantity || 1;
+
     if (!action.target || !action.target.id) {
-      this.lifecycleManager.transition(action, ActionState.FAILED, 'No valid target to purchase from');
-      return;
+      // Store Discovery
+      const buildings = this.spatialQueryService.getBuildingsInRadius(citizen.locationId || '', 50000);
+      const stores = buildings.filter(b => b.type === 'STORE' || b.type === 'RETAIL' || b.type === 'WHOLESALE' || b.type === 'FARM');
+
+      const storeCandidates: StoreCandidate[] = stores.map(store => ({
+        id: store.id,
+        type: store.type,
+        coordinates: store.coordinates,
+        distance: this.spatialQueryService.calculateDistance(citizen.locationId || '', store.id)
+      }));
+
+      // Create a mock context for ranking
+      const decisionContext: any = {
+        citizenId: citizen.id,
+        personality: citizen.personality,
+        simulationTime: context.currentTime
+      };
+
+      // Store Ranking
+      const rankedStores = this.storeRanker.rankStores(decisionContext, storeCandidates, productId, quantity);
+
+      if (rankedStores.length === 0) {
+        this.lifecycleManager.transition(action, ActionState.FAILED, 'No valid stores found with stock');
+        return;
+      }
+
+      action.target = { type: 'BUILDING', id: rankedStores[0].id };
+      action.metadata = action.metadata || {};
+      action.metadata.selectedStoreId = rankedStores[0].id;
     }
 
     if (citizen.locationId !== action.target.id) {
@@ -32,10 +66,10 @@ export class PurchaseActionExecutor extends BaseActionExecutor {
         this.lifecycleManager.transition(action, ActionState.FAILED, 'Cannot path to purchase target');
         return;
       }
-      this.lifecycleManager.transition(action, ActionState.IN_PROGRESS, 'Travelling to store');
+      this.lifecycleManager.transition(action, ActionState.TRAVELING, 'Travelling to store');
     } else {
       // Already there, we can process immediately
-      this.lifecycleManager.transition(action, ActionState.IN_PROGRESS, 'At store');
+      this.lifecycleManager.transition(action, ActionState.SHOPPING, 'At store');
       this.tick(context); // Force first tick evaluation immediately
     }
   }
@@ -43,46 +77,77 @@ export class PurchaseActionExecutor extends BaseActionExecutor {
   public tick(context: ActionExecutorContext): void {
     const { citizen, action } = context;
 
-    // Check if we arrived at the target location
-    if (citizen.locationId !== action.target?.id) {
-      return; // Still travelling
+    if (action.state === ActionState.TRAVELING) {
+      if (citizen.locationId === action.target?.id) {
+        this.lifecycleManager.transition(action, ActionState.SHOPPING, 'Arrived at store');
+      } else {
+        return; // Still travelling
+      }
     }
 
-    // We are at the store, execute purchase
-    const sellerId = action.target.id;
-    const productId = action.metadata?.productId || 'wheat'; // default
-    
-    // Check if store is in a region to get regional pricing
-    const regionId = 'TODO'; // Could be extracted from store metadata, assuming default for now
-    
-    // Get expected price and quantity
-    const quantity = action.metadata?.quantity || 1;
-    // For now we assume we know a base price, realistically this would be fetched from store or market
-    const basePrice = 10;
-    const finalPrice = this.marketEngine.calculateEffectivePrice(productId, regionId, basePrice) * quantity;
-
-    if (citizen.wallet.balance < finalPrice) {
-      this.lifecycleManager.transition(action, ActionState.FAILED, 'Insufficient funds');
-      return;
+    if (action.state === ActionState.SHOPPING || action.state === ActionState.IN_PROGRESS) {
+      this.lifecycleManager.transition(action, ActionState.PURCHASING, 'Proceeding to checkout');
     }
 
-    const transaction = this.marketEngine.processTransaction(
-      citizen.id,
-      sellerId,
-      productId,
-      quantity,
-      'kg',
-      finalPrice / quantity, // unit price
-      finalPrice,
-      citizen.wallet.currency,
-      TransactionType.PURCHASE,
-      regionId
-    );
+    if (action.state === ActionState.PURCHASING) {
+      // We are at the store, execute purchase
+      const sellerId = action.target!.id;
+      const productId = action.metadata?.productId || 'wheat';
+      
+      // Check if store is in a region to get regional pricing
+      const regionId = 'DEFAULT';
+      
+      // Get expected price and quantity
+      const quantity = action.metadata?.targetQuantity || 1;
+      const basePrice = 10;
+      const unitPrice = this.marketEngine.calculateEffectivePrice(productId, regionId, basePrice);
+      const finalPrice = unitPrice * quantity;
 
-    if (transaction) {
-      this.lifecycleManager.transition(action, ActionState.COMPLETED, 'Purchase successful');
-    } else {
-      this.lifecycleManager.transition(action, ActionState.FAILED, 'Purchase failed (no stock or other issue)');
+      if (citizen.wallet.balance < finalPrice) {
+        this.lifecycleManager.transition(action, ActionState.FAILED, 'Insufficient funds');
+        return;
+      }
+
+      // Check stock before transaction
+      const inventory = this.storeRanker['inventoryManager'].getInventoryByOwner(sellerId);
+      if (!inventory) {
+        this.lifecycleManager.transition(action, ActionState.FAILED, 'Store has no inventory');
+        return;
+      }
+
+      const timeSeconds = (context.currentTime as any).getTime ? (context.currentTime as any).getTime() / 1000 : 0;
+      const available = this.storeRanker['inventoryManager'].getUsableQuantity(inventory.id, productId, timeSeconds);
+      if (available < quantity) {
+        this.lifecycleManager.transition(action, ActionState.FAILED, 'Store out of stock');
+        // A smarter citizen might retry with another store here
+        return;
+      }
+
+      const transaction = this.marketEngine.processTransaction(
+        citizen.id,
+        sellerId,
+        productId,
+        quantity,
+        'kg',
+        unitPrice,
+        finalPrice,
+        citizen.wallet.currency,
+        TransactionType.PURCHASE,
+        regionId
+      );
+
+      if (transaction) {
+        // Add purchased items to household inventory (or personal)
+        if (citizen.householdId) {
+           const household = this.storeRanker['inventoryManager'].getInventoryByOwner(citizen.householdId);
+           if (household) {
+             this.storeRanker['inventoryManager'].addItemQuantity(household.id, productId, quantity, 'kg');
+           }
+        }
+        this.lifecycleManager.transition(action, ActionState.COMPLETED, 'Purchase successful');
+      } else {
+        this.lifecycleManager.transition(action, ActionState.FAILED, 'Purchase failed (market error)');
+      }
     }
   }
 }

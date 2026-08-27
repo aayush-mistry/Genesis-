@@ -24,7 +24,7 @@ describe('OccupationService', () => {
     worldEngine = new WorldEngine();
     spatialEngine = new SpatialEngine(worldEngine, scheduler);
     citizenRepo = new InMemoryCitizenRepository();
-    citizenService = new CitizenService(citizenRepo, worldEngine, timeEngine, scheduler, spatialEngine.queryService);
+    citizenService = new CitizenService(citizenRepo, worldEngine, timeEngine, scheduler, spatialEngine.queryService, new (require('../../citizen/services/HouseholdService').HouseholdService)(new (require('../../inventory/InventoryManager').InventoryManager)()));
     workplaceRepo = new WorkplaceRepository();
     occupationService = new OccupationService(citizenService, workplaceRepo);
   });
@@ -217,3 +217,4 @@ describe('OccupationService', () => {
     expect(selected.employmentStatus).toBe(EmploymentStatus.EMPLOYED);
   });
 });
+

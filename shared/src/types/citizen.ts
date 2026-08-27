@@ -19,6 +19,24 @@ export interface VitalState {
   lastUpdatedSimulationTime: SimulationTime;
 }
 
+export interface PersonalityTraits {
+  priceSensitivity: number; // 0-100
+  qualityPreference: number; // 0-100
+  conveniencePreference: number; // 0-100
+  planningTendency: number; // 0-100
+  socialEngagement: number; // 0-100
+  riskTolerance: number; // 0-100
+  savingTendency: number; // 0-100
+}
+
+export interface Household {
+  id: string;
+  locationId: string;
+  inventoryId: string;
+  walletId: string;
+  members: string[]; // Citizen IDs
+}
+
 export enum MovementState {
   IDLE = 'IDLE',
   TRAVELLING = 'TRAVELLING'
@@ -56,4 +74,6 @@ export interface Citizen {
   currentAction?: import('./execution').ActionInstance;
   currentRoutine?: import('./routine').CitizenRoutine;
   currentRoutineActivity?: import('./routine').RoutineActivity;
+  householdId?: string;
+  personality: PersonalityTraits;
 }
