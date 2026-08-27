@@ -118,6 +118,31 @@ class SupplyService {
     this.commerceAutomation.initialize();
     this.businessProcurementEngine.initialize();
 
+    // Note: Inventory and wallet initialization for workplaces has been moved to setupWorkplaceInventories()
+    // which should be called after workplaces are generated.
+
+    // Schedule daily expiry check
+    const time = timeService.engine.getCurrentTime();
+    eventService.scheduler.scheduleEvent({
+      id: `expiry-check-${Date.now()}`,
+      name: 'Daily Expiry Check',
+      description: 'Removes expired inventory items.',
+      scheduledTime: { ...time },
+      createdTime: { ...time },
+      priority: 'Normal',
+      status: 'Scheduled',
+      cancelFlag: false,
+      retryCount: 0,
+      sourceModule: 'SupplyService',
+      targetModule: 'InventoryManager',
+      recurrence: { interval: 'Day' },
+      handler: async () => {
+        this.inventoryManager.removeExpiredItems(timeService.engine.getUptimeSeconds());
+      }
+    });
+  }
+
+  public setupWorkplaceInventories(): void {
     // Initialize inventories for commercial and production workplaces
     const workplaces = worldService.engine.workplaceRepository.findAll();
     const typesNeedingInventory = ['WHOLESALE', 'SHOP', 'BUSINESS', 'FARM', 'MINE', 'FISHING_SITE', 'FOREST_SITE', 'FACTORY'];
@@ -154,28 +179,11 @@ class SupplyService {
             };
           }
         }
+
+        // Persist updates to the workplace
+        worldService.engine.workplaceRepository.update(wp);
       }
     }
-
-    // Schedule daily expiry check
-    const time = timeService.engine.getCurrentTime();
-    eventService.scheduler.scheduleEvent({
-      id: `expiry-check-${Date.now()}`,
-      name: 'Daily Expiry Check',
-      description: 'Removes expired inventory items.',
-      scheduledTime: { ...time },
-      createdTime: { ...time },
-      priority: 'Normal',
-      status: 'Scheduled',
-      cancelFlag: false,
-      retryCount: 0,
-      sourceModule: 'SupplyService',
-      targetModule: 'InventoryManager',
-      recurrence: { interval: 'Day' },
-      handler: async () => {
-        this.inventoryManager.removeExpiredItems(timeService.engine.getUptimeSeconds());
-      }
-    });
   }
 
   public reset(): void {
