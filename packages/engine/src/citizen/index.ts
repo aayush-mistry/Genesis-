@@ -10,3 +10,4 @@ export * from './generators/SkillGenerator';
 export * from './services/OccupationService';
 export * from './services/SalaryService';
 export * from './services/SalaryConfig';
+export * from './services/HouseholdService';

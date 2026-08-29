@@ -164,7 +164,7 @@ describe('BusinessProcurementEngine', () => {
       wallet: { id: 'w2', ownerId: supplierA, balance: 0, currency: 'GEN', totalIncome: 0, totalExpenses: 0 }
     });
 
-    jest.spyOn(worldEngine, 'getEntityCoordinates').mockReturnValue({ x: 0, y: 0, z: 0 });
+    jest.spyOn(worldEngine, 'getEntityCoordinates').mockReturnValue({ x: 0, y: 0 });
 
     // We can skip distance since we don't strictly mock spatial route distances here, they will return 0 or default in test.
     engine.runProcurementCycle();

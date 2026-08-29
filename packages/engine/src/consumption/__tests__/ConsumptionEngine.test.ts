@@ -72,7 +72,16 @@ describe('ConsumptionEngine', () => {
       employmentStatus: 'UNEMPLOYED' as any,
       workplaceId: null,
       jobType: null,
-      jobSchedule: null
+      jobSchedule: null,
+      personality: {
+        priceSensitivity: 50,
+        qualityPreference: 50,
+        conveniencePreference: 50,
+        planningTendency: 50,
+        socialEngagement: 50,
+        riskTolerance: 50,
+        savingTendency: 50
+      }
     };
 
     repo.create(citizen);

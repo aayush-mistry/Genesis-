@@ -63,7 +63,7 @@ describe('Commerce Integration (Phase 6.4)', () => {
     const { StoreRanker } = require('../../decision/scoring/StoreRanker');
     citizenService.initializeSalaryService(marketEngine, new StoreRanker(marketEngine, inventoryManager), spatialEngine.queryService);
     salaryService = citizenService.salaryService!;
-    citizenService.actionExecutor.setMarketEngine(marketEngine);
+    citizenService.actionExecutor.setMarketEngine(marketEngine, new (require('../../decision/scoring/StoreRanker').StoreRanker)(marketEngine, inventoryManager), spatialEngine.queryService);
   });
 
   it('should successfully execute a purchase action end-to-end', async () => {

@@ -36,6 +36,15 @@ describe('NeedsService', () => {
       totalIncome: 0,
       totalExpenses: 0,
       currency: 'GEN'
+    },
+    personality: {
+      priceSensitivity: 50,
+      qualityPreference: 50,
+      conveniencePreference: 50,
+      planningTendency: 50,
+      socialEngagement: 50,
+      riskTolerance: 50,
+      savingTendency: 50
     }
   });
 

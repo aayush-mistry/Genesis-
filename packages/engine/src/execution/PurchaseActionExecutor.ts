@@ -29,14 +29,22 @@ export class PurchaseActionExecutor extends BaseActionExecutor {
 
     if (!action.target || !action.target.id) {
       // Store Discovery
-      const buildings = this.spatialQueryService.getBuildingsInRadius(citizen.locationId || '', 50000);
-      const stores = buildings.filter(b => b.type === 'STORE' || b.type === 'RETAIL' || b.type === 'WHOLESALE' || b.type === 'FARM');
+      const citizenCoords = (this.spatialQueryService as any).worldEngine.getEntityCoordinates(citizen.locationId || '');
+      if (!citizenCoords) {
+        this.lifecycleManager.transition(action, ActionState.FAILED, 'Invalid citizen location');
+        return;
+      }
+      const buildings = this.spatialQueryService.findNearby(citizenCoords, 50000);
+      const stores = buildings.filter((b: any) => {
+        const type = b.metadata?.type || b.type;
+        return type === 'STORE' || type === 'RETAIL' || type === 'WHOLESALE' || type === 'FARM';
+      });
 
-      const storeCandidates: StoreCandidate[] = stores.map(store => ({
+      const storeCandidates: StoreCandidate[] = stores.map((store: any) => ({
         id: store.id,
-        type: store.type,
-        coordinates: store.coordinates,
-        distance: this.spatialQueryService.calculateDistance(citizen.locationId || '', store.id)
+        type: (store.metadata?.type || store.type) as string,
+        coordinates: store.position,
+        distance: store.distance
       }));
 
       // Create a mock context for ranking
