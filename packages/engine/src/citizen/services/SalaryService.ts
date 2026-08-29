@@ -66,10 +66,22 @@ export class SalaryService {
     const workplace = this.worldEngine.workplaceRepository.findById(citizen.workplaceId);
     if (!workplace || !workplace.wallet) return;
 
+    // Initialize employment record if missing
+    if (!citizen.employmentRecord) {
+      citizen.employmentRecord = {
+        daysWorked: 30, // Default to a full month if missing
+        expectedWorkingDays: 30,
+        performanceScore: 1.0,
+        startDate: TimeUtils.clone(this.timeEngine.getCurrentTime()),
+        endDate: null,
+        lastPaymentDate: null
+      };
+    }
+
     const baseSalary = JobBaseSalary[citizen.jobType] || 1000;
     const riskMultiplier = JobRiskMultiplier[citizen.jobType] || 1.0;
     
-    // Skill multiplier (0 to 100 level, gives 1.0 to 2.0 multiplier)
+    // Skill multiplier
     const requiredSkills = workplace.positions.find(p => p.occupantId === citizen.id)?.requiredSkills || {};
     let skillMultiplier = 1.0;
     
@@ -77,17 +89,20 @@ export class SalaryService {
     if (reqs.length > 0) {
       let totalSkillMatch = 0;
       for (const [skillType] of reqs) {
-        const citizenSkill = citizen.skills.find(s => s.type === skillType);
+        const citizenSkill = citizen.skills.find(s => s.type === skillType as any);
         totalSkillMatch += citizenSkill ? (citizenSkill.level / 100) : 0;
       }
       skillMultiplier = 1.0 + (totalSkillMatch / reqs.length);
     }
 
-    const finalSalary = Math.floor(baseSalary * riskMultiplier * skillMultiplier);
+    const { daysWorked, expectedWorkingDays, performanceScore } = citizen.employmentRecord;
+    const participationFactor = expectedWorkingDays > 0 ? (daysWorked / expectedWorkingDays) : 1.0;
+    
+    const finalSalary = Math.floor(baseSalary * riskMultiplier * skillMultiplier * participationFactor * performanceScore);
 
     if (workplace.wallet.balance >= finalSalary) {
       // Execute payment
-      this.marketEngine.processTransaction(
+      const tx = this.marketEngine.processTransaction(
         workplace.id, // buyer (payer)
         citizen.id,   // seller (payee)
         null,
@@ -99,10 +114,23 @@ export class SalaryService {
         TransactionType.WAGE,
         workplace.regionId
       );
+
+      if (tx) {
+        citizen.employmentRecord.lastPaymentDate = TimeUtils.clone(this.timeEngine.getCurrentTime());
+        // Reset counters for next month
+        citizen.employmentRecord.daysWorked = 0;
+        citizen.employmentRecord.performanceScore = 1.0; // Reset or decay
+      }
     } else {
       // Not enough money to pay salary
-      // For now, they just don't get paid or we could add debt.
-      // In Phase 6.4 we just ensure no negative balances.
+      // Business financial status reflects the problem; obligation remains traceable
+      // We don't reset daysWorked, so they get paid later or accrue debt
+      this.eventScheduler.emitter.emit('SalaryPaymentFailed', {
+        citizenId: citizen.id,
+        workplaceId: workplace.id,
+        amount: finalSalary,
+        timestamp: TimeUtils.toSeconds(this.timeEngine.getCurrentTime())
+      });
     }
   }
 }

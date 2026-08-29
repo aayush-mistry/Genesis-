@@ -76,4 +76,12 @@ export interface Citizen {
   currentRoutineActivity?: import('./routine').RoutineActivity;
   householdId?: string;
   personality: PersonalityTraits;
+  employmentRecord?: {
+    daysWorked: number;
+    expectedWorkingDays: number;
+    performanceScore: number;
+    startDate: import('./time').SimulationTime;
+    endDate: import('./time').SimulationTime | null;
+    lastPaymentDate: import('./time').SimulationTime | null;
+  };
 }

@@ -187,12 +187,29 @@ export class BusinessProcurementEngine {
           continue; // Cannot afford this supplier, try next
         }
 
-        // Deduct from wallet temporarily (MarketEngine can formalize it)
-        buyer.wallet.balance -= totalLandedCost;
-        buyer.wallet.totalExpenses += totalLandedCost;
-        if (seller.wallet) {
-          seller.wallet.balance += (portionBulkPrice * orderQuantity);
-          seller.wallet.totalIncome += (portionBulkPrice * orderQuantity);
+        // Process through MarketEngine
+        if (this.marketEngine) {
+          const type = (buyer.type === 'RETAIL' || buyer.type === 'SHOP') ? 'RETAIL_PROCUREMENT' : 'WHOLESALE_PURCHASE';
+          const tx = this.marketEngine.processTransaction(
+            buyer.id, seller.id, req.productId, orderQuantity, 'kg', portionBulkPrice, 
+            portionBulkPrice * orderQuantity, buyer.wallet.currency, type as any, buyer.regionId
+          );
+          if (!tx) continue;
+          
+          if (portionTransportCost > 0) {
+            this.marketEngine.processTransaction(
+              buyer.id, 'SYSTEM_TRANSPORT', null, null, null, null,
+              portionTransportCost, buyer.wallet.currency, 'TRANSPORT_EXPENSE' as any, buyer.regionId
+            );
+          }
+        } else {
+          // Deduct from wallet temporarily (Fallback)
+          buyer.wallet.balance -= totalLandedCost;
+          buyer.wallet.totalExpenses += totalLandedCost;
+          if (seller.wallet) {
+            seller.wallet.balance += (portionBulkPrice * orderQuantity);
+            seller.wallet.totalIncome += (portionBulkPrice * orderQuantity);
+          }
         }
       }
 

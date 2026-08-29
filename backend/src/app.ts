@@ -57,6 +57,7 @@ export async function buildApp() {
   import('./services/decision.service').then(m => m.decisionService.initialize());
   import('./services/perception.service').then(m => m.perceptionService.initialize());
   import('./services/market.service').then(m => m.marketService.initialize());
+  import('./services/finance.service').then(m => m.financeService.initialize());
   import('./services/supply.service').then(m => m.supplyService.initialize());
 
   return app;

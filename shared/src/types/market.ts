@@ -12,7 +12,10 @@ export enum TransactionType {
   SALE = 'SALE',
   WAGE = 'WAGE',
   EXPENSE = 'EXPENSE',
-  TRANSFER = 'TRANSFER'
+  TRANSFER = 'TRANSFER',
+  RETAIL_PROCUREMENT = 'RETAIL_PROCUREMENT',
+  WHOLESALE_PURCHASE = 'WHOLESALE_PURCHASE',
+  TRANSPORT_EXPENSE = 'TRANSPORT_EXPENSE'
 }
 
 export interface TransactionRecord {
@@ -28,6 +31,9 @@ export interface TransactionRecord {
   currency: string;
   transactionType: TransactionType;
   regionId: string;
+  description?: string;
+  referenceId?: string;
+  referenceType?: string;
 }
 
 export interface RegionalMarketState {

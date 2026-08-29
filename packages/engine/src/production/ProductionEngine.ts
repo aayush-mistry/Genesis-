@@ -150,7 +150,11 @@ export class ProductionEngine {
             quantity: actualProduction,
             unit: commodity.unit,
             regionId: workplace.regionId,
-            timestamp: this.timeEngine.getCurrentTime()
+            timestamp: this.timeEngine.getCurrentTime(),
+            resourcesConsumed: allocation.consumedResources.reduce((acc: any, curr) => {
+               acc[curr.resourceType] = curr.amount;
+               return acc;
+            }, {})
           });
         } else {
           // Revert allocation if inventory failed
