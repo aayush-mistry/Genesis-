@@ -38,7 +38,8 @@ export class FinancialEngine {
     });
 
     this.eventScheduler.emitter.on('ProductionCompleted', (eventData: any) => {
-      const cost = this.productionCostCalculator.calculateCost(eventData.producerId, eventData.resourcesConsumed || {});
+      const costResult = this.productionCostCalculator.calculateCost(eventData.producerId, eventData.resourcesConsumed || {});
+      const totalCost = costResult.totalCost;
       
       const mockTx: TransactionRecord = {
         transactionId: randomUUID(),
@@ -48,17 +49,17 @@ export class FinancialEngine {
         productId: eventData.productId,
         quantity: eventData.quantity,
         unit: eventData.unit,
-        unitPrice: cost / (eventData.quantity || 1),
-        totalPrice: cost,
+        unitPrice: totalCost / (eventData.quantity || 1),
+        totalPrice: totalCost,
         currency: 'INR',
         transactionType: TransactionType.EXPENSE,
         regionId: eventData.regionId,
-        description: 'Production Cost',
+        description: `Production Cost (Labor: ${costResult.laborCost.toFixed(2)}, Input: ${costResult.inputCost.toFixed(2)})`,
         referenceType: 'PRODUCTION'
       };
 
       this.ledger.recordTransaction(mockTx);
-      this.accounting.recordExpense(eventData.producerId, cost, mockTx);
+      this.accounting.recordExpense(eventData.producerId, totalCost, mockTx);
     });
   }
 }

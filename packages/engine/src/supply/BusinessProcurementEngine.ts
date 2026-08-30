@@ -291,6 +291,8 @@ export class BusinessProcurementEngine {
       if (unitPrice > maxPrice) maxPrice = unitPrice;
       if (distance > maxDistance) maxDistance = distance;
 
+      const quality = inventory.items[productId].quality ?? 50;
+
       rankings.push({
         supplierId: seller.id,
         supplierType: seller.type,
@@ -300,7 +302,7 @@ export class BusinessProcurementEngine {
         transportCost,
         totalLandedCost,
         distance,
-        quality: 80, // Default for now
+        quality,
         reliability: 90, // Default for now
         
         // These will be calculated next

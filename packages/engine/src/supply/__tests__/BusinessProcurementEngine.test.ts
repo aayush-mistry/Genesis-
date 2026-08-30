@@ -186,4 +186,90 @@ describe('BusinessProcurementEngine', () => {
     expect(shipments.length).toBe(1);
     expect(shipments[0].quantity).toBe(800);
   });
+
+  test('Supplier ranking uses actual inventory quality and prefers higher quality', () => {
+    const buyerId = 'retail-2';
+    inventoryManager.createInventory(`inv-${buyerId}`, buyerId, 1200);
+    inventoryManager.addItemQuantity(`inv-${buyerId}`, 'wheat', 200, 'kg');
+
+    worldEngine.workplaceRepository.create({
+      id: buyerId,
+      type: WorkplaceType.RETAIL,
+      regionId: 'reg-1',
+      locationId: 'loc-buyer',
+      capacity: 10,
+      occupiedPositions: 0,
+      vacancies: 10,
+      positions: [],
+      inventoryId: `inv-${buyerId}`,
+      storageCapacity: 1200,
+      inventoryConfiguration: {
+        'wheat': { reorderPoint: 500, targetStock: 1000 }
+      },
+      wallet: { id: 'w1', ownerId: buyerId, balance: 100000, currency: 'GEN', totalIncome: 0, totalExpenses: 0 }
+    });
+
+    const supplierHighQ = 'farm-high';
+    inventoryManager.createInventory(`inv-${supplierHighQ}`, supplierHighQ, 5000);
+    inventoryManager.addItemQuantity(`inv-${supplierHighQ}`, 'wheat', 1000, 'kg');
+    const invHigh = inventoryManager.getInventory(`inv-${supplierHighQ}`);
+    invHigh!.items['wheat'].quality = 95; // High quality
+
+    worldEngine.workplaceRepository.create({
+      id: supplierHighQ,
+      type: WorkplaceType.FARM,
+      regionId: 'reg-1',
+      locationId: 'loc-supp-h',
+      capacity: 10,
+      occupiedPositions: 0,
+      vacancies: 10,
+      positions: [],
+      inventoryId: `inv-${supplierHighQ}`,
+      wallet: { id: 'w2', ownerId: supplierHighQ, balance: 0, currency: 'GEN', totalIncome: 0, totalExpenses: 0 }
+    });
+
+    const supplierLowQ = 'farm-low';
+    inventoryManager.createInventory(`inv-${supplierLowQ}`, supplierLowQ, 5000);
+    inventoryManager.addItemQuantity(`inv-${supplierLowQ}`, 'wheat', 1000, 'kg');
+    const invLow = inventoryManager.getInventory(`inv-${supplierLowQ}`);
+    invLow!.items['wheat'].quality = 65; // Low quality
+
+    worldEngine.workplaceRepository.create({
+      id: supplierLowQ,
+      type: WorkplaceType.FARM,
+      regionId: 'reg-1',
+      locationId: 'loc-supp-l',
+      capacity: 10,
+      occupiedPositions: 0,
+      vacancies: 10,
+      positions: [],
+      inventoryId: `inv-${supplierLowQ}`,
+      wallet: { id: 'w3', ownerId: supplierLowQ, balance: 0, currency: 'GEN', totalIncome: 0, totalExpenses: 0 }
+    });
+
+    // We can intercept calculateRoute to make distance equal, so quality is the tiebreaker
+    jest.spyOn(spatialQueryService, 'calculateRoute').mockReturnValue({ distance: 10 } as any);
+
+    engine.runProcurementCycle();
+
+    const orders = supplyChainEngine.getOrdersForBusiness(buyerId);
+    expect(orders.length).toBe(1);
+    
+    // Should order from the higher quality supplier since distance and price are identical
+    expect(orders[0].sellerId).toBe(supplierHighQ);
+    
+    // Check history ranking
+    const history = engine.getHistory();
+    const lastProc = history[history.length - 1];
+    const topRank = lastProc.rankings[0];
+    const secondRank = lastProc.rankings[1];
+    
+    expect(topRank.supplierId).toBe(supplierHighQ);
+    expect(topRank.quality).toBe(95);
+    
+    expect(secondRank.supplierId).toBe(supplierLowQ);
+    expect(secondRank.quality).toBe(65);
+    
+    expect(topRank.qualityScore).toBeGreaterThan(secondRank.qualityScore);
+  });
 });

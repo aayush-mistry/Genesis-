@@ -13,6 +13,7 @@ export interface InventoryItem {
   reservedQuantity: number;
   availableQuantity: number;
   unit: string;
+  quality?: number;
   batches?: InventoryBatch[];
 }
 

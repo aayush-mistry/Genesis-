@@ -60,6 +60,37 @@ export class SalaryService {
     }
   }
 
+  public static calculateExpectedMonthlySalary(citizen: Citizen, workplace: import('@genesis/shared').Workplace): number {
+    if (!citizen.jobType) return 0;
+    const baseSalary = JobBaseSalary[citizen.jobType] || 1000;
+    const riskMultiplier = JobRiskMultiplier[citizen.jobType] || 1.0;
+    
+    // Skill multiplier
+    const requiredSkills = workplace.positions.find(p => p.occupantId === citizen.id)?.requiredSkills || {};
+    let skillMultiplier = 1.0;
+    
+    const reqs = Object.entries(requiredSkills);
+    if (reqs.length > 0) {
+      let totalSkillMatch = 0;
+      for (const [skillType] of reqs) {
+        const citizenSkill = citizen.skills.find(s => s.type === skillType as any);
+        totalSkillMatch += citizenSkill ? (citizenSkill.level / 100) : 0;
+      }
+      skillMultiplier = 1.0 + (totalSkillMatch / reqs.length);
+    }
+
+    let participationFactor = 1.0;
+    let performanceScore = 1.0;
+
+    if (citizen.employmentRecord) {
+      const { daysWorked, expectedWorkingDays } = citizen.employmentRecord;
+      participationFactor = expectedWorkingDays > 0 ? (daysWorked / expectedWorkingDays) : 1.0;
+      performanceScore = citizen.employmentRecord.performanceScore;
+    }
+    
+    return Math.floor(baseSalary * riskMultiplier * skillMultiplier * participationFactor * performanceScore);
+  }
+
   private processCitizenSalary(citizen: Citizen): void {
     if (!citizen.workplaceId || !citizen.jobType) return;
 
@@ -78,27 +109,7 @@ export class SalaryService {
       };
     }
 
-    const baseSalary = JobBaseSalary[citizen.jobType] || 1000;
-    const riskMultiplier = JobRiskMultiplier[citizen.jobType] || 1.0;
-    
-    // Skill multiplier
-    const requiredSkills = workplace.positions.find(p => p.occupantId === citizen.id)?.requiredSkills || {};
-    let skillMultiplier = 1.0;
-    
-    const reqs = Object.entries(requiredSkills);
-    if (reqs.length > 0) {
-      let totalSkillMatch = 0;
-      for (const [skillType] of reqs) {
-        const citizenSkill = citizen.skills.find(s => s.type === skillType as any);
-        totalSkillMatch += citizenSkill ? (citizenSkill.level / 100) : 0;
-      }
-      skillMultiplier = 1.0 + (totalSkillMatch / reqs.length);
-    }
-
-    const { daysWorked, expectedWorkingDays, performanceScore } = citizen.employmentRecord;
-    const participationFactor = expectedWorkingDays > 0 ? (daysWorked / expectedWorkingDays) : 1.0;
-    
-    const finalSalary = Math.floor(baseSalary * riskMultiplier * skillMultiplier * participationFactor * performanceScore);
+    const finalSalary = SalaryService.calculateExpectedMonthlySalary(citizen, workplace);
 
     if (workplace.wallet.balance >= finalSalary) {
       // Execute payment

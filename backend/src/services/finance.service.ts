@@ -17,6 +17,10 @@ class FinanceService {
   }
 
   public initialize() {
+    // Note: citizenService is required here for salary calculations
+    import('./citizen.service').then(({ citizenService }) => {
+      this.engine.productionCostCalculator.citizenProvider = (id) => citizenService.engine.getCitizen(id);
+    });
     console.log('[Finance Service] Initialized');
   }
 }
