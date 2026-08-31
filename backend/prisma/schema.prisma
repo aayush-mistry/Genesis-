@@ -7,9 +7,475 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ==========================================
+// System Logs (Existing)
+// ==========================================
 model SystemLog {
   id        String   @id @default(uuid())
   message   String
   level     String
   createdAt DateTime @default(now())
+}
+
+// ==========================================
+// Simulation State & Events
+// ==========================================
+model SimulationState {
+  id            String @id @default("singleton")
+  activeWorldId String?
+  speed         Float  @default(1)
+  
+  // SimulationTime
+  year   Int @default(1)
+  month  Int @default(1)
+  day    Int @default(1)
+  hour   Int @default(0)
+  minute Int @default(0)
+  second Int @default(0)
+
+  updatedAt DateTime @updatedAt
+}
+
+model SimulationEvent {
+  id                  String  @id @default(uuid())
+  name                String
+  description         String
+  priority            String
+  status              String
+  
+  // Time points (serialized SimulationTime)
+  scheduledTimeJson   String // JSON
+  createdTimeJson     String // JSON
+  executionTimeJson   String? // JSON
+  completionTimeJson  String? // JSON
+  
+  // Handler registration info
+  handlerName         String
+  metadataJson        String? // JSON payload
+  tagsJson            String? // JSON array of strings
+  
+  sourceModule        String
+  targetModule        String
+  
+  recurrenceInterval  String?
+  recurrenceCount     Int?
+  
+  cancelFlag          Boolean @default(false)
+  retryCount          Int     @default(0)
+  executionResultJson String? // JSON
+  
+  executionDurationMs Int?
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+// ==========================================
+// World Hierarchy
+// ==========================================
+model World {
+  id                String   @id @default(uuid())
+  name              String
+  metadataJson      String?  // JSON
+  description       String
+  randomSeed        Int
+  creationTime      Int
+  currentPopulation Int      @default(0)
+  worldSize         Int
+  climateProfile    String
+  timeZone          String
+  version           String
+  status            String
+
+  regions           Region[]
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Region {
+  id           String   @id @default(uuid())
+  name         String
+  metadataJson String?  // JSON
+  description  String
+  climate      String
+  population   Int      @default(0)
+  
+  // Coordinates
+  coordX       Int
+  coordY       Int
+  
+  worldId      String
+  world        World    @relation(fields: [worldId], references: [id], onDelete: Cascade)
+  
+  cities       City[]
+  workplaces   Workplace[]
+  resources    Resource[]
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([worldId])
+}
+
+model City {
+  id            String   @id @default(uuid())
+  name          String
+  metadataJson  String?  // JSON
+  population    Int      @default(0)
+  
+  coordX        Int
+  coordY        Int
+  
+  area          Int
+  
+  regionId      String
+  region        Region   @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  
+  districts     District[]
+  
+  districtCount Int      @default(0)
+  buildingCount Int      @default(0)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([regionId])
+}
+
+model District {
+  id           String   @id @default(uuid())
+  name         String
+  metadataJson String?  // JSON
+  type         String   // RESIDENTIAL, COMMERCIAL, etc.
+  
+  cityId       String
+  city         City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  
+  buildings    Building[]
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([cityId])
+}
+
+model Building {
+  id           String   @id @default(uuid())
+  name         String
+  metadataJson String?  // JSON
+  type         String   // HOUSE, APARTMENT, FACTORY, etc.
+  
+  coordX       Int
+  coordY       Int
+  
+  capacity     Int
+  ownerId      String?
+  status       String
+  
+  districtId   String
+  district     District @relation(fields: [districtId], references: [id], onDelete: Cascade)
+  
+  rooms        Room[]
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([districtId])
+}
+
+model Room {
+  id           String   @id @default(uuid())
+  name         String
+  metadataJson String?  // JSON
+  type         String
+  
+  buildingId   String
+  building     Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  
+  objectIdsJson String? // JSON array
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([buildingId])
+}
+
+// ==========================================
+// Resources
+// ==========================================
+model Resource {
+  id                    String   @id @default(uuid())
+  name                  String
+  type                  String
+  category              String
+  unit                  String
+  renewable             Boolean
+  
+  regionId              String
+  region                Region   @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  
+  currentAmount         Float
+  maximumAmount         Float
+  naturalRecoveryRate   Float?
+  consumptionRate       Float?
+  
+  conditionType         String?
+  conditionValue        Float?
+  
+  extractionDifficulty  Float    @default(0)
+  
+  tradable              Boolean  @default(true)
+  borrowable            Boolean  @default(false)
+  exportable            Boolean  @default(true)
+  reservedAmount        Float    @default(0)
+  
+  metadataJson          String?  // JSON
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([regionId])
+}
+
+// ==========================================
+// Occupations & Workplaces
+// ==========================================
+model Workplace {
+  id                     String   @id @default(uuid())
+  type                   String
+  locationId             String
+  
+  regionId               String
+  region                 Region   @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  
+  capacity               Int
+  occupiedPositions      Int      @default(0)
+  vacancies              Int      @default(0)
+  
+  inventoryId            String?
+  storageCapacity        Int?
+  walletId               String?  // Handled polymorphically
+  
+  revenue                Float    @default(0)
+  expenses               Float    @default(0)
+  profit                 Float    @default(0)
+  
+  accountingHistoryJson  String?  // JSON
+  inventoryConfigJson    String?  // JSON
+  metadataJson           String?  // JSON
+  
+  positions              JobPosition[]
+  
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([regionId])
+  @@index([locationId])
+}
+
+model JobPosition {
+  id                 String   @id @default(uuid())
+  type               String
+  
+  workplaceId        String
+  workplace          Workplace @relation(fields: [workplaceId], references: [id], onDelete: Cascade)
+  
+  requiredSkillsJson String   // JSON
+  
+  occupantId         String?  // Citizen.id
+  citizen            Citizen?  @relation(fields: [occupantId], references: [id], onDelete: SetNull)
+  
+  scheduleStartHour  Int
+  scheduleEndHour    Int
+  
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([workplaceId])
+  @@index([occupantId])
+}
+
+// ==========================================
+// Citizens & Households
+// ==========================================
+model Household {
+  id           String   @id @default(uuid())
+  locationId   String
+  inventoryId  String
+  walletId     String
+  
+  citizens     Citizen[]
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Citizen {
+  id                 String   @id @default(uuid())
+  name               String
+  gender             String
+  status             String
+  
+  birthDateJson      String   // JSON SimulationTime
+  createdAtSimJson   String   // JSON SimulationTime
+  
+  locationId         String?
+  
+  vitalStateJson     String   // JSON
+  personalityJson    String   // JSON
+  
+  walletId           String?  // Polymorphic owner
+  
+  movementState      String   @default("IDLE")
+  activeRouteJson    String?  // JSON
+  
+  skillsJson         String   // JSON
+  
+  employmentStatus   String
+  workplaceId        String?
+  jobType            String?
+  jobScheduleJson    String?  // JSON
+  
+  householdId        String?
+  household          Household? @relation(fields: [householdId], references: [id], onDelete: SetNull)
+  
+  employmentRecJson  String?  // JSON
+  
+  jobPosition        JobPosition[]
+  
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([locationId])
+  @@index([householdId])
+}
+
+// ==========================================
+// Inventory & Items
+// ==========================================
+model Inventory {
+  id              String   @id @default(uuid())
+  ownerId         String   // Polymorphic (Workplace | Citizen | Household)
+  storageCapacity Float
+  
+  items           InventoryItem[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([ownerId])
+}
+
+model InventoryItem {
+  id                String   @id @default(uuid())
+  inventoryId       String
+  inventory         Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  
+  productId         String
+  totalQuantity     Float
+  reservedQuantity  Float    @default(0)
+  availableQuantity Float    @default(0)
+  unit              String
+  quality           Float?
+  
+  batchesJson       String?  // JSON array
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([inventoryId, productId])
+  @@index([inventoryId])
+}
+
+// ==========================================
+// Market & Finance
+// ==========================================
+model Wallet {
+  id            String   @id @default(uuid())
+  ownerId       String   @unique // Polymorphic
+  balance       Float    @default(0)
+  currency      String   @default("CREDIT")
+  totalIncome   Float    @default(0)
+  totalExpenses Float    @default(0)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model TransactionRecord {
+  id              String   @id @default(uuid())
+  transactionId   String   @unique
+  timestamp       Int
+  
+  buyerId         String
+  sellerId        String
+  
+  productId       String?
+  quantity        Float?
+  unit            String?
+  unitPrice       Float?
+  totalPrice      Float
+  currency        String
+  
+  transactionType String
+  regionId        String
+  
+  description     String?
+  referenceId     String?
+  referenceType   String?
+  
+  createdAt       DateTime @default(now())
+  
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([regionId])
+}
+
+model Order {
+  id               String   @id @default(uuid())
+  orderId          String   @unique
+  buyerId          String
+  sellerId         String
+  productId        String
+  quantity         Float
+  unit             String
+  unitPrice        Float?
+  totalPrice       Float?
+  currency         String?
+  status           String
+  
+  createdAtSim     Int      // Simulation timestamp
+  expectedDelivery Int?
+  
+  shipmentId       String?
+  
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([buyerId])
+  @@index([sellerId])
+}
+
+model Shipment {
+  id                 String   @id @default(uuid())
+  shipmentId         String   @unique
+  originId           String
+  destinationId      String
+  productId          String
+  quantity           Float
+  unit               String
+  transportationMode String
+  
+  routeId            String?
+  departureTime      Int?
+  estimatedArrival   Int?
+  
+  status             String
+  
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([originId])
+  @@index([destinationId])
 }

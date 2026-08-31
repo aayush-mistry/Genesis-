@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+import { persistenceService } from './services/persistence.service';
 
 
 import { healthRoutes } from './routes/health.routes';
@@ -47,6 +48,9 @@ export async function buildApp() {
   app.register(decisionRoutes, { prefix: '/api/v1' });
   app.register(perceptionRoutes, { prefix: '/api/v1' });
   app.register(supplyRoutes, { prefix: '/api/v1' });
+
+  // Bootstrap persistence state
+  await persistenceService.bootstrap();
 
   // Initialize engines
   import('./services/world.service').then(m => m.worldService.initialize());
