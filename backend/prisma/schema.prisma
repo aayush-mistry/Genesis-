@@ -479,3 +479,133 @@ model Shipment {
   @@index([originId])
   @@index([destinationId])
 }
+
+// ==========================================
+// Banking Subsystem
+// ==========================================
+
+model Bank {
+  id              String   @id @default(uuid())
+  name            String
+  capital         Float    @default(0)
+  reserves        Float    @default(0)
+  totalDeposits   Float    @default(0)
+  totalLoans      Float    @default(0)
+  reserveRatio    Float    @default(0.1)
+  lendingCapacity Float    @default(0)
+  status          String   @default("ACTIVE")
+  
+  accounts        BankAccount[]
+  loans           Loan[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model BankAccount {
+  id          String   @id @default(uuid())
+  accountId   String   @unique
+  
+  bankId      String
+  bank        Bank     @relation(fields: [bankId], references: [id], onDelete: Cascade)
+  
+  ownerId     String   // Polymorphic (Citizen | Workplace | Household)
+  walletId    String   @unique
+  
+  accountType String   @default("CHECKING")
+  status      String   @default("ACTIVE")
+  
+  loans       Loan[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([bankId])
+  @@index([ownerId])
+  @@index([walletId])
+}
+
+model LoanApplication {
+  id                    String   @id @default(uuid())
+  
+  bankId                String
+  borrowerId            String   // Polymorphic
+  
+  loanType              String
+  requestedAmount       Float
+  requestedTermMonths   Int
+  
+  status                String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  
+  eligibilityScore      Int?
+  eligibilityReasonsJson String? // JSON string array
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  
+  @@index([bankId])
+  @@index([borrowerId])
+}
+
+model Loan {
+  id                 String   @id @default(uuid())
+  
+  bankId             String
+  bank               Bank     @relation(fields: [bankId], references: [id], onDelete: Cascade)
+  
+  borrowerId         String   // Polymorphic
+  
+  accountId          String
+  account            BankAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  
+  loanType           String
+  status             String   @default("PENDING")
+  
+  principal          Float
+  interestRate       Float
+  termMonths         Int
+  monthlyEmi         Float
+  remainingPrincipal Float
+  
+  missedPayments     Int      @default(0)
+  
+  collateralJson     String?  // JSON
+  
+  payments           LoanPayment[]
+  
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  
+  @@index([bankId])
+  @@index([borrowerId])
+  @@index([accountId])
+}
+
+model LoanPayment {
+  id                 String   @id @default(uuid())
+  
+  loanId             String
+  loan               Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  
+  amount             Float
+  principalPortion   Float
+  interestPortion    Float
+  
+  timestamp          Int      // SimulationTime
+  
+  createdAt          DateTime @default(now())
+  
+  @@index([loanId])
+}
+
+model CreditHistory {
+  id                String   @id @default(uuid())
+  ownerId           String   @unique // Polymorphic
+  
+  creditScore       Int      @default(500)
+  historyEventsJson String   @default("[]") // JSON
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+

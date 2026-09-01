@@ -13,6 +13,7 @@ import { PerformanceView } from '../components/inspector/PerformanceView';
 import { EventInjectionPanel } from '../components/inspector/EventInjectionPanel';
 import { PerceptionDashboard } from '../components/perception/PerceptionDashboard';
 import { SupplyDashboard } from '../components/supply/SupplyDashboard';
+import { BankingDashboard } from '../components/banking/BankingDashboard';
 import { useQuery } from '@tanstack/react-query';
 import { worldApi } from '../api/world';
 import { useEffect } from 'react';
@@ -34,6 +35,7 @@ export default function EngineInspector() {
           {activeTab === 'spatial' && <SpatialDashboard />}
           {activeTab === 'perception' && <PerceptionDashboard />}
           {activeTab === 'supply' && <SupplyChainView />}
+          {activeTab === 'banking' && <BankingDashboard />}
           {activeTab === 'queue' && <QueueInspector />}
           {activeTab === 'history' && <HistoryInspector />}
           {activeTab === 'logs' && <LiveLogs />}
