@@ -121,10 +121,12 @@ describe('BankingEngine', () => {
             10000,
             12,
             {
-                incomeOrRevenue: 120000, // 10k/mo
-                existingDebt: 0,
-                existingEmiBurden: 0,
-                creditScore: 650
+                monthlyIncome: 10000,
+                existingMonthlyDebt: 0,
+                employmentStabilityScore: 80,
+                creditScore: 650,
+                repaymentHistoryScore: 80,
+                availableAssets: 1000
             }
         );
 
@@ -176,10 +178,21 @@ describe('BankingEngine', () => {
             50000, // Wants 50k, bank only has 10k capital (cap max 9k)
             60,
             {
-                incomeOrRevenue: 1000000,
-                existingDebt: 0,
-                existingEmiBurden: 0,
-                creditScore: 750
+                monthlyIncome: 80000,
+                existingMonthlyDebt: 0,
+                employmentStabilityScore: 90,
+                creditScore: 750,
+                repaymentHistoryScore: 90,
+                availableAssets: 50000,
+                averageMonthlyRevenue: 100000,
+                monthlyProfit: 20000,
+                monthlyFreeCashFlow: 15000,
+                businessStabilityScore: 80,
+                businessAssets: 50000,
+                businessMultiplier: 2,
+                cashFlowHealthScore: 80,
+                profitabilityScore: 80,
+                assetCoverageScore: 80
             }
         );
 

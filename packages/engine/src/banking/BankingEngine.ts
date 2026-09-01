@@ -2,7 +2,8 @@ import { EventScheduler } from '../events/EventScheduler';
 import { SimulationEvent } from '../events/SimulationEvent';
 import { TimeEngine } from '../time/TimeEngine';
 import { LoanType, LoanStatus, BankAccountType, BankStatus, IBankingRepository } from './types/BankingTypes';
-import { LoanEligibilityCalculator } from './calculations/LoanEligibilityCalculator';
+import { LoanCalculatorFactory } from './calculations/LoanCalculatorFactory';
+import { AnyLoanInputs } from './calculations/calculators/ILoanCalculator';
 import { EMICalculator } from './calculations/EMICalculator';
 import { LendingCapacityCalculator } from './calculations/LendingCapacityCalculator';
 import { CreditScoreCalculator } from './calculations/CreditScoreCalculator';
@@ -184,14 +185,14 @@ export class BankingEngine {
         loanType: LoanType,
         requestedAmount: number,
         requestedTermMonths: number,
-        financials: any
+        financials: Omit<AnyLoanInputs, 'requestedAmount' | 'requestedTermMonths'> & { requestedAmount?: number, requestedTermMonths?: number }
     ) {
-        const eligibility = LoanEligibilityCalculator.evaluateEligibility(
-            loanType,
-            requestedAmount,
-            requestedTermMonths,
-            financials
-        );
+        financials.requestedAmount = requestedAmount;
+        financials.requestedTermMonths = requestedTermMonths;
+        
+        const calculator = LoanCalculatorFactory.getCalculator(loanType);
+        const config = LoanConfig[loanType as LoanType];
+        const eligibility = calculator.calculate(financials as AnyLoanInputs, config);
 
         const application = await this.repo.createLoanApplication({
             bankId,
