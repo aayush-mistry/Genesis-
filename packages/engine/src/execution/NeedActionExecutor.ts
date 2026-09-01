@@ -14,8 +14,7 @@ export class NeedActionExecutor extends BaseActionExecutor {
 
   public canHandle(actionType: string): boolean {
     return [
-      ActionType.REST,
-      ActionType.SEEK_MEDICAL_HELP
+      ActionType.REST
     ].includes(actionType as ActionType);
   }
 
@@ -48,22 +47,17 @@ export class NeedActionExecutor extends BaseActionExecutor {
 
   private getDurationForAction(actionType: ActionType): number {
     switch (actionType) {
-
       case ActionType.REST: return 8 * 60; // 8 hours
-      case ActionType.SEEK_MEDICAL_HELP: return 60;
       default: return 15;
     }
   }
 
   private applyEffect(citizen: import('@genesis/shared').Citizen, actionType: ActionType): void {
     switch (actionType) {
-
       case ActionType.REST:
         this.needsService.recoverEnergy(citizen, 100);
-        break;
-      case ActionType.SEEK_MEDICAL_HELP:
-        this.needsService.restoreHealth(citizen, 50);
         break;
     }
   }
 }
+

@@ -23,7 +23,7 @@ export interface Commodity {
   isBiological: boolean;
   storageRequirements?: Record<string, unknown>;
   consumable?: {
-    restorationNeed: 'HUNGER' | 'THIRST';
+    restorationNeed: 'HUNGER' | 'THIRST' | 'HEALTH' | 'ENERGY';
     restorationValue: number;
   };
   perishable?: {

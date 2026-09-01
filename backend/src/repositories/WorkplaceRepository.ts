@@ -10,6 +10,14 @@ export class WorkplaceRepository {
     });
   }
 
+  async listWorkplaces() {
+    return prisma.workplace.findMany({
+      include: {
+        positions: true,
+      }
+    });
+  }
+
   async createWorkplace(data: any) {
     return prisma.workplace.create({ data });
   }

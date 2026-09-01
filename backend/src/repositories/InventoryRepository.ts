@@ -10,6 +10,15 @@ export class InventoryRepository {
     });
   }
 
+  async getInventoryByOwner(ownerId: string) {
+    return prisma.inventory.findFirst({
+      where: { ownerId },
+      include: {
+        items: true,
+      }
+    });
+  }
+
   async createInventory(data: any) {
     return prisma.inventory.create({ data });
   }
@@ -25,6 +34,34 @@ export class InventoryRepository {
       update: {
         totalQuantity: { increment: quantity },
         availableQuantity: { increment: quantity },
+      },
+      create: {
+        inventoryId,
+        productId,
+        totalQuantity: quantity,
+        availableQuantity: quantity,
+        unit,
+      }
+    });
+  }
+
+  async setItemExactQuantity(inventoryId: string, productId: string, quantity: number, unit: string) {
+    if (quantity <= 0) {
+      return prisma.inventoryItem.deleteMany({
+        where: { inventoryId, productId }
+      });
+    }
+
+    return prisma.inventoryItem.upsert({
+      where: {
+        inventoryId_productId: {
+          inventoryId,
+          productId
+        }
+      },
+      update: {
+        totalQuantity: quantity,
+        availableQuantity: quantity,
       },
       create: {
         inventoryId,

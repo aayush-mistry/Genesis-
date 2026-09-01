@@ -17,6 +17,10 @@ export class FinancialRepository {
     });
   }
 
+  async listWallets() {
+    return prisma.wallet.findMany();
+  }
+
   async executeTransfer(buyerId: string, sellerId: string, amount: number, details: any) {
     return prisma.$transaction(async (tx) => {
       const buyer = await tx.wallet.update({
