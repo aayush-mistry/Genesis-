@@ -27,6 +27,7 @@ describe('AI Decision Framework (Phase 4.1)', () => {
       nearbyEntities: [],
       schedule: {} as any
     },
+    stockLevels: { wheat: 100, water: 100 },
     ...overrides
   });
 

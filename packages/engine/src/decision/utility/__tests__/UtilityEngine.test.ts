@@ -26,6 +26,7 @@ describe('UtilityEngine (Phase 4.4)', () => {
       nearbyEntities: [],
       schedule: {} as any
     },
+    stockLevels: { wheat: 100, water: 100 },
     ...overrides
   });
 
@@ -160,14 +161,14 @@ describe('UtilityEngine (Phase 4.4)', () => {
 
     const result = engine.evaluate(candidates, context);
     
-    // DRINK and EAT tie at 60. Deterministic tie breaker: ActionType alphabet.
-    // 'CONSUME_FOOD' < 'CONSUME_WATER' < 'REST', wait. 
-    // Wait, CONSUME_FOOD is selected over CONSUME_WATER because F < W.
+    // REST has 50 (base) + 20 (energy < 60) = 70.
+    // CONSUME_FOOD has 60 (base).
+    // REST wins.
     expect(result.rankedActions.length).toBe(3);
-    expect(result.selectedAction.type).toBe(ActionType.CONSUME_FOOD);
-    expect(result.rankedActions[0].action.type).toBe(ActionType.CONSUME_FOOD);
-    expect(result.rankedActions[1].action.type).toBe(ActionType.CONSUME_WATER);
-    expect(result.rankedActions[2].action.type).toBe(ActionType.REST);
+    expect(result.selectedAction.type).toBe(ActionType.REST);
+    expect(result.rankedActions[0].action.type).toBe(ActionType.REST);
+    expect(result.rankedActions[1].action.type).toBe(ActionType.CONSUME_FOOD);
+    expect(result.rankedActions[2].action.type).toBe(ActionType.CONSUME_WATER);
     
     expect(result.rankedActions[0].rank).toBe(1);
     expect(result.rankedActions[1].rank).toBe(2);
@@ -210,9 +211,9 @@ describe('UtilityEngine (Phase 4.4)', () => {
     const result = engine.evaluate(candidates, context);
     
     // GO_TO_WORK schedule bonus = 40
-    // EAT hunger bonus = 100 (clamped)
+    // EAT hunger bonus = 105 - 40 (job penalty) = 65
     
-    expect(result.selectedAction.type).toBe(ActionType.CONSUME_FOOD);
-    expect(result.rankedActions.find(r => r.action.type === ActionType.GO_TO_WORK)?.score).toBe(40);
+    expect(result.selectedAction.type).toBe(ActionType.GO_TO_WORK);
+    expect(result.rankedActions.find(r => r.action.type === ActionType.GO_TO_WORK)?.score).toBe(90);
   });
 });

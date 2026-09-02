@@ -1,10 +1,16 @@
-import { CandidateActionSet, DecisionResult, RankedAction, UtilityBreakdown, CandidateAction } from '@genesis/shared';
+import { CandidateActionSet, DecisionResult, RankedAction, UtilityBreakdown, CandidateAction, ActionType } from '@genesis/shared';
 import { NeedUtilityEvaluator } from './evaluators/NeedUtilityEvaluator';
 import { ScheduleUtilityEvaluator } from './evaluators/ScheduleUtilityEvaluator';
 import { TravelUtilityEvaluator } from './evaluators/TravelUtilityEvaluator';
 import { SafetyUtilityEvaluator } from './evaluators/SafetyUtilityEvaluator';
 import { ResourceUtilityEvaluator } from './evaluators/ResourceUtilityEvaluator';
-import { StubEvaluators } from './evaluators/StubEvaluators';
+import { HardConstraintFilter } from './evaluators/HardConstraintFilter';
+import { EnergyUtilityEvaluator } from './evaluators/EnergyUtilityEvaluator';
+import { DurationUtilityEvaluator } from './evaluators/DurationUtilityEvaluator';
+import { EnvironmentUtilityEvaluator } from './evaluators/EnvironmentUtilityEvaluator';
+import { JobUtilityEvaluator } from './evaluators/JobUtilityEvaluator';
+import { PersonalityUtilityEvaluator } from './evaluators/PersonalityUtilityEvaluator';
+import { TransportationUtilityEvaluator } from './evaluators/TransportationUtilityEvaluator';
 
 export class UtilityEngine {
   private needEvaluator = new NeedUtilityEvaluator();
@@ -12,14 +18,25 @@ export class UtilityEngine {
   private travelEvaluator = new TravelUtilityEvaluator();
   private safetyEvaluator = new SafetyUtilityEvaluator();
   private resourceEvaluator = new ResourceUtilityEvaluator();
-  private stubs = new StubEvaluators();
+  
+  private hardConstraintFilter = new HardConstraintFilter();
+  private energyEvaluator = new EnergyUtilityEvaluator();
+  private durationEvaluator = new DurationUtilityEvaluator();
+  private environmentEvaluator = new EnvironmentUtilityEvaluator();
+  private jobEvaluator = new JobUtilityEvaluator();
+  private personalityEvaluator = new PersonalityUtilityEvaluator();
+  private transportationEvaluator = new TransportationUtilityEvaluator();
 
   /**
    * Evaluates a set of candidate actions, assigns a utility score to each, 
    * and ranks them to produce a final DecisionResult.
    */
   public evaluate(candidateSet: CandidateActionSet, context: any): DecisionResult {
-    const rankedActions: RankedAction[] = candidateSet.candidates.map(action => {
+    const validCandidates = candidateSet.candidates.filter(action => 
+      this.hardConstraintFilter.isValid(action, context)
+    );
+
+    const rankedActions: RankedAction[] = validCandidates.map(action => {
       const breakdown = this.calculateBreakdown(action, context);
       return {
         action,
@@ -49,10 +66,20 @@ export class UtilityEngine {
       ra.rank = index + 1;
     });
 
+    let selectedAction = rankedActions.length > 0 ? rankedActions[0].action : candidateSet.candidates[0];
+    if (rankedActions.length === 0) {
+      // Fallback to IDLE if no valid actions
+      selectedAction = {
+        type: ActionType.IDLE,
+        source: 'FALLBACK',
+        reason: 'No valid candidate actions available'
+      } as CandidateAction;
+    }
+
     return {
       citizenId: candidateSet.citizenId,
       timestamp: candidateSet.timestamp,
-      selectedAction: rankedActions.length > 0 ? rankedActions[0].action : candidateSet.candidates[0], // fallback
+      selectedAction,
       rankedActions
     };
   }
@@ -64,13 +91,12 @@ export class UtilityEngine {
     const safety = this.safetyEvaluator.evaluate(action, context);
     const resourceAvailability = this.resourceEvaluator.evaluate(action, context);
     
-    // Stubs
-    const energy = this.stubs.evaluateEnergy(action, context);
-    const duration = this.stubs.evaluateDuration(action, context);
-    const environment = this.stubs.evaluateEnvironment(action, context);
-    const job = this.stubs.evaluateJob(action, context);
-    const personality = this.stubs.evaluatePersonality(action, context);
-    const transportation = this.stubs.evaluateTransportation(action, context);
+    const energy = this.energyEvaluator.evaluate(action, context);
+    const duration = this.durationEvaluator.evaluate(action, context);
+    const environment = this.environmentEvaluator.evaluate(action, context);
+    const job = this.jobEvaluator.evaluate(action, context);
+    const personality = this.personalityEvaluator.evaluate(action, context);
+    const transportation = this.transportationEvaluator.evaluate(action, context);
 
     let total = needUrgency + schedule + travel + safety + resourceAvailability + 
                 energy + duration + environment + job + personality + transportation;
