@@ -185,39 +185,55 @@ export class CandidateGenerator {
     if (!activity) return;
 
     let target: { type: string, id: string } | undefined = undefined;
+    let actionType = ActionType.IDLE;
 
-    // Resolve target if needed
-    if (activity.destinationType === 'WORKPLACE' && context.workplaceId) {
-      target = { type: 'BUILDING', id: context.workplaceId };
-    } else if (activity.destinationType === 'SCHOOL') {
-      // Stub for school logic
-      if (context.schoolId) {
-        target = { type: 'BUILDING', id: context.schoolId };
+    if (activity.type === 'WORK') {
+      if (context.employmentStatus === 'EMPLOYED' && context.workplaceLocationId) {
+        target = { type: 'BUILDING', id: context.workplaceLocationId };
+        actionType = context.currentLocationId !== context.workplaceLocationId ? ActionType.GO_TO_WORK : ActionType.WORK;
       }
-    } else if (activity.destinationType === 'HOME') {
-      // Stub for home logic
+    } else if (activity.type === 'STUDY') {
+      // School candidates are intentionally omitted as the domain model lacks school relationships (Reported gap).
+      return; 
+    } else if (activity.type === 'SLEEP' || activity.type === 'REST') {
       if (context.homeId) {
         target = { type: 'BUILDING', id: context.homeId };
+        actionType = context.currentLocationId !== context.homeId ? ActionType.GO_HOME : ActionType.REST;
+      } else {
+        actionType = ActionType.REST;
+      }
+    } else if (activity.type === 'MEAL') {
+      actionType = ActionType.CONSUME_FOOD;
+      if (context.homeId && context.currentLocationId !== context.homeId) {
+         // Also propose GO_HOME as a candidate since people often eat at home
+         const goHomeAction = ActionType.GO_HOME;
+         const goHomeTarget = { type: 'BUILDING', id: context.homeId };
+         if (!candidates.some(c => c.type === goHomeAction && c.target?.id === goHomeTarget.id)) {
+            candidates.push({
+              type: goHomeAction,
+              source: 'ROUTINE',
+              reason: `Scheduled routine activity: MEAL - Going home to eat`,
+              target: goHomeTarget
+            });
+         }
       }
     }
 
-    // Map routine activity type to ActionType
-    let actionType = ActionType.IDLE;
-    switch (activity.type) {
-      case 'WORK': actionType = target && context.currentLocationId !== target.id ? ActionType.GO_TO_WORK : ActionType.WORK; break;
-      case 'STUDY': actionType = target && context.currentLocationId !== target.id ? ActionType.GO_TO_SCHOOL : ActionType.STUDY; break;
-      case 'SLEEP': actionType = ActionType.REST; break; // SLEEP maps to REST
-      case 'REST': actionType = ActionType.REST; break;
-      case 'MEAL': actionType = ActionType.CONSUME_FOOD; break; // Needs will likely override or work together
-      default: actionType = ActionType.IDLE; break;
-    }
+    if (actionType !== ActionType.IDLE) {
+      const isDuplicate = candidates.some(c => 
+        c.type === actionType && 
+        c.target?.id === target?.id && 
+        c.target?.type === target?.type
+      );
 
-    // Always push the routine action as a baseline candidate
-    candidates.push({
-      type: actionType,
-      source: 'ROUTINE',
-      reason: `Scheduled routine activity: ${activity.type}`,
-      target
-    });
+      if (!isDuplicate) {
+        candidates.push({
+          type: actionType,
+          source: 'ROUTINE',
+          reason: `Scheduled routine activity: ${activity.type}`,
+          target
+        });
+      }
+    }
   }
 }

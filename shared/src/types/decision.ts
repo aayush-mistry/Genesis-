@@ -84,6 +84,8 @@ export interface DecisionContext {
   currentRoutine?: import('./routine').CitizenRoutine;
   currentRoutineActivity?: import('./routine').RoutineActivity;
   householdId?: string;
+  homeId?: string;
+  workplaceLocationId?: string;
   personality?: import('./citizen').PersonalityTraits;
   stockLevels?: Record<string, number>;
   // Extensible for future attributes like weather, wealth, traits, etc.

@@ -110,6 +110,8 @@ describe('NeedActionSystem', () => {
       mockContext.currentRoutineActivity = { id: 'act1', type: 'WORK' as any, startTime: 0, endTime: 24, interruptible: true, destinationType: 'WORKPLACE' };
       mockContext.currentLocationId = 'home1';
       mockContext.workplaceId = 'work1';
+      mockContext.workplaceLocationId = 'work1';
+      mockContext.employmentStatus = EmploymentStatus.EMPLOYED;
       
       const result = system.generateCandidateActions(mockContext);
       const actions = result.candidates.map(c => c.type);
@@ -121,7 +123,9 @@ describe('NeedActionSystem', () => {
     it('generates WORK if schedule says WORK and already at workplace', () => {
       mockContext.currentRoutineActivity = { id: 'act1', type: 'WORK' as any, startTime: 0, endTime: 24, interruptible: true, destinationType: 'WORKPLACE' };
       mockContext.workplaceId = 'work1';
+      mockContext.workplaceLocationId = 'work1';
       mockContext.currentLocationId = 'work1'; // At work
+      mockContext.employmentStatus = EmploymentStatus.EMPLOYED;
       
       const result = system.generateCandidateActions(mockContext);
       const actions = result.candidates.map(c => c.type);

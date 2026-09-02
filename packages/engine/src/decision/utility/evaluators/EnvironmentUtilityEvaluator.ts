@@ -17,10 +17,10 @@ export class EnvironmentUtilityEvaluator {
     ].includes(action.type);
 
     if (isOutdoor) {
-      if (environment.weather === 'STORMY' || environment.weather === 'SNOWING') {
+      if (environment.weather === 'Storm' || environment.weather === 'Heavy Snow' || environment.weather === 'Light Snow') {
         return -20;
       }
-      if (environment.weather === 'RAINING') {
+      if (environment.weather === 'Rain' || environment.weather === 'Light Rain') {
         return -10;
       }
     }

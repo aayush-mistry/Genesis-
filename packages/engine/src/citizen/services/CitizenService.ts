@@ -221,10 +221,12 @@ export class CitizenService {
         citizen.currentAction.state === ActionState.CANCELLED ||
         citizen.currentAction.state === ActionState.FAILED) {
         
+        let homeId: string | undefined = undefined;
         let stockLevels: Record<string, number> = {};
         if (citizen.householdId) {
           const household = this.householdService.getHousehold(citizen.householdId);
           if (household) {
+            homeId = household.locationId;
             const inventory = this.householdService['inventoryManager'].getInventory(household.inventoryId);
             if (inventory) {
               const currentTimeSeconds = this.timeEngine.getUptimeSeconds(); // or equivalent
@@ -235,6 +237,14 @@ export class CitizenService {
           }
         }
 
+        let workplaceLocationId: string | undefined = undefined;
+        if (citizen.workplaceId) {
+          const workplace = this.worldEngine.workplaceRepository.findById(citizen.workplaceId);
+          if (workplace) {
+            workplaceLocationId = workplace.locationId;
+          }
+        }
+
         const context: DecisionContext = {
           citizenId: citizen.id,
           age: this.getCitizenAge(citizen),
@@ -242,13 +252,16 @@ export class CitizenService {
           skills: citizen.skills,
           employmentStatus: citizen.employmentStatus,
           workplaceId: citizen.workplaceId,
+          workplaceLocationId,
           currentLocationId: citizen.locationId || '',
           currentDestinationId: null,
           simulationTime: new Date() as any, // fallback or real simulation time mapped to Date
           perception: this.perceptionService!.generateSnapshot(citizen.id),
           householdId: citizen.householdId,
+          homeId,
           personality: citizen.personality,
-          stockLevels
+          stockLevels,
+          currentRoutineActivity: citizen.currentRoutineActivity // Make sure this is in context!
         };
 
         const needStates = this.needAnalyzer.analyzeNeeds(citizen.vitalState);
