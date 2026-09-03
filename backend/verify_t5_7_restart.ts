@@ -80,11 +80,83 @@ async function run() {
   const foodPass = totalFood === state.totalFoodFinal && citizenFood === state.finalCitizenFood && storeFood === state.finalStoreFood;
   console.log(`Food Conservation: ${foodPass ? 'PASS' : 'FAIL'}`);
   
-  if (moneyPass && foodPass) {
+  if (!moneyPass || !foodPass) {
+    console.error('\nFAIL! Conservation mismatched after hydration.');
+    process.exit(1);
+  }
+
+  console.log('\n[5] Executing Continuation Test (Post-Restart Action)...');
+
+  // We need to re-setup the executors and seeds that aren't natively persisted yet
+  const { marketService } = require('./src/services/market.service');
+  const { spatialService } = require('./src/services/spatial.service');
+  const { StoreRanker } = require('../packages/engine/src/decision/scoring/StoreRanker');
+  
+  // Seed commodity for consumption engine again (normally done by game init, not fully persisted)
+  supplyService.productionEngine.commodities.set('food', {
+    id: 'food',
+    name: 'Food',
+    category: 'CONSUMABLE',
+    basePrice: 10,
+    consumable: {
+      restorationNeed: 'HUNGER',
+      restorationValue: 10
+    }
+  } as any);
+
+  const storeRanker = new StoreRanker(marketService.engine, supplyService.inventoryManager);
+  citizenService.engine.actionExecutor.setMarketEngine(
+    marketService.engine,
+    storeRanker,
+    spatialService.engine.queryService
+  );
+
+  const ActionType = { PURCHASE: 'PURCHASE', CONSUME_FOOD: 'CONSUME_FOOD' };
+  const ActionState = { PENDING: 'PENDING', COMPLETED: 'COMPLETED' };
+
+  const purchaseAction = {
+    type: ActionType.PURCHASE,
+    state: ActionState.PENDING,
+    priority: 10,
+    target: { type: 'BUILDING', id: store.id },
+    metadata: { productId: 'food', targetQuantity: 5, selectedStoreId: store.id },
+    createdAt: new Date() as any,
+  };
+
+  citizenService.engine.actionExecutor.executeAction(citizen, purchaseAction);
+  
+  for (let i = 0; i < 5; i++) {
+    citizenService.engine.actionExecutor.tick(citizen);
+  }
+
+  const currentPurchaseAction = citizen.currentAction!;
+  if (currentPurchaseAction.state !== ActionState.COMPLETED) {
+    console.error(`Post-Restart Purchase failed! State is: ${currentPurchaseAction.state}`);
+  } else {
+    console.log('Post-Restart Purchase Action Completed Successfully.');
+  }
+
+  const postCitizenMoney = citizen.wallet!.balance;
+  const postStoreMoney = store.wallet!.balance;
+  const postCitizenFood = supplyService.inventoryManager.getUsableQuantity(citizenInv.id, 'food', currentSeconds);
+  const postStoreFood = supplyService.inventoryManager.getUsableQuantity(storeInv.id, 'food', currentSeconds);
+
+  console.log(`Post-Restart State:
+  Citizen Money: ${postCitizenMoney} (Expected: ${citizenWalletDb.balance - 50})
+  Store Money: ${postStoreMoney} (Expected: ${storeWalletDb.balance + 50})
+  Citizen Food: ${postCitizenFood} (Expected: ${citizenFood + 5})
+  Store Food: ${postStoreFood} (Expected: ${storeFood - 5})`);
+
+  if (
+    postCitizenMoney === citizenWalletDb.balance - 50 &&
+    postStoreMoney === storeWalletDb.balance + 50 &&
+    postCitizenFood === citizenFood + 5 &&
+    postStoreFood === storeFood - 5
+  ) {
     console.log('\nSUCCESS! T5.7 CLOSED-LOOP ECONOMIC VERIFICATION COMPLETED SUCCESSFULLY!');
     process.exit(0);
   } else {
-    console.error('\nFAIL! Conservation mismatched after hydration.');
+    console.error('\nFAIL! Post-restart action failed to mutate state correctly.');
     process.exit(1);
   }
 }

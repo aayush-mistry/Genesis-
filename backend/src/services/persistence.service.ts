@@ -53,7 +53,7 @@ export class PersistenceService {
             wallet: undefined
           };
           if (wp.walletId) {
-            const wWallet = walletMap.get(wp.walletId);
+            const wWallet = walletMap.get(wp.id);
             if (wWallet) {
               workplaceObj.wallet = {
                 id: wWallet.id,
@@ -88,7 +88,7 @@ export class PersistenceService {
                    availableQuantity: item.availableQuantity,
                    unit: item.unit,
                    quality: item.quality,
-                   batches: undefined
+                   batches: [{ quantity: item.availableQuantity, acquiredAt: 0, status: 'FRESH' }]
                  };
               });
               // Insert directly into in-memory engine
@@ -122,7 +122,7 @@ export class PersistenceService {
                    availableQuantity: item.availableQuantity,
                    unit: item.unit,
                    quality: item.quality,
-                   batches: undefined
+                   batches: [{ quantity: item.availableQuantity, acquiredAt: 0, status: 'FRESH' }]
                  };
               });
               inventoryObj = {
