@@ -4,6 +4,8 @@ import { TimeUtils } from '../../utils/TimeUtils';
 import { EventScheduler } from '../../events/EventScheduler';
 import { CitizenRepository } from '../repositories/CitizenRepository';
 
+import { EventRegistry } from '../../events/EventRegistry';
+
 export const NeedsConfig = {
   HUNGER_RATE_PER_HOUR: 1.5,
   THIRST_RATE_PER_HOUR: 2.5,
@@ -16,6 +18,10 @@ export class NeedsService {
 
   constructor(repository: CitizenRepository) {
     this.repository = repository;
+    
+    EventRegistry.register('NeedsService.updatePopulationNeeds', async (event) => {
+      this.updatePopulationNeeds(event.executionTime!);
+    });
   }
 
   /**
@@ -112,10 +118,7 @@ export class NeedsService {
       cancelFlag: false,
       retryCount: 0,
       recurrence: { interval: 'Hour' },
-      handler: async (event) => {
-        // Use the event's execution time as the current time
-        this.updatePopulationNeeds(event.executionTime!);
-      }
+      handlerName: 'NeedsService.updatePopulationNeeds'
     });
   }
 

@@ -1,0 +1,10 @@
+{
+  "citizenId": "test-citizen-banking",
+  "storeId": "wp-000010",
+  "totalMoneyFinal": 6000,
+  "totalFoodFinal": 98,
+  "finalCitizenMoney": 900,
+  "finalStoreMoney": 5100,
+  "finalCitizenFood": 8,
+  "finalStoreFood": 90
+}

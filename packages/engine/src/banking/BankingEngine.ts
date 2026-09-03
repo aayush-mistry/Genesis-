@@ -1,5 +1,6 @@
 import { EventScheduler } from '../events/EventScheduler';
 import { SimulationEvent } from '../events/SimulationEvent';
+import { EventRegistry } from '../events/EventRegistry';
 import { TimeEngine } from '../time/TimeEngine';
 import { LoanType, LoanStatus, BankAccountType, BankStatus, IBankingRepository } from './types/BankingTypes';
 import { LoanCalculatorFactory } from './calculations/LoanCalculatorFactory';
@@ -18,10 +19,18 @@ export class BankingEngine {
         this.scheduler = scheduler;
         this.timeEngine = timeEngine;
         this.repo = repo;
+        
+        EventRegistry.register('BankingEngine.processMonthlyEMIs', async () => {
+            await this.processMonthlyEMIs();
+        });
     }
 
     public initialize() {
-        this.scheduleMonthlyEMI();
+        const upcoming = this.scheduler.getUpcomingEvents();
+        const existing = upcoming.find(e => e.id.startsWith('monthly-emi-processing'));
+        if (!existing) {
+            this.scheduleMonthlyEMI();
+        }
     }
 
     private scheduleMonthlyEMI() {
@@ -46,9 +55,7 @@ export class BankingEngine {
             status: 'Scheduled',
             createdTime: now,
             scheduledTime: nextMonth,
-            handler: async () => {
-                await this.processMonthlyEMIs();
-            },
+            handlerName: 'BankingEngine.processMonthlyEMIs',
             sourceModule: 'BankingEngine',
             targetModule: 'BankingEngine',
             recurrence: {
@@ -327,6 +334,15 @@ export class BankingEngine {
         const principalPortion = loan.monthlyEmi - interestPortion;
 
         await this.repo.executeTransaction(async (tx) => {
+            // Ensure exactly-once execution per EMI period
+            const existingPayment = await tx.loanPayment.findFirst({
+                where: { loanId: loan.id, timestamp: timestamp }
+            });
+            console.log(`Checking existing payment for loan ${loan.id} at timestamp ${timestamp}. Found:`, !!existingPayment);
+            if (existingPayment) {
+                return; // Already processed!
+            }
+
             const account = await tx.bankAccount.findUnique({ where: { id: loan.accountId } });
             if (!account) return;
 

@@ -6,6 +6,8 @@ import { TimeEngine } from '../../time/TimeEngine';
 import { TimeUtils } from '../../utils/TimeUtils';
 import { randomUUID } from 'crypto';
 
+import { EventRegistry } from '../../events/EventRegistry';
+
 export class MovementService {
   private repository: CitizenRepository;
   private spatialQueryService: SpatialQueryService;
@@ -25,6 +27,10 @@ export class MovementService {
     this.spatialQueryService = spatialQueryService;
     this.eventScheduler = eventScheduler;
     this.timeEngine = timeEngine;
+    
+    EventRegistry.register('MovementService.handleArrival', async (event) => {
+      this.handleArrival(event.id, event.metadata as { citizenId: string, destinationId: string, routeId: string });
+    });
   }
 
   public requestMovement(citizenId: string, destinationId: string): Route {
@@ -109,9 +115,7 @@ export class MovementService {
         destinationId,
         routeId: route.id
       },
-      handler: async (event) => {
-        this.handleArrival(event.id, event.metadata as { citizenId: string, destinationId: string, routeId: string });
-      }
+      handlerName: 'MovementService.handleArrival'
     });
 
     return route;

@@ -48,7 +48,7 @@ export class SeasonManager {
       targetModule: 'Global',
       tags: ['environment', 'season'],
       metadata: { oldSeason, newSeason },
-      handler: async () => { /* No-op, just for history tracking */ }
+      handlerName: 'Global.NoOp'
     };
 
     // Push directly to history since it already happened, or we could schedule it for "now"

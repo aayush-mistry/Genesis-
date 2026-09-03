@@ -88,6 +88,12 @@ class WorldService {
     const { citizenService } = await import('./citizen.service');
     citizenService.simulator.initializePopulation(5000);
 
+    // FIX: Assign a valid location to the persistent test citizen so perception API works
+    const testCitizen = citizenService.engine.getCitizen('test-citizen-banking');
+    if (testCitizen) {
+      testCitizen.locationId = storeBuilding.id;
+    }
+
     return world;
   }
 }

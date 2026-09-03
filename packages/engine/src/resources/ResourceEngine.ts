@@ -9,6 +9,8 @@ import { SimulationEvent } from '../events/SimulationEvent';
 import { TimeEngine } from '../time/TimeEngine';
 import { randomUUID } from 'crypto';
 
+import { EventRegistry } from '../events/EventRegistry';
+
 export class ResourceEngine {
   public resourceManager: ResourceManager;
   public resourceGenerator: ResourceGenerator;
@@ -36,6 +38,10 @@ export class ResourceEngine {
     this.resourceGenerator = new ResourceGenerator();
     this.resourceCalculator = new ResourceCalculator();
     this.resourceConsumptionEngine = new ResourceConsumptionEngine(this.resourceManager);
+    
+    EventRegistry.register('ResourceEngine.processRegeneration', async () => {
+      this.processRegeneration(24);
+    });
   }
 
   public initialize(): void {
@@ -73,9 +79,7 @@ export class ResourceEngine {
       sourceModule: 'ResourceEngine',
       targetModule: 'ResourceEngine',
       recurrence: { interval: 'Day' }, // Daily regeneration
-      handler: async (e: SimulationEvent) => {
-        this.processRegeneration(24); // 24 hours elapsed
-      }
+      handlerName: 'ResourceEngine.processRegeneration'
     };
 
     this.eventScheduler.scheduleEvent(event);

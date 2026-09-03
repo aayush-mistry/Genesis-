@@ -164,11 +164,7 @@ export const eventRoutes: FastifyPluginAsync = async (server: FastifyInstance) =
       targetModule,
       tags,
       metadata,
-      handler: async (e: SimulationEvent) => {
-        // Sleep to simulate work
-        await new Promise(r => setTimeout(r, Math.random() * 50));
-        console.log(`[Event Executed] ${e.name}`);
-      }
+      handlerName: 'Global.NoOp'
     };
 
     if (recurrenceInterval) {

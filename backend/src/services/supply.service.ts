@@ -1,4 +1,4 @@
-import { InventoryManager, ProductionEngine, SupplyChainEngine, CommerceAutomation, BusinessProcurementEngine } from '@genesis/engine';
+import { InventoryManager, ProductionEngine, SupplyChainEngine, CommerceAutomation, BusinessProcurementEngine, EventRegistry } from '@genesis/engine';
 import { worldService } from './world.service';
 import { eventService } from './event.service';
 import { timeService } from './time.service';
@@ -45,15 +45,10 @@ class SupplyService {
       eventService.scheduler,
       timeService.engine
     );
-    this.businessProcurementEngine = new BusinessProcurementEngine(
-      worldService.engine,
-      this.inventoryManager,
-      this.supplyChainEngine,
-      spatialService.engine.queryService,
-      eventService.scheduler,
-      timeService.engine,
-      // marketEngine can be optionally passed if properly initialized
-    );
+    
+    EventRegistry.register('SupplyService.removeExpiredItems', async () => {
+      this.inventoryManager.removeExpiredItems(timeService.engine.getUptimeSeconds());
+    });
   }
 
   public initialize() {
@@ -136,9 +131,7 @@ class SupplyService {
       sourceModule: 'SupplyService',
       targetModule: 'InventoryManager',
       recurrence: { interval: 'Day' },
-      handler: async () => {
-        this.inventoryManager.removeExpiredItems(timeService.engine.getUptimeSeconds());
-      }
+      handlerName: 'SupplyService.removeExpiredItems'
     });
   }
 

@@ -7,6 +7,7 @@ import { InventoryManager } from '../inventory/InventoryManager';
 import { SpatialQueryService } from '../spatial/SpatialQueryService';
 import { TimeUtils } from '../utils/TimeUtils';
 import { randomUUID } from 'crypto';
+import { EventRegistry } from '../events/EventRegistry';
 
 export class SupplyChainEngine {
   private orders: Map<string, Order> = new Map();
@@ -21,7 +22,11 @@ export class SupplyChainEngine {
     private timeEngine: TimeEngine,
     private inventoryManager: InventoryManager,
     private spatialQueryService: SpatialQueryService
-  ) {}
+  ) {
+    EventRegistry.register('SupplyChainEngine.handleShipmentArrival', async (event) => {
+      this.handleShipmentArrival(event.metadata as { shipmentId: string, orderId: string });
+    });
+  }
 
   public createOrder(buyerId: string, sellerId: string, productId: string, quantity: number, unit: string): Order {
     const order: Order = {
@@ -162,9 +167,7 @@ export class SupplyChainEngine {
         shipmentId: shipment.shipmentId,
         orderId: order.orderId
       },
-      handler: async (event) => {
-        this.handleShipmentArrival(event.metadata as { shipmentId: string, orderId: string });
-      }
+      handlerName: 'SupplyChainEngine.handleShipmentArrival'
     });
   }
 

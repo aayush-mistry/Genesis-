@@ -1,5 +1,6 @@
 export * from './time';
 export * from './events';
+export * from './events/EventRegistry';
 export * from './utils/TimeUtils';
 export * from './world';
 export * from './environment/EnvironmentEngine';

@@ -201,7 +201,7 @@ export class WeatherManager {
       targetModule: 'Global',
       tags: ['environment', 'weather', regionId],
       metadata: { regionId, oldWeather, newWeather, frontId },
-      handler: async () => {}
+      handlerName: 'Global.NoOp'
     };
 
     this.eventScheduler.scheduleEvent(event);

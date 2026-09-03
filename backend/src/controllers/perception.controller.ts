@@ -12,6 +12,9 @@ export const PerceptionController = {
       if (error.message.includes('not found')) {
         return reply.status(404).send({ error: error.message });
       }
+      if (error.message.includes('no location')) {
+        return reply.status(400).send({ error: error.message });
+      }
       return reply.status(500).send({ error: 'Failed to generate perception snapshot', details: error.message });
     }
   },
@@ -25,6 +28,9 @@ export const PerceptionController = {
     } catch (error: any) {
       if (error.message.includes('not found')) {
         return reply.status(404).send({ error: error.message });
+      }
+      if (error.message.includes('no location')) {
+        return reply.status(400).send({ error: error.message });
       }
       return reply.status(500).send({ error: 'Failed to build decision context', details: error.message });
     }

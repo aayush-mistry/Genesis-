@@ -21,6 +21,13 @@ export class FinancialRepository {
     return prisma.wallet.findMany();
   }
 
+  async updateWallet(ownerId: string, balance: number, totalIncome: number, totalExpenses: number) {
+    return prisma.wallet.update({
+      where: { ownerId },
+      data: { balance, totalIncome, totalExpenses }
+    });
+  }
+
   async executeTransfer(buyerId: string, sellerId: string, amount: number, details: any) {
     return prisma.$transaction(async (tx) => {
       const buyer = await tx.wallet.update({

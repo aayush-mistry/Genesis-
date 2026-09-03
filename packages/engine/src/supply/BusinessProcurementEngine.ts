@@ -1,3 +1,4 @@
+import { EventRegistry } from '../events/EventRegistry';
 import { Workplace, OrderStatus, PriceTier } from '@genesis/shared';
 import { WorldEngine } from '../world/WorldEngine';
 import { InventoryManager } from '../inventory/InventoryManager';
@@ -74,7 +75,11 @@ export class BusinessProcurementEngine {
     private eventScheduler: EventScheduler,
     private timeEngine: TimeEngine,
     private marketEngine?: MarketEngine // Optional if not fully integrated
-  ) {}
+  ) {
+    EventRegistry.register('BusinessProcurementEngine.runProcurementCycle', async () => {
+      this.runProcurementCycle();
+    });
+  }
 
   public initialize(): void {
     // Register Daily Procurement Event
@@ -92,9 +97,7 @@ export class BusinessProcurementEngine {
       sourceModule: 'BusinessProcurementEngine',
       targetModule: 'BusinessProcurementEngine',
       recurrence: { interval: 'Day' },
-      handler: async () => {
-        this.runProcurementCycle();
-      }
+      handlerName: 'BusinessProcurementEngine.runProcurementCycle'
     });
   }
 

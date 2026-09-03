@@ -9,6 +9,7 @@ import { WeatherManager } from './WeatherManager';
 import { EnvironmentCalculator } from './EnvironmentCalculator';
 import { EnvironmentalState } from '@genesis/shared';
 import { randomUUID } from 'crypto';
+import { EventRegistry } from '../events/EventRegistry';
 
 export class EnvironmentEngine {
   public climateManager: ClimateManager;
@@ -37,6 +38,12 @@ export class EnvironmentEngine {
       this.eventScheduler
     );
     this.environmentCalculator = new EnvironmentCalculator();
+    
+    EventRegistry.register('EnvironmentEngine.updateState', async (e: SimulationEvent) => {
+      this.seasonManager.update(e.scheduledTime);
+      this.dayCycleManager.update(e.scheduledTime);
+      this.weatherManager.update(e.scheduledTime);
+    });
   }
 
   public initialize(): void {
@@ -64,12 +71,7 @@ export class EnvironmentEngine {
       sourceModule: 'EnvironmentEngine',
       targetModule: 'EnvironmentEngine',
       recurrence: { interval: 'Hour' }, // Recurring event
-      handler: async (e: SimulationEvent) => {
-        // e.scheduledTime gives us the time this event was supposed to execute
-        this.seasonManager.update(e.scheduledTime);
-        this.dayCycleManager.update(e.scheduledTime);
-        this.weatherManager.update(e.scheduledTime);
-      }
+      handlerName: 'EnvironmentEngine.updateState'
     };
 
     this.eventScheduler.scheduleEvent(event);

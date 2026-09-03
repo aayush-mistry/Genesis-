@@ -1,6 +1,7 @@
 import { EventScheduler } from '../EventScheduler';
 import { SimulationEvent, EventPriority, EventHandler } from '../SimulationEvent';
 import { TimeEngine } from '../../time/TimeEngine';
+import { EventRegistry } from '../EventRegistry';
 
 describe('EventScheduler', () => {
   let engine: TimeEngine;
@@ -17,20 +18,24 @@ describe('EventScheduler', () => {
     jest.useRealTimers();
   });
 
-  const createEvent = (id: string, second: number, priority: EventPriority = 'Normal', handler: EventHandler = jest.fn()): SimulationEvent => ({
-    id,
-    name: `Event ${id}`,
-    description: 'Test event',
-    scheduledTime: { year: 1, month: 1, day: 1, hour: 0, minute: 0, second },
-    createdTime: { year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0 },
-    priority,
-    status: 'Scheduled',
-    sourceModule: 'Test',
-    targetModule: 'Test',
-    cancelFlag: false,
-    retryCount: 0,
-    handler
-  });
+  const createEvent = (id: string, second: number, priority: EventPriority = 'Normal', handler: EventHandler = jest.fn()): SimulationEvent => {
+    const handlerName = `TestHandler.${id}`;
+    EventRegistry.register(handlerName, handler);
+    return {
+      id,
+      name: `Event ${id}`,
+      description: 'Test event',
+      scheduledTime: { year: 1, month: 1, day: 1, hour: 0, minute: 0, second },
+      createdTime: { year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0 },
+      priority,
+      status: 'Scheduled',
+      sourceModule: 'Test',
+      targetModule: 'Test',
+      cancelFlag: false,
+      retryCount: 0,
+      handlerName
+    };
+  };
 
   it('should execute events strictly based on simulation time', async () => {
     const handler1 = jest.fn();

@@ -7,3 +7,5 @@ export * from './FinancialRepository';
 export * from './WorkplaceRepository';
 export * from './InventoryRepository';
 export * from './CommerceRepository';
+export * from './EventRepository';
+export * from './BankingRepository';

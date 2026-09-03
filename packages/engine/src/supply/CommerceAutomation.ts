@@ -8,6 +8,8 @@ import { SimulationEvent } from '../events/SimulationEvent';
 import { Workplace, WorkplaceType } from '@genesis/shared';
 import { randomUUID } from 'crypto';
 
+import { EventRegistry } from '../events/EventRegistry';
+
 interface RetailConfig {
   multiplier: number;
   products: string[];
@@ -32,7 +34,11 @@ export class CommerceAutomation {
     private spatialQueryService: SpatialQueryService,
     private eventScheduler: EventScheduler,
     private timeEngine: TimeEngine
-  ) {}
+  ) {
+    EventRegistry.register('CommerceAutomation.runCommerceCycle', async () => {
+      this.runCommerceCycle();
+    });
+  }
 
   public initialize(): void {
     if (this.isInitialized) return;
@@ -61,9 +67,7 @@ export class CommerceAutomation {
       sourceModule: 'CommerceAutomation',
       targetModule: 'CommerceAutomation',
       recurrence: { interval: 'Day' }, // Daily recurring
-      handler: async (e: SimulationEvent) => {
-        this.runCommerceCycle();
-      }
+      handlerName: 'CommerceAutomation.runCommerceCycle'
     };
 
     this.eventScheduler.scheduleEvent(event);

@@ -57,7 +57,7 @@ export class DayCycleManager {
       targetModule: 'Global',
       tags: ['environment', 'day-cycle', newPhase],
       metadata: { oldPhase, newPhase },
-      handler: async () => {} // The event itself is the notification
+      handlerName: 'Global.NoOp' // The event itself is the notification
     };
     this.eventScheduler.scheduleEvent(changeEvent);
   }
@@ -77,7 +77,7 @@ export class DayCycleManager {
       targetModule: 'Global',
       tags: ['environment', 'day-cycle', 'sunrise'],
       metadata: {},
-      handler: async () => {}
+      handlerName: 'Global.NoOp'
     };
     this.eventScheduler.scheduleEvent(sunriseEvent);
   }
@@ -97,7 +97,7 @@ export class DayCycleManager {
       targetModule: 'Global',
       tags: ['environment', 'day-cycle', 'sunset'],
       metadata: {},
-      handler: async () => {}
+      handlerName: 'Global.NoOp'
     };
     this.eventScheduler.scheduleEvent(event);
   }

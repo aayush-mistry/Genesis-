@@ -21,7 +21,10 @@ export function PerceptionDashboard() {
     queryKey: ['perception', activeCitizenId, 'snapshot'],
     queryFn: async () => {
       const res = await fetch(`${API_BASE_URL}/perception/${activeCitizenId}/snapshot`);
-      if (!res.ok) throw new Error('Failed to fetch snapshot');
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.error || errorData?.message || 'Failed to fetch snapshot');
+      }
       return res.json();
     },
     enabled: !!activeCitizenId,
@@ -32,7 +35,10 @@ export function PerceptionDashboard() {
     queryKey: ['perception', activeCitizenId, 'context'],
     queryFn: async () => {
       const res = await fetch(`${API_BASE_URL}/perception/${activeCitizenId}/context`);
-      if (!res.ok) throw new Error('Failed to fetch context');
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.error || errorData?.message || 'Failed to fetch context');
+      }
       return res.json();
     },
     enabled: !!activeCitizenId,
@@ -43,7 +49,10 @@ export function PerceptionDashboard() {
     queryKey: ['candidates', activeCitizenId],
     queryFn: async () => {
       const res = await fetch(`${API_BASE_URL}/citizens/${activeCitizenId}/candidates`);
-      if (!res.ok) throw new Error('Failed to fetch candidates');
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.error || errorData?.message || 'Failed to fetch candidates');
+      }
       return res.json();
     },
     enabled: !!activeCitizenId,
@@ -54,7 +63,10 @@ export function PerceptionDashboard() {
     queryKey: ['decision', activeCitizenId],
     queryFn: async () => {
       const res = await fetch(`${API_BASE_URL}/citizens/${activeCitizenId}/decision`);
-      if (!res.ok) throw new Error('Failed to fetch decision');
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.error || errorData?.message || 'Failed to fetch decision');
+      }
       return res.json();
     },
     enabled: !!activeCitizenId,

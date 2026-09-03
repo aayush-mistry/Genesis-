@@ -22,7 +22,7 @@ export interface SimulationEvent {
   executionTime?: SimulationTime; // When it actually executed
   completionTime?: SimulationTime; // When execution completed
   
-  handler: EventHandler;
+  handlerName: string;
   
   metadata?: Record<string, unknown>;
   tags?: string[];

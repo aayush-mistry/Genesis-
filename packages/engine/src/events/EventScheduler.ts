@@ -1,4 +1,5 @@
 import { SimulationEvent, EventStatus, EventPriority } from './SimulationEvent';
+import { EventRegistry } from './EventRegistry';
 import { MinHeap } from './MinHeap';
 import { SimulationTime } from '../time/SimulationTime';
 import { TimeEngine } from '../time/TimeEngine';
@@ -10,11 +11,17 @@ export interface EventLog {
   message: string;
 }
 
+export interface EventStorageAdapter {
+  createEvent(event: SimulationEvent): Promise<void>;
+  updateEventStatus(id: string, status: EventStatus, cancelFlag?: boolean, executionDurationMs?: number): Promise<void>;
+}
+
 export class EventScheduler {
   private queue: MinHeap;
   private history: SimulationEvent[];
   private engine: TimeEngine | null;
   private maxHistorySize = 1000;
+  private storageAdapter?: EventStorageAdapter;
   
   public emitter = new EventEmitter();
   private logs: EventLog[] = [];
@@ -47,10 +54,11 @@ export class EventScheduler {
   private cumulativeQueueLength = 0;
   private queueLengthSamples = 0;
 
-  constructor(engine?: TimeEngine) {
+  constructor(engine?: TimeEngine, storageAdapter?: EventStorageAdapter) {
     this.queue = new MinHeap();
     this.history = [];
     this.engine = engine || null;
+    this.storageAdapter = storageAdapter;
 
     if (this.engine) {
       // Subscribe to the engine ticks to automatically process events
@@ -62,6 +70,10 @@ export class EventScheduler {
         });
       });
     }
+  }
+
+  public setStorageAdapter(adapter: EventStorageAdapter): void {
+    this.storageAdapter = adapter;
   }
 
   public logActivity(message: string): void {
@@ -105,7 +117,7 @@ export class EventScheduler {
   /**
    * Schedules a new event in the queue.
    */
-  public scheduleEvent(event: SimulationEvent): void {
+  public scheduleEvent(event: SimulationEvent, skipPersistence: boolean = false): void {
     const start = performance.now();
     
     if (event.cancelFlag || event.status === 'Cancelled') return;
@@ -117,6 +129,10 @@ export class EventScheduler {
     
     this.queue.insert(event);
     this.stats.queuedEvents = this.queue.size();
+    
+    if (this.storageAdapter && !skipPersistence) {
+      this.storageAdapter.createEvent(event).catch(console.error);
+    }
     
     this.performance.priorityQueueOperations++;
     this.performance.schedulingTime += performance.now() - start;
@@ -136,6 +152,7 @@ export class EventScheduler {
       this.stats.queuedEvents = this.queue.size();
       this.stats.cancelledEvents++;
       this.addToHistory(event);
+      if (this.storageAdapter) this.storageAdapter.updateEventStatus(id, 'Cancelled', true).catch(console.error);
       this.logActivity(`Event Cancelled: ${event.id}`);
       return true;
     }
@@ -150,6 +167,7 @@ export class EventScheduler {
       this.stats.queuedEvents = this.queue.size();
       event.status = 'Paused';
       this.addToHistory(event);
+      if (this.storageAdapter) this.storageAdapter.updateEventStatus(id, 'Paused').catch(console.error);
       this.logActivity(`Event Paused: ${event.id}`);
       return true;
     }
@@ -163,6 +181,7 @@ export class EventScheduler {
       event.status = 'Scheduled';
       this.queue.insert(event);
       this.stats.queuedEvents = this.queue.size();
+      if (this.storageAdapter) this.storageAdapter.updateEventStatus(id, 'Scheduled').catch(console.error);
       this.logActivity(`Event Resumed: ${event.id}`);
       return true;
     }
@@ -254,19 +273,30 @@ export class EventScheduler {
 
       this.recordStateTransition(event, 'Executing', currentTime);
       event.executionTime = TimeUtils.clone(currentTime);
+      if (this.storageAdapter) {
+        this.storageAdapter.updateEventStatus(event.id, 'Executing').catch(console.error);
+      }
       
       const startExec = performance.now();
       try {
-        await event.handler(event);
+        const handler = EventRegistry.resolve(event.handlerName);
+        await handler(event);
         this.recordStateTransition(event, 'Completed', currentTime);
         event.completionTime = TimeUtils.clone(currentTime);
         this.stats.executedEvents++;
+        if (this.storageAdapter) {
+          const duration = performance.now() - startExec;
+          this.storageAdapter.updateEventStatus(event.id, 'Completed', false, duration).catch(console.error);
+        }
       } catch (error) {
-        console.error(`Error executing event ${event.id} (${event.name}):`, error);
+        console.error(`Error executing event ${event.id} (${event.name}, handler: ${event.handlerName}):`, error);
         this.recordStateTransition(event, 'Failed', currentTime);
         event.completionTime = TimeUtils.clone(currentTime);
         event.executionResult = error;
         this.stats.failedEvents++;
+        if (this.storageAdapter) {
+          this.storageAdapter.updateEventStatus(event.id, 'Failed').catch(console.error);
+        }
       }
       
       const durationMs = performance.now() - startExec;

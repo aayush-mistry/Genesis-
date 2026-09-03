@@ -1,5 +1,5 @@
-
 import { MovementService } from '../services/MovementService';
+import { EventRegistry } from '../../events/EventRegistry';
 import { InMemoryCitizenRepository } from '../repositories/InMemoryCitizenRepository';
 import { WorldEngine } from '../../world/WorldEngine';
 import { TimeEngine } from '../../time/TimeEngine';
@@ -88,7 +88,7 @@ describe('MovementService', () => {
     
     // Manually trigger the handler
     if (event) {
-      event.handler(event);
+      EventRegistry.resolve(event.handlerName)(event);
     }
 
     const updatedCitizen = repository.findById(citizen.id);

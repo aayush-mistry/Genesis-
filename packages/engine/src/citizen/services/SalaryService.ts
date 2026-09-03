@@ -8,6 +8,7 @@ import { TimeUtils } from '../../utils/TimeUtils';
 import { randomUUID } from 'crypto';
 import { Citizen, EmploymentStatus, JobType, TransactionType } from '@genesis/shared';
 import { JobBaseSalary, JobRiskMultiplier } from './SalaryConfig';
+import { EventRegistry } from '../../events/EventRegistry';
 
 export class SalaryService {
   private eventId = 'PAYROLL_CYCLE_EVENT';
@@ -18,7 +19,11 @@ export class SalaryService {
     private marketEngine: MarketEngine,
     private eventScheduler: EventScheduler,
     private timeEngine: TimeEngine
-  ) {}
+  ) {
+    EventRegistry.register('SalaryService.runPayrollCycle', async () => {
+      this.runPayrollCycle();
+    });
+  }
 
   public initialize(): void {
     // Schedule the first payroll cycle event 30 days from now, then recurring monthly
@@ -37,7 +42,7 @@ export class SalaryService {
       createdTime: TimeUtils.clone(this.timeEngine.getCurrentTime()),
       status: 'Scheduled',
       priority: 'High', // High priority
-      handler: async () => this.runPayrollCycle(),
+      handlerName: 'SalaryService.runPayrollCycle',
       recurrence: {
         interval: 'Month'
       },

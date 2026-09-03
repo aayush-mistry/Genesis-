@@ -7,6 +7,8 @@ import { Commodity, ProductionDefinition, Workplace, WorkplaceType } from '@gene
 import { SimulationEvent } from '../events/SimulationEvent';
 import { randomUUID } from 'crypto';
 
+import { EventRegistry } from '../events/EventRegistry';
+
 export class ProductionEngine {
   private isInitialized = false;
   
@@ -19,7 +21,11 @@ export class ProductionEngine {
     private timeEngine: TimeEngine,
     private inventoryManager: InventoryManager,
     private resourceEngine: ResourceEngine
-  ) {}
+  ) {
+    EventRegistry.register('ProductionEngine.runProductionCycle', async () => {
+      this.runProductionCycle();
+    });
+  }
 
   public registerCommodity(commodity: Commodity) {
     this.commodities.set(commodity.id, commodity);
@@ -54,9 +60,7 @@ export class ProductionEngine {
       sourceModule: 'ProductionEngine',
       targetModule: 'ProductionEngine',
       recurrence: { interval: 'Day' }, // Daily recurring
-      handler: async (e: SimulationEvent) => {
-        this.runProductionCycle();
-      }
+      handlerName: 'ProductionEngine.runProductionCycle'
     };
 
     this.eventScheduler.scheduleEvent(event);

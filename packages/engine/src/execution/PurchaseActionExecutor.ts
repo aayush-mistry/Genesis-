@@ -151,6 +151,15 @@ export class PurchaseActionExecutor extends BaseActionExecutor {
            if (household) {
              this.storeRanker['inventoryManager'].addItemQuantity(household.id, productId, quantity, 'kg');
            }
+        } else {
+           const citizenInv = this.storeRanker['inventoryManager'].getInventoryByOwner(citizen.id);
+           if (citizenInv) {
+             this.storeRanker['inventoryManager'].addItemQuantity(citizenInv.id, productId, quantity, 'kg');
+           } else {
+             // Create one if it doesn't exist
+             const newInv = this.storeRanker['inventoryManager'].createInventory(`inv-${citizen.id}`, citizen.id, 100);
+             this.storeRanker['inventoryManager'].addItemQuantity(newInv.id, productId, quantity, 'kg');
+           }
         }
         this.lifecycleManager.transition(action, ActionState.COMPLETED, 'Purchase successful');
       } else {

@@ -34,6 +34,72 @@ export class PersistenceService {
       // 3. Load Workplaces
       const workplaces = await workplaceRepository.listWorkplaces();
       console.log(`[PersistenceService] Loaded ${workplaces.length} workplaces.`);
+      for (const wp of workplaces) {
+        try {
+          const workplaceObj = {
+            id: wp.id,
+            type: wp.type,
+            locationId: wp.locationId,
+            regionId: wp.regionId,
+            capacity: wp.capacity,
+            occupiedPositions: wp.occupiedPositions,
+            vacancies: wp.vacancies,
+            inventoryId: wp.inventoryId,
+            storageCapacity: wp.storageCapacity,
+            walletId: wp.walletId,
+            revenue: wp.revenue,
+            expenses: wp.expenses,
+            profit: wp.profit,
+            wallet: undefined
+          };
+          if (wp.walletId) {
+            const wWallet = walletMap.get(wp.walletId);
+            if (wWallet) {
+              workplaceObj.wallet = {
+                id: wWallet.id,
+                ownerId: wWallet.ownerId,
+                balance: wWallet.balance,
+                currency: wWallet.currency,
+                totalIncome: wWallet.totalIncome,
+                totalExpenses: wWallet.totalExpenses,
+                history: []
+              };
+            }
+          }
+          const { worldService } = await import('./world.service');
+          worldService.engine.workplaceRepository.create(workplaceObj as any);
+
+          // Hydrate inventory for this workplace
+          if (wp.inventoryId) {
+            const dbInventory = await inventoryRepository.getInventory(wp.inventoryId);
+            if (dbInventory) {
+              const { supplyService } = await import('./supply.service');
+              const inventoryObj: any = {
+                id: dbInventory.id,
+                ownerId: dbInventory.ownerId,
+                storageCapacity: dbInventory.storageCapacity,
+                items: {}
+              };
+              dbInventory.items.forEach(item => {
+                 inventoryObj.items[item.productId] = {
+                   productId: item.productId,
+                   totalQuantity: item.totalQuantity,
+                   reservedQuantity: item.reservedQuantity,
+                   availableQuantity: item.availableQuantity,
+                   unit: item.unit,
+                   quality: item.quality,
+                   batches: undefined
+                 };
+              });
+              // Insert directly into in-memory engine
+              (supplyService.inventoryManager as any).inventories.set(inventoryObj.id, inventoryObj);
+            }
+          }
+
+        } catch (err) {
+          console.error(`Failed to hydrate workplace ${wp.id}:`, err);
+        }
+      }
 
       // 4. Load Citizens
       const citizens = await citizenRepository.listCitizens();
@@ -107,45 +173,101 @@ export class PersistenceService {
           }
         }
         console.log(`[PersistenceService] Hydrated ${hydratedCount} citizens into in-memory engine.`);
+        
+        // 5. Load Pending Events
+        const { eventService } = await import('./event.service');
+        const { eventRepository } = await import('../repositories/EventRepository');
+        
+        const pendingEvents = await eventRepository.getPendingEvents();
+        console.log(`[PersistenceService] Found ${pendingEvents.length} pending events.`);
+        
+        for (const event of pendingEvents) {
+          try {
+            eventService.scheduler.scheduleEvent(event, true); // skipPersistence = true
+          } catch (err) {
+            console.error(`[PersistenceService] Error hydrating event ${event.id}:`, err);
+          }
+        }
+        
       } else {
         console.log('[PersistenceService] No existing simulation state found. Starting fresh.');
       }
     }
   
     async persistTickBoundary(dirtyCollections: any) {
-      if (!dirtyCollections || !dirtyCollections.citizens) return;
-      
       const { supplyService } = await import('./supply.service');
+      const { worldService } = await import('./world.service');
 
-      for (const citizenId of dirtyCollections.citizens) {
-        const citizen = citizenService.engine.getCitizen(citizenId);
-        if (citizen) {
-          await citizenRepository.updateCitizen(citizenId, {
-            vitalStateJson: JSON.stringify(citizen.vitalState),
+      // Helper for inventory persistence
+      const syncInventory = async (inventory: any) => {
+        if (!inventory) return;
+        
+        // Ensure inventory exists in DB first
+        const dbInvCheck = await inventoryRepository.getInventory(inventory.id);
+        if (!dbInvCheck) {
+          await inventoryRepository.createInventory({
+            id: inventory.id,
+            ownerId: inventory.ownerId,
+            storageCapacity: inventory.storageCapacity || 1000
           });
-  
-          const inventory = supplyService.inventoryManager.getInventoryByOwner(citizenId);
-          if (inventory) {
-            // Because we might consume everything (quantity 0 means remove from DB), we must handle deletes.
-            // Also we must know what was removed. A simple way is to clear and recreate, OR
-            // iterate over DB items and if they aren't in memory, delete them.
-            // For T5.2, we only care about exact quantity syncing.
-            // Let's iterate memory items and upsert them exactly.
-            for (const item of Object.values(inventory.items)) {
-              await inventoryRepository.setItemExactQuantity(inventory.id, item.productId, item.totalQuantity, item.unit);
-            }
-            
-            // For items that reached 0 and were removed from memory:
-            // We should ideally fetch current DB items and remove ones not in memory.
-            const dbInv = await inventoryRepository.getInventory(inventory.id);
-            if (dbInv) {
-              for (const dbItem of dbInv.items) {
-                if (!inventory.items[dbItem.productId]) {
-                  await inventoryRepository.setItemExactQuantity(inventory.id, dbItem.productId, 0, 'unit');
-                }
-              }
+        }
+
+        for (const item of Object.values(inventory.items) as any[]) {
+          await inventoryRepository.setItemExactQuantity(inventory.id, item.productId, item.totalQuantity, item.unit);
+        }
+        
+        const dbInv = await inventoryRepository.getInventory(inventory.id);
+        if (dbInv) {
+          for (const dbItem of dbInv.items) {
+            if (!inventory.items[dbItem.productId]) {
+              await inventoryRepository.setItemExactQuantity(inventory.id, dbItem.productId, 0, 'unit');
             }
           }
+        }
+      };
+
+      // Helper for wallet persistence
+      const syncWallet = async (wallet: any) => {
+        if (!wallet) return;
+        try {
+          await financialRepository.updateWallet(wallet.ownerId, wallet.balance, wallet.totalIncome, wallet.totalExpenses);
+        } catch (err) {
+          // It might not exist in DB yet, try to create and update
+          try {
+            await financialRepository.createWallet(wallet.ownerId, wallet.currency);
+            await financialRepository.updateWallet(wallet.ownerId, wallet.balance, wallet.totalIncome, wallet.totalExpenses);
+          } catch (createErr) {
+            console.error(`[PersistenceService] Error syncing wallet for ${wallet.ownerId}:`, createErr);
+          }
+        }
+      };
+
+      if (dirtyCollections && dirtyCollections.citizens) {
+        for (const citizenId of dirtyCollections.citizens) {
+          const citizen = citizenService.engine.getCitizen(citizenId);
+          if (citizen) {
+            await citizenRepository.updateCitizen(citizenId, {
+              vitalStateJson: JSON.stringify(citizen.vitalState),
+            });
+    
+            const inventory = supplyService.inventoryManager.getInventoryByOwner(citizenId);
+            await syncInventory(inventory);
+            await syncWallet(citizen.wallet);
+          }
+        }
+      }
+
+      // We also need to persist all workplace inventories and wallets that might have changed
+      // Instead of relying on dirtyCollections (which may not track workplaces currently),
+      // let's iterate all workplaces in the world engine.
+      const workplaces = worldService.engine.workplaceRepository.findAll();
+      for (const workplace of workplaces) {
+        if (workplace.inventoryId) {
+          const inventory = supplyService.inventoryManager.getInventory(workplace.inventoryId);
+          await syncInventory(inventory);
+        }
+        if (workplace.wallet) {
+          await syncWallet(workplace.wallet);
         }
       }
     }

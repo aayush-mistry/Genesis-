@@ -3,6 +3,11 @@ import { SimulationEvent, EventHandler } from './SimulationEvent';
 export class EventRegistry {
   private static handlers: Map<string, EventHandler> = new Map();
 
+  static {
+    // Register a no-op handler for events that only serve as notifications or history markers
+    EventRegistry.register('Global.NoOp', async () => {});
+  }
+
   public static register(handlerName: string, handler: EventHandler): void {
     if (this.handlers.has(handlerName)) {
       console.warn(`EventRegistry: Handler '${handlerName}' is already registered. Overwriting.`);
