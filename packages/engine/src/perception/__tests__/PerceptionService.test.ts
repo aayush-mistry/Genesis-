@@ -116,7 +116,9 @@ describe('Perception System (Phase 4.2)', () => {
       condition: null,
       unit: 'L',
       renewable: true,
-      extractionDifficulty: 1
+      extractionDifficulty: 1,
+      coordinates: { x: 0, y: 0 },
+      radius: 100
     });
     
     const citizen = citizenService.createCitizen(CitizenGender.MALE, region.id);
@@ -134,7 +136,7 @@ describe('Perception System (Phase 4.2)', () => {
     const city = worldEngine.cityManager.createCity({ name: 'City', population: 0, regionId: region.id, coordinates: { x: 10, y: 10 }, area: 100, createdAt: new Date(), updatedAt: new Date() });
     region.cityIds.push(city.id);
     
-    const district = worldEngine.districtManager.createDistrict({ name: 'D1', type: 'RESIDENTIAL' as any, cityId: city.id, createdAt: new Date(), updatedAt: new Date() });
+    const district = worldEngine.districtManager.createDistrict({ name: 'D1', type: 'RESIDENTIAL' as any, cityId: city.id, coordinates: { x: 0, y: 0 }, area: 100, createdAt: new Date(), updatedAt: new Date() });
     city.districtIds.push(district.id);
     
     // Building close to citizen

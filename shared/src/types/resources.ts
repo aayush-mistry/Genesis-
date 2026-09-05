@@ -41,6 +41,8 @@ export interface Resource extends BaseEntity {
   unit: string;
   renewable: boolean;
   regionId: string;
+  coordinates: import('./world').Coordinate;
+  radius: number;
   currentAmount: number;
   maximumAmount: number;
   naturalRecoveryRate: number | null; // Amount generated per tick (null for non-renewable)

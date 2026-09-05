@@ -37,8 +37,8 @@ describe('MovementService', () => {
     const date = new Date();
     const region = worldEngine.regionManager.createRegion({ name: 'Test Region', description: 'Test', climate: 'Temperate', population: 0, worldId: 'world-1', coordinates: { x: 0, y: 0 }, createdAt: date, updatedAt: date });
     const city = worldEngine.cityManager.createCity({ name: 'Test City', regionId: region.id, population: 0, area: 100, coordinates: { x: 100, y: 100 }, createdAt: date, updatedAt: date });
-    const dist1 = worldEngine.districtManager.createDistrict({ name: 'Dist1', cityId: city.id, type: DistrictType.RESIDENTIAL, createdAt: date, updatedAt: date });
-    const dist2 = worldEngine.districtManager.createDistrict({ name: 'Dist2', cityId: city.id, type: DistrictType.RESIDENTIAL, createdAt: date, updatedAt: date });
+    const dist1 = worldEngine.districtManager.createDistrict({ name: 'Dist1', cityId: city.id, type: DistrictType.RESIDENTIAL, coordinates: { x: 0, y: 0 }, area: 100, createdAt: date, updatedAt: date });
+    const dist2 = worldEngine.districtManager.createDistrict({ name: 'Dist2', cityId: city.id, type: DistrictType.RESIDENTIAL, coordinates: { x: 0, y: 0 }, area: 100, createdAt: date, updatedAt: date });
     
     // b1 is at 0, 0
     worldEngine.buildingManager.createBuilding({ name: 'House1', type: BuildingType.HOUSE, capacity: 5, status: 'BUILT', districtId: dist1.id, coordinates: { x: 0, y: 0 }, createdAt: date, updatedAt: date });

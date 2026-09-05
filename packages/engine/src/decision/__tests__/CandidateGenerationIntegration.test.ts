@@ -57,13 +57,13 @@ describe('Candidate Generation Integration (T5.4)', () => {
     // 1. Setup World
     const region = worldEngine.regionManager.createRegion({ name: 'Test Region', description: '', climate: 'Temperate', population: 0, coordinates: { x: 0, y: 0 }, worldId: 'world-1', createdAt: new Date(), updatedAt: new Date() });
     const city = worldEngine.cityManager.createCity({ regionId: region.id, name: 'Test City', population: 0, coordinates: { x: 0, y: 0 }, area: 100, createdAt: new Date(), updatedAt: new Date() });
-    const district = worldEngine.districtManager.createDistrict({ cityId: city.id, name: 'Test District', type: DistrictType.RESIDENTIAL, createdAt: new Date(), updatedAt: new Date() });
+    const district = worldEngine.districtManager.createDistrict({ cityId: city.id, name: 'Test District', type: DistrictType.RESIDENTIAL, coordinates: { x: 0, y: 0 }, area: 100, createdAt: new Date(), updatedAt: new Date() });
     
     // Home Building
     const homeBuilding = worldEngine.buildingManager.createBuilding({ districtId: district.id, name: 'Home Building', type: BuildingType.HOUSE, coordinates: { x: 5, y: 5 }, capacity: 4, status: 'OK', createdAt: new Date(), updatedAt: new Date() });
     
     // Workplace Building
-    const workDistrict = worldEngine.districtManager.createDistrict({ cityId: city.id, name: 'Work District', type: DistrictType.COMMERCIAL, createdAt: new Date(), updatedAt: new Date() });
+    const workDistrict = worldEngine.districtManager.createDistrict({ cityId: city.id, name: 'Work District', type: DistrictType.COMMERCIAL, coordinates: { x: 0, y: 0 }, area: 100, createdAt: new Date(), updatedAt: new Date() });
     const workBuilding = worldEngine.buildingManager.createBuilding({ districtId: workDistrict.id, name: 'Work Building', type: BuildingType.OFFICE, coordinates: { x: 25, y: 25 }, capacity: 10, status: 'OK', createdAt: new Date(), updatedAt: new Date() });
 
     // 2. Setup Workplace

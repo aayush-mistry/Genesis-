@@ -21,7 +21,8 @@ async function run() {
           randomSeed: 12345,
           creationTime: 0,
           worldSize: 1000,
-          climateProfile: 'Temperate',
+          climateProfile: 
+          'Temperate',
           timeZone: 'UTC',
           version: '1.0.0',
           status: 'ACTIVE'

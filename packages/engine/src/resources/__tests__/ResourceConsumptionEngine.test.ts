@@ -23,7 +23,9 @@ describe('ResourceConsumptionEngine', () => {
       naturalRecoveryRate: 10,
       consumptionRate: 0,
       condition: null,
-      extractionDifficulty: 0
+      extractionDifficulty: 0,
+      coordinates: { x: 0, y: 0 },
+      radius: 100
     });
 
     resourceManager.addResource({
@@ -38,7 +40,9 @@ describe('ResourceConsumptionEngine', () => {
       naturalRecoveryRate: 1,
       consumptionRate: 0,
       condition: null,
-      extractionDifficulty: 0
+      extractionDifficulty: 0,
+      coordinates: { x: 0, y: 0 },
+      radius: 100
     });
 
     resourceManager.addResource({
@@ -53,7 +57,9 @@ describe('ResourceConsumptionEngine', () => {
       naturalRecoveryRate: null,
       consumptionRate: 0,
       condition: null,
-      extractionDifficulty: 0
+      extractionDifficulty: 0,
+      coordinates: { x: 0, y: 0 },
+      radius: 100
     });
   });
 

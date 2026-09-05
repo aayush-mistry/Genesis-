@@ -23,7 +23,12 @@ export class PersistenceService {
         const worldData = await worldRepository.getWorld(simState.activeWorldId);
         if (worldData) {
           console.log(`[PersistenceService] Loaded World: ${worldData.name}`);
-          // Engines will hydrate this data...
+          const { worldService } = await import('./world.service');
+          worldService.engine.worldManager.loadWorld({
+             ...worldData,
+             creationTime: worldData.creationTime ? worldData.creationTime : Date.now(),
+             regionIds: worldData.regions ? worldData.regions.map(r => r.id) : []
+          } as any);
         }
       }
 
@@ -36,7 +41,7 @@ export class PersistenceService {
       console.log(`[PersistenceService] Loaded ${workplaces.length} workplaces.`);
       for (const wp of workplaces) {
         try {
-          const workplaceObj = {
+          const workplaceObj: any = {
             id: wp.id,
             type: wp.type,
             locationId: wp.locationId,

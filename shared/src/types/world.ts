@@ -68,6 +68,8 @@ export interface District extends WorldEntity {
   type: DistrictType;
   cityId: string;
   buildingIds: string[];
+  coordinates: Coordinate;
+  area: number;
 }
 
 export interface Building extends WorldEntity {

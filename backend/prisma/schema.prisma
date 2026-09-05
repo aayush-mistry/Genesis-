@@ -149,6 +149,10 @@ model District {
   metadataJson String?  // JSON
   type         String   // RESIDENTIAL, COMMERCIAL, etc.
   
+  coordX       Int      @default(0)
+  coordY       Int      @default(0)
+  area         Int      @default(100)
+  
   cityId       String
   city         City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
   
@@ -214,6 +218,10 @@ model Resource {
   
   regionId              String
   region                Region   @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  
+  coordX                Int      @default(0)
+  coordY                Int      @default(0)
+  radius                Float    @default(50)
   
   currentAmount         Float
   maximumAmount         Float

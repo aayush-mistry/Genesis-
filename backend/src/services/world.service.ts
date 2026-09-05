@@ -9,6 +9,17 @@ class WorldService {
   }
 
   public async initialize() {
+    if (this.engine.worldManager.getWorld() !== null) {
+      console.log('[WorldService] World already loaded from persistence, skipping generation.');
+      return;
+    }
+    
+    if (this.engine.workplaceRepository.findAll().length > 0) {
+      console.log('[WorldService] Workplaces exist from persistence but world missing. Creating base world to recover.');
+      this.engine.worldManager.createWorld('Genesis Prime (Recovered)', 'Recovered simulation world', Date.now());
+      return;
+    }
+
     await this.generatePopulatedWorld('Genesis Prime', 'The first simulation world.', Date.now());
   }
 
@@ -48,6 +59,8 @@ class WorldService {
       name: 'Central District',
       cityId: city.id,
       type: DistrictType.COMMERCIAL,
+      coordinates: { x: 0, y: 0 },
+      area: 2500,
       createdAt: new Date(),
       updatedAt: new Date()
     });

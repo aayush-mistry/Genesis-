@@ -129,6 +129,8 @@ describe('ProductionEngine', () => {
       consumptionRate: null,
       condition: null,
       extractionDifficulty: 0,
+      coordinates: { x: 0, y: 0 },
+      radius: 100,
       createdAt: new Date(),
       updatedAt: new Date()
     }]);

@@ -21,33 +21,46 @@ export class ResourceGenerator {
 
     const baseArea = 10000; // Arbitrary base region area
     
+    const rawResources = [];
+
     // Generate Water
-    resources.push(this.generateWater(region, rng, baseArea));
+    rawResources.push(this.generateWater(region, rng, baseArea));
     
     // Generate Biologicals based on climate
     if (region.climate !== 'Desert' && region.climate !== 'Arctic') {
-      resources.push(this.generateForests(region, rng, baseArea));
-      resources.push(this.generateGrasslands(region, rng, baseArea));
-      resources.push(this.generateWildlife(region, rng, baseArea));
+      rawResources.push(this.generateForests(region, rng, baseArea));
+      rawResources.push(this.generateGrasslands(region, rng, baseArea));
+      rawResources.push(this.generateWildlife(region, rng, baseArea));
     }
     
     if (region.climate === 'Coastal' || region.climate === 'Tropical' || region.climate === 'Temperate') {
-      resources.push(this.generateFish(region, rng, baseArea));
+      rawResources.push(this.generateFish(region, rng, baseArea));
     }
 
     // Generate Minerals (Non-Renewable)
-    resources.push(this.generateStone(region, rng, baseArea));
-    resources.push(this.generateIron(region, rng, baseArea));
-    resources.push(this.generateCopper(region, rng, baseArea));
-    resources.push(this.generateCoal(region, rng, baseArea));
-    resources.push(this.generateGold(region, rng, baseArea));
-    resources.push(this.generateOil(region, rng, baseArea));
-    resources.push(this.generateNaturalGas(region, rng, baseArea));
+    rawResources.push(this.generateStone(region, rng, baseArea));
+    rawResources.push(this.generateIron(region, rng, baseArea));
+    rawResources.push(this.generateCopper(region, rng, baseArea));
+    rawResources.push(this.generateCoal(region, rng, baseArea));
+    rawResources.push(this.generateGold(region, rng, baseArea));
+    rawResources.push(this.generateOil(region, rng, baseArea));
+    rawResources.push(this.generateNaturalGas(region, rng, baseArea));
 
     // Generate Potentials
-    resources.push(this.generateSolarPotential(region, rng, baseArea));
-    resources.push(this.generateWindPotential(region, rng, baseArea));
+    rawResources.push(this.generateSolarPotential(region, rng, baseArea));
+    rawResources.push(this.generateWindPotential(region, rng, baseArea));
     
+    rawResources.forEach(res => {
+      resources.push({
+        ...res,
+        coordinates: {
+          x: region.coordinates.x + Math.floor(rng.nextFloat(-2000, 2000)),
+          y: region.coordinates.y + Math.floor(rng.nextFloat(-2000, 2000))
+        },
+        radius: Math.floor(rng.nextFloat(50, 500))
+      });
+    });
+
     return resources;
   }
 
