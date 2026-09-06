@@ -15,6 +15,36 @@ export const WorldController = {
     return world ? world : reply.status(404).send({ error: 'World not found' });
   },
 
+  getSpatialSnapshot: async (_request: FastifyRequest, reply: FastifyReply) => {
+    const world = worldService.engine.worldManager.getWorld();
+    if (!world) {
+      return reply.status(404).send({ error: 'World not initialized' });
+    }
+
+    const regions = worldService.engine.regionManager.getAllRegions();
+    const cities = worldService.engine.cityManager.getAllCities();
+    const districts = worldService.engine.districtManager.getAllDistricts();
+    const buildings = worldService.engine.buildingManager.getAllBuildings();
+    const workplaces = worldService.engine.workplaceRepository.findAll();
+
+    const { resourceService } = await import('../services/resource.service');
+    const resources = resourceService.engine.resourceManager.getAllResources();
+
+    const { citizenService } = await import('../services/citizen.service');
+    const citizens = citizenService.engine.listCitizens();
+
+    return reply.send({
+      world,
+      regions,
+      cities,
+      districts,
+      buildings,
+      workplaces,
+      resources,
+      citizens
+    });
+  },
+
   createWorld: async (request: FastifyRequest, _reply: FastifyReply) => {
     const { name, description, seed } = request.body as { name: string; description: string; seed: number };
     
