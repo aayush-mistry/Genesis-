@@ -29,7 +29,55 @@ export class PersistenceService {
              creationTime: worldData.creationTime ? worldData.creationTime : Date.now(),
              regionIds: worldData.regions ? worldData.regions.map(r => r.id) : []
           } as any);
+
+          // Hydrate spatial entities
+          if (worldData.regions) {
+            worldData.regions.forEach(regionData => {
+              const region = {
+                ...regionData,
+                coordinates: { x: regionData.coordX, y: regionData.coordY },
+                cityIds: regionData.cities ? regionData.cities.map(c => c.id) : []
+              };
+              (worldService.engine.regionManager as any).regions.set(region.id, region);
+
+              if (regionData.cities) {
+                regionData.cities.forEach(cityData => {
+                  const city = {
+                    ...cityData,
+                    coordinates: { x: cityData.coordX, y: cityData.coordY },
+                    districtIds: cityData.districts ? cityData.districts.map(d => d.id) : []
+                  };
+                  (worldService.engine.cityManager as any).cities.set(city.id, city);
+
+                  if (cityData.districts) {
+                    cityData.districts.forEach(districtData => {
+                      const district = {
+                        ...districtData,
+                        coordinates: { x: districtData.coordX, y: districtData.coordY },
+                        buildingIds: districtData.buildings ? districtData.buildings.map(b => b.id) : []
+                      };
+                      (worldService.engine.districtManager as any).districts.set(district.id, district);
+
+                      if (districtData.buildings) {
+                        districtData.buildings.forEach(buildingData => {
+                          const building = {
+                            ...buildingData,
+                            coordinates: { x: buildingData.coordX, y: buildingData.coordY },
+                            roomIds: buildingData.rooms ? buildingData.rooms.map(r => r.id) : []
+                          };
+                          (worldService.engine.buildingManager as any).buildings.set(building.id, building);
+                        });
+                      }
+                    });
+                  }
+                });
+              }
+            });
+          }
         }
+      } else {
+         console.log('[PersistenceService] activeWorldId is null. Will not hydrate partial entities.');
+         return;
       }
 
       // Pre-load all wallets to hydrate without N+1 queries if possible.

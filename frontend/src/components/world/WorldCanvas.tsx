@@ -96,40 +96,38 @@ export const WorldCanvas: React.FC = () => {
     });
 
     // 5. Draw Citizens
-    // Only render individual citizens if zoomed in enough to see them well
-    if (camera.zoom > 1.5) {
-      data.citizens.forEach(citizen => {
-        // Resolve location
-        let cx = 0;
-        let cy = 0;
-        
-        if (citizen.locationId) {
-           const b = data.buildings.find(b => b.id === citizen.locationId);
-           if (b) {
-             cx = b.coordinates.x;
-             cy = b.coordinates.y;
-           } else {
-             const d = data.districts.find(d => d.id === citizen.locationId);
-             if (d) {
-               cx = d.coordinates.x;
-               cy = d.coordinates.y;
-             }
+    // Always render citizens since domain data clusters them and they might be hidden by default zoom
+    data.citizens.forEach(citizen => {
+      // Resolve location
+      let cx = 0;
+      let cy = 0;
+      
+      if (citizen.locationId) {
+         const b = data.buildings.find(b => b.id === citizen.locationId);
+         if (b) {
+           cx = b.coordinates.x;
+           cy = b.coordinates.y;
+         } else {
+           const d = data.districts.find(d => d.id === citizen.locationId);
+           if (d) {
+             cx = d.coordinates.x;
+             cy = d.coordinates.y;
            }
-        }
+         }
+      }
 
-        // Add some noise so they don't all stack perfectly
-        // In a real moving simulation this would be exact
-        // Use citizen ID to create deterministic noise
-        const hash = citizen.id.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
-        const offsetX = (hash % 20) - 10;
-        const offsetY = ((hash * 3) % 20) - 10;
+      // Add some noise so they don't all stack perfectly into a single pixel
+      // Use citizen ID to create deterministic noise
+      const hash = citizen.id.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
+      const offsetX = (hash % 100) - 50;
+      const offsetY = ((hash * 3) % 100) - 50;
 
-        ctx.fillStyle = citizen.employmentStatus === 'EMPLOYED' ? '#10b981' : '#ef4444';
-        ctx.beginPath();
-        ctx.arc(cx + offsetX, cy + offsetY, 2, 0, Math.PI * 2);
-        ctx.fill();
-      });
-    }
+      // Use lower opacity so dense overlaps glow brighter
+      ctx.fillStyle = citizen.employmentStatus === 'EMPLOYED' ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)';
+      ctx.beginPath();
+      ctx.arc(cx + offsetX, cy + offsetY, 2, 0, Math.PI * 2);
+      ctx.fill();
+    });
 
     ctx.restore();
   };
@@ -170,16 +168,24 @@ export const WorldCanvas: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Interaction Handlers
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const zoomFactor = 1.1;
-    const direction = e.deltaY > 0 ? 1 / zoomFactor : zoomFactor;
-    
-    setCamera({
-      zoom: Math.min(Math.max(0.1, camera.zoom * direction), 10)
-    });
-  };
+  // Handle Native Wheel Event (to safely preventDefault)
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleNativeWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const zoomFactor = 1.1;
+      const direction = e.deltaY > 0 ? 1 / zoomFactor : zoomFactor;
+      
+      setCamera({
+        zoom: Math.min(Math.max(0.1, camera.zoom * direction), 10)
+      });
+    };
+
+    container.addEventListener('wheel', handleNativeWheel, { passive: false });
+    return () => container.removeEventListener('wheel', handleNativeWheel);
+  }, [camera.zoom, setCamera]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
@@ -259,7 +265,6 @@ export const WorldCanvas: React.FC = () => {
     <div 
       ref={containerRef} 
       className="w-full h-full relative overflow-hidden bg-slate-950"
-      onWheel={handleWheel}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}

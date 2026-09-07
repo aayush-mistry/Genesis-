@@ -16,3 +16,4 @@ async function start() {
 }
 
 start();
+// trigger restart

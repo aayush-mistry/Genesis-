@@ -38,7 +38,32 @@ export const useSpatialStore = create<SpatialState>((set) => ({
     set({ isLoading: true, error: null });
     try {
       const snapshot = await spatialApi.getSnapshot();
-      set({ snapshot, isLoading: false });
+      let camera = { ...DEFAULT_CAMERA };
+      
+      if (snapshot && snapshot.regions.length > 0) {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        snapshot.regions.forEach((r: any) => {
+          const rx = r.coordinates.x;
+          const ry = r.coordinates.y;
+          // Assuming region renders as 1000x1000 square centered at rx, ry
+          minX = Math.min(minX, rx - 500);
+          minY = Math.min(minY, ry - 500);
+          maxX = Math.max(maxX, rx + 500);
+          maxY = Math.max(maxY, ry + 500);
+        });
+        const width = maxX - minX;
+        const height = maxY - minY;
+        const centerX = minX + width / 2;
+        const centerY = minY + height / 2;
+        
+        // Rough estimate of zoom to fit a typical 1080p screen
+        // In a real app we'd use the actual canvas dimensions
+        const zoom = Math.min(1000 / (width || 1000), 800 / (height || 1000)) * 0.9;
+        
+        camera = { x: centerX, y: centerY, zoom: Math.max(0.1, zoom) };
+      }
+      
+      set({ snapshot, isLoading: false, camera });
     } catch (error: any) {
       set({ error: error.message, isLoading: false });
     }
@@ -50,5 +75,26 @@ export const useSpatialStore = create<SpatialState>((set) => ({
 
   setSelection: (selection) => set({ selection }),
 
-  resetCamera: () => set({ camera: { ...DEFAULT_CAMERA } })
+  resetCamera: () => set((state) => {
+    let camera = { ...DEFAULT_CAMERA };
+    if (state.snapshot && state.snapshot.regions.length > 0) {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      state.snapshot.regions.forEach((r: any) => {
+        const rx = r.coordinates.x;
+        const ry = r.coordinates.y;
+        minX = Math.min(minX, rx - 500);
+        minY = Math.min(minY, ry - 500);
+        maxX = Math.max(maxX, rx + 500);
+        maxY = Math.max(maxY, ry + 500);
+      });
+      const width = maxX - minX;
+      const height = maxY - minY;
+      const centerX = minX + width / 2;
+      const centerY = minY + height / 2;
+      
+      const zoom = Math.min(1000 / (width || 1000), 800 / (height || 1000)) * 0.9;
+      camera = { x: centerX, y: centerY, zoom: Math.max(0.1, zoom) };
+    }
+    return { camera };
+  })
 }));

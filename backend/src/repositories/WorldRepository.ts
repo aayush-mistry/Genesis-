@@ -43,6 +43,14 @@ export class WorldRepository {
   async createCity(data: any) {
     return prisma.city.create({ data });
   }
+
+  async createDistrict(data: any) {
+    return prisma.district.create({ data });
+  }
+
+  async createBuilding(data: any) {
+    return prisma.building.create({ data });
+  }
 }
 
 export const worldRepository = new WorldRepository();

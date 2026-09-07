@@ -22,6 +22,10 @@ export class WorkplaceRepository {
     return prisma.workplace.create({ data });
   }
 
+  async createManyWorkplaces(data: any[]) {
+    return prisma.workplace.createMany({ data });
+  }
+
   async updateOccupancy(id: string, vacancies: number, occupied: number) {
     return prisma.workplace.update({
       where: { id },

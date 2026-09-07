@@ -19,6 +19,10 @@ export class CitizenRepository {
     return prisma.citizen.create({ data });
   }
 
+  async createManyCitizens(data: any[]) {
+    return prisma.citizen.createMany({ data });
+  }
+
   async updateCitizen(id: string, data: any) {
     return prisma.citizen.update({
       where: { id },

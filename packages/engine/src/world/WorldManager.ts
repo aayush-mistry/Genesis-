@@ -4,13 +4,13 @@ import { randomUUID } from 'crypto';
 export class WorldManager {
   private world: World | null = null;
 
-  public createWorld(name: string, description: string, seed: number = Date.now()): World {
+  public createWorld(name: string, description: string, seed: number = Math.floor(Date.now() / 1000)): World {
     this.world = {
       id: randomUUID(),
       name,
       description,
       randomSeed: seed,
-      creationTime: Date.now(),
+      creationTime: Math.floor(Date.now() / 1000),
       currentPopulation: 0,
       worldSize: 10000,
       climateProfile: 'Temperate',
