@@ -27,6 +27,8 @@ export class PersistenceService {
           worldService.engine.worldManager.loadWorld({
              ...worldData,
              creationTime: worldData.creationTime ? worldData.creationTime : Date.now(),
+             width: worldData.width,
+             height: worldData.height,
              regionIds: worldData.regions ? worldData.regions.map(r => r.id) : []
           } as any);
 
@@ -36,6 +38,8 @@ export class PersistenceService {
               const region = {
                 ...regionData,
                 coordinates: { x: regionData.coordX, y: regionData.coordY },
+                width: regionData.width,
+                height: regionData.height,
                 cityIds: regionData.cities ? regionData.cities.map(c => c.id) : []
               };
               (worldService.engine.regionManager as any).regions.set(region.id, region);
@@ -45,6 +49,8 @@ export class PersistenceService {
                   const city = {
                     ...cityData,
                     coordinates: { x: cityData.coordX, y: cityData.coordY },
+                    width: cityData.width,
+                    height: cityData.height,
                     districtIds: cityData.districts ? cityData.districts.map(d => d.id) : []
                   };
                   (worldService.engine.cityManager as any).cities.set(city.id, city);
@@ -54,6 +60,8 @@ export class PersistenceService {
                       const district = {
                         ...districtData,
                         coordinates: { x: districtData.coordX, y: districtData.coordY },
+                        width: districtData.width,
+                        height: districtData.height,
                         buildingIds: districtData.buildings ? districtData.buildings.map(b => b.id) : []
                       };
                       (worldService.engine.districtManager as any).districts.set(district.id, district);
@@ -63,6 +71,8 @@ export class PersistenceService {
                           const building = {
                             ...buildingData,
                             coordinates: { x: buildingData.coordX, y: buildingData.coordY },
+                            width: buildingData.width,
+                            height: buildingData.height,
                             roomIds: buildingData.rooms ? buildingData.rooms.map(r => r.id) : []
                           };
                           (worldService.engine.buildingManager as any).buildings.set(building.id, building);

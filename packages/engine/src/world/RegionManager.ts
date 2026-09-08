@@ -4,9 +4,11 @@ import { randomUUID } from 'crypto';
 export class RegionManager {
   private regions: Map<string, Region> = new Map();
 
-  public createRegion(regionData: Omit<Region, 'id' | 'cityIds'>): Region {
+  public createRegion(regionData: Omit<Region, 'id' | 'cityIds' | 'width' | 'height'> & { width?: number, height?: number }): Region {
     const region: Region = {
       ...regionData,
+      width: regionData.width ?? 10000,
+      height: regionData.height ?? 10000,
       id: randomUUID(),
       createdAt: new Date(),
       updatedAt: new Date(),

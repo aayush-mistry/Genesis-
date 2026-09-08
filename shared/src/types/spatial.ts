@@ -1,6 +1,23 @@
 import { Coordinate } from './world';
 import { BaseEntity } from './common';
 
+export interface SpatialPosition {
+  x: number;
+  y: number;
+}
+
+export interface SpatialSize {
+  width: number;
+  height: number;
+}
+
+export interface SpatialBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface SpatialEntity {
   id: string;
   type: string;

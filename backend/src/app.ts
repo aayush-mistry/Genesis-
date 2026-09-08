@@ -66,6 +66,8 @@ export async function buildApp() {
   import('./services/finance.service').then(m => m.financeService.initialize());
   import('./services/supply.service').then(m => m.supplyService.initialize());
   import('./services/banking.service').then(m => m.bankingService.initialize());
+  
+  import('./services/SpatialBackfillMigration').then(m => m.SpatialBackfillMigration.runMigration());
 
   return app;
 }

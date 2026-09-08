@@ -22,10 +22,10 @@ export const WorldCanvas: React.FC = () => {
     
     ctx.save();
     
-    // Background
+    // Background Grid
     ctx.fillStyle = '#020617'; // slate-950
     ctx.fillRect(0, 0, width, height);
-
+    
     ctx.save();
     
     // Apply camera transform
@@ -33,157 +33,261 @@ export const WorldCanvas: React.FC = () => {
     ctx.scale(camera.zoom, camera.zoom);
     ctx.translate(-camera.x, -camera.y);
 
+    // Subtle coordinate grid
+    ctx.strokeStyle = 'rgba(30, 41, 59, 0.5)'; // slate-800
+    ctx.lineWidth = 1 / camera.zoom;
+    const gridSize = 100;
+    const startX = Math.floor((camera.x - width / 2 / camera.zoom) / gridSize) * gridSize;
+    const endX = Math.ceil((camera.x + width / 2 / camera.zoom) / gridSize) * gridSize;
+    const startY = Math.floor((camera.y - height / 2 / camera.zoom) / gridSize) * gridSize;
+    const endY = Math.ceil((camera.y + height / 2 / camera.zoom) / gridSize) * gridSize;
+
+    ctx.beginPath();
+    for (let x = startX; x <= endX; x += gridSize) {
+      ctx.moveTo(x, startY);
+      ctx.lineTo(x, endY);
+    }
+    for (let y = startY; y <= endY; y += gridSize) {
+      ctx.moveTo(startX, y);
+      ctx.lineTo(endX, y);
+    }
+    ctx.stroke();
+
     // Helper for Debug Labels
-    const drawDebugLabel = (text: string, x: number, y: number, color: string, yOffset: number) => {
-      ctx.font = `bold ${10 / camera.zoom}px Inter`;
+    const drawLabel = (text: string, x: number, y: number, color: string, fontSize: number = 10, align: CanvasTextAlign = 'left') => {
+      ctx.font = `bold ${fontSize / camera.zoom}px Inter`;
       ctx.fillStyle = color;
-      ctx.textAlign = 'left';
+      ctx.textAlign = align;
       ctx.textBaseline = 'middle';
-      ctx.fillText(text, x + (15 / camera.zoom), y + (yOffset / camera.zoom));
+      ctx.fillText(text, x, y);
     };
 
-    // 1. Draw Regions (Background)
+    // 1. Draw Regions
     data.regions.forEach(region => {
-      ctx.fillStyle = 'rgba(40, 44, 52, 0.8)'; // Darker slate
-      ctx.strokeStyle = 'rgba(100, 116, 139, 0.5)';
-      ctx.lineWidth = 2 / camera.zoom;
-      
-      // We assume region coordinate is center, drawing a large rect
       const rx = region.coordinates.x - 500;
       const ry = region.coordinates.y - 500;
-      ctx.fillRect(rx, ry, 1000, 1000);
-      ctx.strokeRect(rx, ry, 1000, 1000);
       
-      // Region Label
-      if (camera.zoom < 2) {
-        ctx.fillStyle = '#94a3b8';
-        ctx.font = `${16 / camera.zoom}px Inter`;
-        ctx.textAlign = 'center';
-        ctx.fillText(region.name, region.coordinates.x, region.coordinates.y - 450);
+      // Region outer bounds (soft glow)
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.6)'; // slate-900
+      ctx.fillRect(rx, ry, 1000, 1000);
+      
+      ctx.strokeStyle = 'rgba(51, 65, 85, 0.8)'; // slate-700
+      ctx.lineWidth = 4 / camera.zoom;
+      ctx.strokeRect(rx, ry, 1000, 1000);
+
+      if (camera.zoom < 0.8) {
+        drawLabel(`REGION: ${region.name}`, region.coordinates.x, region.coordinates.y - 450, '#94a3b8', 24, 'center');
       }
     });
 
-    // 2. Draw Resources
-    data.resources.forEach(resource => {
-      ctx.fillStyle = (resource.category as string) === 'WATER' ? 'rgba(56, 189, 248, 0.4)' : 
-                      (resource.category as string) === 'VEGETATION' ? 'rgba(74, 222, 128, 0.4)' : 
-                      'rgba(250, 204, 21, 0.4)';
-      ctx.beginPath();
-      ctx.arc(resource.coordinates.x, resource.coordinates.y, resource.radius, 0, Math.PI * 2);
-      ctx.fill();
+    // 2. Draw Cities (Urban Sprawl)
+    data.cities?.forEach(city => {
+      const cx = city.coordinates.x - Math.sqrt(city.area) / 2;
+      const cy = city.coordinates.y - Math.sqrt(city.area) / 2;
+      const size = Math.sqrt(city.area);
+      
+      // Urban footprint
+      const gradient = ctx.createRadialGradient(
+        city.coordinates.x, city.coordinates.y, size * 0.1,
+        city.coordinates.x, city.coordinates.y, size * 0.5
+      );
+      gradient.addColorStop(0, 'rgba(56, 189, 248, 0.15)'); // sky-400
+      gradient.addColorStop(1, 'rgba(56, 189, 248, 0)');
+      
+      ctx.fillStyle = gradient;
+      ctx.fillRect(cx - size, cy - size, size * 3, size * 3); // Sprawl beyond area
+      
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.3)';
+      ctx.lineWidth = 2 / camera.zoom;
+      ctx.strokeRect(cx, cy, size, size);
+      
+      if (camera.zoom >= 0.5 && camera.zoom < 2.0) {
+        drawLabel(`CITY: ${city.name}`, city.coordinates.x, city.coordinates.y - size/2 - 15, '#7dd3fc', 16, 'center');
+      }
     });
 
-    // 3. Draw Cities & Districts
+    // 3. Draw Districts (Zoning)
     data.districts.forEach(district => {
-      ctx.fillStyle = district.type === 'RESIDENTIAL' ? 'rgba(99, 102, 241, 0.1)' :
-                      district.type === 'COMMERCIAL' ? 'rgba(236, 72, 153, 0.1)' :
-                      'rgba(245, 158, 11, 0.1)';
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-      ctx.setLineDash([5, 5]); // Dashed line to distinguish overlapping areas
+      const isCommercial = district.type === 'COMMERCIAL';
+      const isResidential = district.type === 'RESIDENTIAL';
+      
+      ctx.fillStyle = isResidential ? 'rgba(99, 102, 241, 0.15)' :
+                      isCommercial ? 'rgba(236, 72, 153, 0.15)' :
+                      'rgba(245, 158, 11, 0.15)';
+      
+      ctx.strokeStyle = isResidential ? 'rgba(99, 102, 241, 0.5)' :
+                        isCommercial ? 'rgba(236, 72, 153, 0.5)' :
+                        'rgba(245, 158, 11, 0.5)';
+                        
+      ctx.setLineDash([8 / camera.zoom, 8 / camera.zoom]);
       ctx.lineWidth = 2 / camera.zoom;
       
-      const dx = district.coordinates.x - district.area / 2;
-      const dy = district.coordinates.y - district.area / 2;
-      ctx.fillRect(dx, dy, district.area, district.area);
-      ctx.strokeRect(dx, dy, district.area, district.area);
-      ctx.setLineDash([]); // Reset dash
+      const size = Math.sqrt(district.area);
+      const dx = district.coordinates.x - size / 2;
+      const dy = district.coordinates.y - size / 2;
       
-      // Diagnostic Overlay
-      drawDebugLabel(`[DISTRICT] ${district.name}`, district.coordinates.x, district.coordinates.y, '#ec4899', -30);
+      ctx.fillRect(dx, dy, size, size);
+      ctx.strokeRect(dx, dy, size, size);
+      ctx.setLineDash([]);
+      
+      if (camera.zoom >= 1.0 && camera.zoom < 4.0) {
+        drawLabel(district.name.toUpperCase(), district.coordinates.x, dy + 15, ctx.strokeStyle as string, 12, 'center');
+      }
     });
 
-    // 4. Draw Buildings
-    data.buildings.forEach((building, index) => {
-      ctx.fillStyle = building.type === 'HOUSE' || building.type === 'APARTMENT' ? 'rgba(99, 102, 241, 0.8)' : // Indigo
-                      building.type === 'FACTORY' ? 'rgba(245, 158, 11, 0.8)' : // Amber
-                      building.type === 'STORE' ? 'rgba(236, 72, 153, 0.8)' : // Pink
-                      'rgba(148, 163, 184, 0.8)'; // Slate
-                      
-      // Buildings are drawn as small squares at their coords
-      // Apply a tiny visual offset based on index ONLY to allow distinct clicking if they share EXACT same coordinate,
-      // but keep them mostly clustered.
-      // Alternatively, draw them as concentric shapes. We will draw them at their exact coords, but with different sizes so they don't hide each other perfectly.
-      const baseSize = building.capacity > 50 ? 12 : 8;
-      const size = baseSize + (index % 3) * 4; // Vary size slightly if stacked
+    // 4. Draw Buildings (Icons)
+    data.buildings.forEach((building) => {
+      const bx = building.coordinates.x;
+      const by = building.coordinates.y;
       
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 1 / camera.zoom;
-      ctx.fillRect(building.coordinates.x - size/2, building.coordinates.y - size/2, size, size);
-      ctx.strokeRect(building.coordinates.x - size/2, building.coordinates.y - size/2, size, size);
+      ctx.save();
+      ctx.translate(bx, by);
       
-      // Subtle glow for active buildings
       if (building.status === 'ACTIVE') {
-        ctx.shadowBlur = 4;
-        ctx.shadowColor = ctx.fillStyle;
+        ctx.shadowBlur = 10 / camera.zoom;
+        ctx.shadowColor = building.type === 'FACTORY' ? '#f59e0b' : '#ec4899';
       }
-      ctx.shadowBlur = 0;
-      
-      // Diagnostic Overlay
-      drawDebugLabel(`[BUILDING] ${building.name}`, building.coordinates.x, building.coordinates.y, '#f59e0b', -15 + (index * 12));
-    });
 
-    // 5. Draw Citizens using Exact Coordinate Clustering
-    // Group citizens by their exact resolved coordinate
-    const citizenClusters = new Map<string, { x: number, y: number, count: number, employed: number, unemployed: number }>();
-    
-    data.citizens.forEach(citizen => {
-      let cx = 0;
-      let cy = 0;
-      
-      if (citizen.locationId) {
-         const b = data.buildings.find(b => b.id === citizen.locationId);
-         if (b) {
-           cx = b.coordinates.x;
-           cy = b.coordinates.y;
-         } else {
-           const d = data.districts.find(d => d.id === citizen.locationId);
-           if (d) {
-             cx = d.coordinates.x;
-             cy = d.coordinates.y;
-           }
-         }
-      }
-      
-      const key = `${cx},${cy}`;
-      if (!citizenClusters.has(key)) {
-        citizenClusters.set(key, { x: cx, y: cy, count: 0, employed: 0, unemployed: 0 });
-      }
-      
-      const cluster = citizenClusters.get(key)!;
-      cluster.count++;
-      if (citizen.employmentStatus === 'EMPLOYED') {
-        cluster.employed++;
+      if (building.type === 'FACTORY') {
+        // Factory Icon (Sawtooth)
+        ctx.fillStyle = 'rgba(245, 158, 11, 0.9)'; // Amber
+        ctx.beginPath();
+        ctx.moveTo(-10, 10);
+        ctx.lineTo(-10, 0);
+        ctx.lineTo(-5, -5);
+        ctx.lineTo(-5, 0);
+        ctx.lineTo(0, -5);
+        ctx.lineTo(0, 0);
+        ctx.lineTo(5, -5);
+        ctx.lineTo(5, 0);
+        ctx.lineTo(10, -5);
+        ctx.lineTo(10, 10);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Smokestack
+        ctx.fillStyle = '#b45309';
+        ctx.fillRect(-8, -12, 3, 10);
+      } else if (building.type === 'STORE') {
+        // Store Icon (Awning)
+        ctx.fillStyle = 'rgba(236, 72, 153, 0.9)'; // Pink
+        ctx.fillRect(-8, -5, 16, 12);
+        
+        // Stripes
+        ctx.fillStyle = '#fbcfe8';
+        ctx.beginPath();
+        ctx.moveTo(-9, -5);
+        ctx.lineTo(-7, 2);
+        ctx.lineTo(-5, 2);
+        ctx.lineTo(-7, -5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(-1, -5);
+        ctx.lineTo(1, 2);
+        ctx.lineTo(3, 2);
+        ctx.lineTo(1, -5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(7, -5);
+        ctx.lineTo(9, 2);
+        ctx.lineTo(11, 2);
+        ctx.lineTo(9, -5);
+        ctx.closePath();
+        ctx.fill();
       } else {
-        cluster.unemployed++;
+        // Generic Square
+        ctx.fillStyle = 'rgba(148, 163, 184, 0.9)';
+        ctx.fillRect(-6, -6, 12, 12);
+      }
+      
+      ctx.restore();
+      
+      if (camera.zoom >= 3.0) {
+        drawLabel(building.name, bx, by + 18, '#ffffff', 8, 'center');
       }
     });
 
-    // Draw the clusters
-    citizenClusters.forEach(cluster => {
-      // Circle radius scales logarithmically with population
-      const radius = Math.max(4, 4 + Math.log10(cluster.count) * 6) / camera.zoom;
-      
-      // Draw cluster background
-      ctx.fillStyle = 'rgba(16, 185, 129, 0.6)'; // Emerald green for population
-      ctx.beginPath();
-      ctx.arc(cluster.x, cluster.y, radius, 0, Math.PI * 2);
-      ctx.fill();
-      
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 1 / camera.zoom;
-      ctx.stroke();
+    // 5. Draw Citizens
+    // We group by locationId. If camera is low, we draw a heat blob.
+    // If camera is high, we pseudo-randomly distribute dots inside the building bounds.
+    
+    // A simple pseudo-random generator seeded by string
+    const seededRandom = (seedStr: string) => {
+      let h = 0xdeadbeef;
+      for (let i = 0; i < seedStr.length; i++) h = Math.imul(h ^ seedStr.charCodeAt(i), 2654435761);
+      return ((h ^ h >>> 16) >>> 0) / 4294967296;
+    };
 
-      // Text label for cluster size
-      if (camera.zoom < 5) {
-        ctx.fillStyle = '#ffffff';
-        ctx.font = `bold ${10 / camera.zoom}px Inter`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(cluster.count.toString(), cluster.x, cluster.y - radius - (4 / camera.zoom));
-      }
+    const locationGroups = new Map<string, typeof data.citizens>();
+    data.citizens.forEach(c => {
+      const loc = c.locationId || 'unknown';
+      if (!locationGroups.has(loc)) locationGroups.set(loc, []);
+      locationGroups.get(loc)!.push(c);
+    });
+
+    locationGroups.forEach((citizensInLoc, locId) => {
+      let cx = 0, cy = 0, areaSize = 10;
       
-      // Diagnostic Overlay
-      drawDebugLabel(`[POPULATION] ${cluster.count} Citizens`, cluster.x, cluster.y, '#10b981', 15);
+      // Resolve spatial bounds of this location
+      const b = data.buildings.find(b => b.id === locId);
+      if (b) {
+        cx = b.coordinates.x;
+        cy = b.coordinates.y;
+        areaSize = b.capacity > 50 ? 24 : 16;
+      } else {
+        const d = data.districts.find(d => d.id === locId);
+        if (d) {
+          cx = d.coordinates.x;
+          cy = d.coordinates.y;
+          areaSize = Math.sqrt(d.area);
+        } else {
+          // If no location, spawn in city/region center
+          const c = data.cities?.[0];
+          cx = c?.coordinates.x || 0;
+          cy = c?.coordinates.y || 0;
+          areaSize = 100;
+        }
+      }
+
+      const count = citizensInLoc.length;
+
+      if (camera.zoom < 2.0) {
+        // Heatmap / Aggregated cluster at low zoom
+        const radius = Math.max(10, 5 + Math.log10(count) * 8);
+        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+        grad.addColorStop(0, 'rgba(16, 185, 129, 0.8)'); // Emerald
+        grad.addColorStop(1, 'rgba(16, 185, 129, 0)');
+        
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (camera.zoom >= 0.5) {
+          drawLabel(count.toString(), cx, cy, '#ffffff', 10, 'center');
+        }
+      } else {
+        // Individual dots distributed within bounds at high zoom
+        ctx.fillStyle = '#34d399'; // Emerald-400
+        const dotSize = Math.max(0.5, 2 / camera.zoom);
+        
+        citizensInLoc.forEach((citizen) => {
+          // Use deterministic distribution so they don't jump around
+          const randX = seededRandom(citizen.id + 'x') - 0.5;
+          const randY = seededRandom(citizen.id + 'y') - 0.5;
+          
+          const dotX = cx + (randX * areaSize);
+          const dotY = cy + (randY * areaSize);
+          
+          ctx.beginPath();
+          ctx.arc(dotX, dotY, dotSize, 0, Math.PI * 2);
+          ctx.fill();
+        });
+        
+        drawLabel(`${count} Pop`, cx, cy - (areaSize/2) - 10, '#34d399', 8, 'center');
+      }
     });
 
     ctx.restore();
@@ -198,7 +302,6 @@ export const WorldCanvas: React.FC = () => {
     let animationFrameId: number;
     
     const render = () => {
-      // In a real app we'd handle resize observer. Using fixed for now or updating on effect.
       renderWorld(ctx, canvas.width, canvas.height, snapshot);
       animationFrameId = requestAnimationFrame(render);
     };
@@ -284,7 +387,10 @@ export const WorldCanvas: React.FC = () => {
     const worldY = (clickY - centerY) / camera.zoom + camera.y;
     
     // Simple hit detection (reverse order of rendering so top gets clicked)
-    // 1. Check Buildings
+    // 1. Check Citizens/Clusters (if applicable)
+    // We could add citizen click handling here later
+
+    // 2. Check Buildings
     for (const b of snapshot.buildings) {
       const size = b.capacity > 50 ? 12 : 8;
       if (worldX >= b.coordinates.x - size/2 && worldX <= b.coordinates.x + size/2 &&
@@ -294,7 +400,7 @@ export const WorldCanvas: React.FC = () => {
       }
     }
     
-    // 2. Check Resources
+    // 3. Check Resources
     for (const r of snapshot.resources) {
       const dist = Math.sqrt(Math.pow(worldX - r.coordinates.x, 2) + Math.pow(worldY - r.coordinates.y, 2));
       if (dist <= r.radius) {
@@ -302,18 +408,41 @@ export const WorldCanvas: React.FC = () => {
         return;
       }
     }
-
-    // 3. Check Districts
-    for (const d of snapshot.districts) {
-      const dx = d.coordinates.x - d.area / 2;
-      const dy = d.coordinates.y - d.area / 2;
-      if (worldX >= dx && worldX <= dx + d.area &&
-          worldY >= dy && worldY <= dy + d.area) {
-        setSelection({ type: 'district', id: d.id, data: d });
-        return;
+    // 4. Check Districts
+    if (snapshot.districts) {
+      for (const d of snapshot.districts) {
+        const size = Math.sqrt(d.area);
+        if (worldX >= d.coordinates.x - size/2 && worldX <= d.coordinates.x + size/2 &&
+            worldY >= d.coordinates.y - size/2 && worldY <= d.coordinates.y + size/2) {
+          setSelection({ type: 'district', id: d.id, data: d });
+          return;
+        }
       }
     }
-    
+
+    // 5. Check Cities
+    if (snapshot.cities) {
+      for (const c of snapshot.cities) {
+        const size = Math.sqrt(c.area);
+        if (worldX >= c.coordinates.x - size/2 && worldX <= c.coordinates.x + size/2 &&
+            worldY >= c.coordinates.y - size/2 && worldY <= c.coordinates.y + size/2) {
+          setSelection({ type: 'city', id: c.id, data: c });
+          return;
+        }
+      }
+    }
+
+    // 6. Check Region
+    if (snapshot.regions) {
+      for (const r of snapshot.regions) {
+        if (worldX >= r.coordinates.x - 500 && worldX <= r.coordinates.x + 500 &&
+            worldY >= r.coordinates.y - 500 && worldY <= r.coordinates.y + 500) {
+          setSelection({ type: 'region', id: r.id, data: r });
+          return;
+        }
+      }
+    }
+
     // Clear selection if clicked empty space
     setSelection(null);
   };

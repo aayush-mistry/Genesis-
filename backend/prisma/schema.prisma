@@ -82,6 +82,8 @@ model World {
   creationTime      Int
   currentPopulation Int      @default(0)
   worldSize         Int
+  width             Int      @default(100000)
+  height            Int      @default(100000)
   climateProfile    String
   timeZone          String
   version           String
@@ -104,6 +106,8 @@ model Region {
   // Coordinates
   coordX       Int
   coordY       Int
+  width        Int      @default(10000)
+  height       Int      @default(10000)
   
   worldId      String
   world        World    @relation(fields: [worldId], references: [id], onDelete: Cascade)
@@ -126,6 +130,8 @@ model City {
   
   coordX        Int
   coordY        Int
+  width         Int      @default(2000)
+  height        Int      @default(2000)
   
   area          Int
   
@@ -151,6 +157,8 @@ model District {
   
   coordX       Int      @default(0)
   coordY       Int      @default(0)
+  width        Int      @default(500)
+  height       Int      @default(500)
   area         Int      @default(100)
   
   cityId       String
@@ -172,6 +180,8 @@ model Building {
   
   coordX       Int
   coordY       Int
+  width        Int      @default(20)
+  height       Int      @default(20)
   
   capacity     Int
   ownerId      String?

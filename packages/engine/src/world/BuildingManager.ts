@@ -4,9 +4,11 @@ import { randomUUID } from 'crypto';
 export class BuildingManager {
   private buildings: Map<string, Building> = new Map();
 
-  public createBuilding(buildingData: Omit<Building, 'id' | 'roomIds'>): Building {
+  public createBuilding(buildingData: Omit<Building, 'id' | 'roomIds' | 'width' | 'height'> & { width?: number, height?: number }): Building {
     const building: Building = {
       ...buildingData,
+      width: buildingData.width ?? 20,
+      height: buildingData.height ?? 20,
       id: randomUUID(),
       createdAt: new Date(),
       updatedAt: new Date(),

@@ -30,6 +30,8 @@ class WorldService {
       description: 'The cradle of civilization in this world.',
       population: 0,
       coordinates: { x: 0, y: 0 },
+      width: 10000,
+      height: 10000,
       worldId: world.id,
       createdAt: new Date(),
       updatedAt: new Date()
@@ -45,8 +47,10 @@ class WorldService {
       name: 'Genesis City',
       regionId: defaultRegion.id,
       coordinates: { x: 0, y: 0 },
+      width: 2000,
+      height: 2000,
       population: 0,
-      area: 100,
+      area: 250000, // 500x500
       createdAt: new Date(),
       updatedAt: new Date()
     });
@@ -56,8 +60,11 @@ class WorldService {
       name: 'Central District',
       cityId: city.id,
       type: DistrictType.COMMERCIAL,
-      coordinates: { x: 0, y: 0 },
-      area: 2500,
+      coordinates: { x: 100, y: 100 },
+      width: 500,
+      height: 500,
+      area: 10000, // 100x100
+
       createdAt: new Date(),
       updatedAt: new Date()
     });
@@ -68,7 +75,9 @@ class WorldService {
       districtId: district.id,
       type: BuildingType.FACTORY,
       capacity: 100,
-      coordinates: { x: 0, y: 0 },
+      coordinates: { x: 120, y: 120 },
+      width: 40,
+      height: 40,
       status: 'ACTIVE',
       createdAt: new Date(),
       updatedAt: new Date()
@@ -80,7 +89,9 @@ class WorldService {
       districtId: district.id,
       type: BuildingType.STORE,
       capacity: 50,
-      coordinates: { x: 0, y: 0 },
+      coordinates: { x: 200, y: 200 },
+      width: 20,
+      height: 20,
       status: 'ACTIVE',
       createdAt: new Date(),
       updatedAt: new Date()
@@ -115,6 +126,8 @@ class WorldService {
       creationTime: world.creationTime,
       currentPopulation: world.currentPopulation,
       worldSize: world.worldSize,
+      width: world.width,
+      height: world.height,
       climateProfile: world.climateProfile,
       timeZone: world.timeZone,
       version: world.version,
@@ -132,6 +145,8 @@ class WorldService {
       population: defaultRegion.population,
       coordX: defaultRegion.coordinates.x,
       coordY: defaultRegion.coordinates.y,
+      width: defaultRegion.width,
+      height: defaultRegion.height,
       createdAt: defaultRegion.createdAt,
       updatedAt: defaultRegion.updatedAt,
     });
@@ -144,6 +159,8 @@ class WorldService {
       area: city.area,
       coordX: city.coordinates.x,
       coordY: city.coordinates.y,
+      width: city.width,
+      height: city.height,
       createdAt: city.createdAt,
       updatedAt: city.updatedAt,
     });
@@ -156,6 +173,8 @@ class WorldService {
       area: district.area,
       coordX: district.coordinates.x,
       coordY: district.coordinates.y,
+      width: district.width,
+      height: district.height,
       createdAt: district.createdAt,
       updatedAt: district.updatedAt,
     });
@@ -169,6 +188,8 @@ class WorldService {
       status: factoryBuilding.status,
       coordX: factoryBuilding.coordinates.x,
       coordY: factoryBuilding.coordinates.y,
+      width: factoryBuilding.width,
+      height: factoryBuilding.height,
       createdAt: factoryBuilding.createdAt,
       updatedAt: factoryBuilding.updatedAt,
     });
@@ -182,6 +203,8 @@ class WorldService {
       status: storeBuilding.status,
       coordX: storeBuilding.coordinates.x,
       coordY: storeBuilding.coordinates.y,
+      width: storeBuilding.width,
+      height: storeBuilding.height,
       createdAt: storeBuilding.createdAt,
       updatedAt: storeBuilding.updatedAt,
     });

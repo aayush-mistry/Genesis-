@@ -51,6 +51,22 @@ export class WorldRepository {
   async createBuilding(data: any) {
     return prisma.building.create({ data });
   }
+
+  async updateRegion(id: string, data: any) {
+    return prisma.region.update({ where: { id }, data });
+  }
+
+  async updateCity(id: string, data: any) {
+    return prisma.city.update({ where: { id }, data });
+  }
+
+  async updateDistrict(id: string, data: any) {
+    return prisma.district.update({ where: { id }, data });
+  }
+
+  async updateBuilding(id: string, data: any) {
+    return prisma.building.update({ where: { id }, data });
+  }
 }
 
 export const worldRepository = new WorldRepository();

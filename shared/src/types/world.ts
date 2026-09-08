@@ -38,6 +38,8 @@ export interface World extends WorldEntity {
   creationTime: number;
   currentPopulation: number;
   worldSize: number;
+  width: number;
+  height: number;
   climateProfile: string;
   timeZone: string;
   version: string;
@@ -50,6 +52,8 @@ export interface Region extends WorldEntity {
   climate: string;
   population: number;
   coordinates: Coordinate;
+  width: number;
+  height: number;
   worldId: string;
   cityIds: string[];
 }
@@ -57,6 +61,8 @@ export interface Region extends WorldEntity {
 export interface City extends WorldEntity {
   population: number;
   coordinates: Coordinate;
+  width: number;
+  height: number;
   area: number;
   regionId: string;
   districtIds: string[];
@@ -69,12 +75,16 @@ export interface District extends WorldEntity {
   cityId: string;
   buildingIds: string[];
   coordinates: Coordinate;
+  width: number;
+  height: number;
   area: number;
 }
 
 export interface Building extends WorldEntity {
   type: BuildingType;
   coordinates: Coordinate;
+  width: number;
+  height: number;
   capacity: number;
   owner?: string;
   status: string;
