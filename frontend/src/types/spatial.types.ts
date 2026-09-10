@@ -9,6 +9,7 @@ export interface SpatialSnapshot {
   workplaces: Workplace[];
   resources: Resource[];
   citizens: Citizen[];
+  households: any[]; // Or import Household from @genesis/shared
 }
 
 export interface CameraState {

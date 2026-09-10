@@ -41,7 +41,14 @@ export const EntityPanel: React.FC = () => {
         {selection.data.coordinates && (
           <div className="bg-slate-800 p-3 rounded">
             <div className="text-xs text-slate-400 uppercase">Coordinates</div>
-            <div className="text-sm text-white font-mono">X: {selection.data.coordinates.x}, Y: {selection.data.coordinates.y}</div>
+            <div className="text-sm text-white font-mono">X: {Math.round(selection.data.coordinates.x)}, Y: {Math.round(selection.data.coordinates.y)}</div>
+          </div>
+        )}
+        
+        {selection.data.coordX !== undefined && (
+          <div className="bg-slate-800 p-3 rounded">
+            <div className="text-xs text-slate-400 uppercase">Exact Coordinates</div>
+            <div className="text-sm text-white font-mono">X: {Math.round(selection.data.coordX)}, Y: {Math.round(selection.data.coordY)}</div>
           </div>
         )}
         

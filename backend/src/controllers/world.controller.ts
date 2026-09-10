@@ -32,16 +32,31 @@ export const WorldController = {
 
     const { citizenService } = await import('../services/citizen.service');
     const citizens = citizenService.engine.listCitizens();
+    
+    // Quick fix: directly fetch households from DB or use a service if it exists
+    const { PrismaClient } = await import('@prisma/client');
+    const prisma = new PrismaClient();
+    const dbHouseholds = await prisma.household.findMany();
+    // Re-fetch citizens to ensure we get coordX and coordY if the engine didn't cache it
+    const dbCitizens = await prisma.citizen.findMany();
+    const dbBuildings = await prisma.building.findMany();
+    await prisma.$disconnect();
+
+    const mapCoordinates = (item: any) => ({
+      ...item,
+      coordinates: { x: item.coordX ?? 0, y: item.coordY ?? 0 }
+    });
 
     return reply.send({
       world,
       regions,
       cities,
       districts,
-      buildings,
+      buildings: dbBuildings.map(mapCoordinates), // Use DB directly for now to get backfilled ones
       workplaces,
       resources,
-      citizens
+      citizens: dbCitizens.map(mapCoordinates),
+      households: dbHouseholds.map(mapCoordinates)
     });
   },
 

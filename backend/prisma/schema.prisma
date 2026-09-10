@@ -339,6 +339,8 @@ model Citizen {
   createdAtSimJson   String   // JSON SimulationTime
   
   locationId         String?
+  coordX             Float?
+  coordY             Float?
   
   vitalStateJson     String   // JSON
   personalityJson    String   // JSON

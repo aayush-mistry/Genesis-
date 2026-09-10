@@ -196,6 +196,16 @@ export const WorldCanvas: React.FC = () => {
         ctx.lineTo(9, -5);
         ctx.closePath();
         ctx.fill();
+      } else if (building.type === 'APARTMENT' || building.type === 'HOUSE') {
+        // Residential icon
+        ctx.fillStyle = 'rgba(99, 102, 241, 0.9)'; // Indigo
+        ctx.beginPath();
+        ctx.moveTo(-8, 2);
+        ctx.lineTo(0, -6);
+        ctx.lineTo(8, 2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillRect(-6, 2, 12, 6);
       } else {
         // Generic Square
         ctx.fillStyle = 'rgba(148, 163, 184, 0.9)';
@@ -210,16 +220,6 @@ export const WorldCanvas: React.FC = () => {
     });
 
     // 5. Draw Citizens
-    // We group by locationId. If camera is low, we draw a heat blob.
-    // If camera is high, we pseudo-randomly distribute dots inside the building bounds.
-    
-    // A simple pseudo-random generator seeded by string
-    const seededRandom = (seedStr: string) => {
-      let h = 0xdeadbeef;
-      for (let i = 0; i < seedStr.length; i++) h = Math.imul(h ^ seedStr.charCodeAt(i), 2654435761);
-      return ((h ^ h >>> 16) >>> 0) / 4294967296;
-    };
-
     const locationGroups = new Map<string, typeof data.citizens>();
     data.citizens.forEach(c => {
       const loc = c.locationId || 'unknown';
@@ -227,34 +227,30 @@ export const WorldCanvas: React.FC = () => {
       locationGroups.get(loc)!.push(c);
     });
 
-    locationGroups.forEach((citizensInLoc, locId) => {
-      let cx = 0, cy = 0, areaSize = 10;
-      
-      // Resolve spatial bounds of this location
-      const b = data.buildings.find(b => b.id === locId);
-      if (b) {
-        cx = b.coordinates.x;
-        cy = b.coordinates.y;
-        areaSize = b.capacity > 50 ? 24 : 16;
-      } else {
-        const d = data.districts.find(d => d.id === locId);
-        if (d) {
-          cx = d.coordinates.x;
-          cy = d.coordinates.y;
-          areaSize = Math.sqrt(d.area);
+    if (camera.zoom < 2.0) {
+      // Heatmap / Aggregated cluster at low zoom
+      locationGroups.forEach((citizensInLoc, locId) => {
+        let cx = 0, cy = 0;
+        
+        // Resolve spatial bounds of this location
+        const b = data.buildings.find(b => b.id === locId);
+        if (b) {
+          cx = b.coordinates.x;
+          cy = b.coordinates.y;
         } else {
-          // If no location, spawn in city/region center
-          const c = data.cities?.[0];
-          cx = c?.coordinates.x || 0;
-          cy = c?.coordinates.y || 0;
-          areaSize = 100;
+          const d = data.districts.find(d => d.id === locId);
+          if (d) {
+            cx = d.coordinates.x;
+            cy = d.coordinates.y;
+          } else {
+            // If no location, spawn in city/region center
+            const c = data.cities?.[0];
+            cx = c?.coordinates.x || 0;
+            cy = c?.coordinates.y || 0;
+          }
         }
-      }
 
-      const count = citizensInLoc.length;
-
-      if (camera.zoom < 2.0) {
-        // Heatmap / Aggregated cluster at low zoom
+        const count = citizensInLoc.length;
         const radius = Math.max(10, 5 + Math.log10(count) * 8);
         const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
         grad.addColorStop(0, 'rgba(16, 185, 129, 0.8)'); // Emerald
@@ -268,28 +264,23 @@ export const WorldCanvas: React.FC = () => {
         if (camera.zoom >= 0.5) {
           drawLabel(count.toString(), cx, cy, '#ffffff', 10, 'center');
         }
-      } else {
-        // Individual dots distributed within bounds at high zoom
-        ctx.fillStyle = '#34d399'; // Emerald-400
-        const dotSize = Math.max(0.5, 2 / camera.zoom);
+      });
+    } else {
+      // High zoom: Draw at exact coordinates
+      ctx.fillStyle = '#34d399'; // Emerald-400
+      const dotSize = Math.max(0.5, 2 / camera.zoom);
+      
+      data.citizens.forEach((citizen: any) => {
+        // Use exact coordinates
+        const cX = citizen.coordinates?.x ?? 0;
+        const cY = citizen.coordinates?.y ?? 0;
         
-        citizensInLoc.forEach((citizen) => {
-          // Use deterministic distribution so they don't jump around
-          const randX = seededRandom(citizen.id + 'x') - 0.5;
-          const randY = seededRandom(citizen.id + 'y') - 0.5;
-          
-          const dotX = cx + (randX * areaSize);
-          const dotY = cy + (randY * areaSize);
-          
-          ctx.beginPath();
-          ctx.arc(dotX, dotY, dotSize, 0, Math.PI * 2);
-          ctx.fill();
-        });
-        
-        drawLabel(`${count} Pop`, cx, cy - (areaSize/2) - 10, '#34d399', 8, 'center');
-      }
-    });
-
+        ctx.beginPath();
+        ctx.arc(cX, cY, dotSize, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+    
     ctx.restore();
   };
 
@@ -388,13 +379,25 @@ export const WorldCanvas: React.FC = () => {
     
     // Simple hit detection (reverse order of rendering so top gets clicked)
     // 1. Check Citizens/Clusters (if applicable)
-    // We could add citizen click handling here later
+    if (camera.zoom >= 2.0) {
+      const clickDist = 5 / camera.zoom;
+      for (const c of snapshot.citizens) {
+        const cX = (c as any).coordinates?.x ?? 0;
+        const cY = (c as any).coordinates?.y ?? 0;
+        const dist = Math.sqrt(Math.pow(worldX - cX, 2) + Math.pow(worldY - cY, 2));
+        if (dist <= clickDist) {
+          setSelection({ type: 'citizen', id: c.id, data: c });
+          return;
+        }
+      }
+    }
 
     // 2. Check Buildings
     for (const b of snapshot.buildings) {
-      const size = b.capacity > 50 ? 12 : 8;
-      if (worldX >= b.coordinates.x - size/2 && worldX <= b.coordinates.x + size/2 &&
-          worldY >= b.coordinates.y - size/2 && worldY <= b.coordinates.y + size/2) {
+      const w = b.width || (b.capacity > 50 ? 24 : 16);
+      const h = b.height || (b.capacity > 50 ? 24 : 16);
+      if (worldX >= b.coordinates.x - w/2 && worldX <= b.coordinates.x + w/2 &&
+          worldY >= b.coordinates.y - h/2 && worldY <= b.coordinates.y + h/2) {
         setSelection({ type: 'building', id: b.id, data: b });
         return;
       }
