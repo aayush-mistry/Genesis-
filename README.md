@@ -85,7 +85,7 @@ npm run dev
 - **Completed:** Phase 3 (Citizen Engine) including Needs, Movement, and Occupation systems.
 - **Completed:** Phase 4 (AI Decision Engine) up to Phase 4.5 (Action Execution System).
 - **Completed:** Phase 5 (Economy Engine) including Production, Inventory, Supply Chain, and Market.
-- **In Progress:** Phase 6 (Financial Engine & Advanced Economy) currently completing Phase 6.x-1 (Production Costing + Dynamic Supplier Quality).
+- **In Progress:** Phase 6 (Financial Engine & Advanced Economy) currently completing Phase 6.4 (Banking & Loans).
 
 ## Genesis Roadmap
 
@@ -157,7 +157,7 @@ Phase 10 🔜 Optimization & Scale
 | Business Accounting | ✅ Implemented | Tracks business revenue, expenses, and P/L |
 | Production Costing | ✅ Implemented | Dynamic labor and resource input costs |
 | Supplier Quality | ✅ Implemented | Dynamic quality tracking and ranking |
-| Banking & Loans | 🔴 Not implemented | Slated for future phase |
+| Banking & Loans | ✅ Implemented | Core banking, credit scores, and EMI processing |
 | Taxes | 🔴 Not implemented | Slated for future phase |
 
 ## Phase 2 – World Engine
@@ -759,6 +759,14 @@ Genesis has recently refactored hardcoded assumptions out of the financial simul
 - **Cost Per Unit:** The engine computes the absolute total cost and dynamic cost-per-unit for production runs, logging it to business accounting while safely handling edge cases (e.g., zero production avoiding division-by-zero errors).
 - **Dynamic Supplier Quality:** The `BusinessProcurementEngine` ranks suppliers using the actual `quality` (0-100) property intrinsically attached to `InventoryItem` records. Uninitialized or legacy items default to a neutral `50` fallback.
 
+### Phase 6.4: Banking & Loans
+The Banking & Loans system introduces credit markets and money creation to the Genesis simulation.
+- **Bank Operations & Ledger Management:** Supports core fractional-reserve banking operations including deposits, withdrawals, and inter-bank transfers. Banks manage their own capital, reserves, and track total deposits versus total loans issued.
+- **Credit Scoring:** A deterministic `CreditScoreCalculator` evaluates and tracks credit histories for borrowers. Scores dynamically update based on loan approvals, timely EMI payments, missed payments, defaults, and loan payoffs.
+- **Dynamic Lending & Eligibility:** Citizens and businesses can apply for loans. The `LoanCalculatorFactory` evaluates financial inputs against configurable loan types to determine eligibility and approve amounts. Approvals are dynamically capped by the bank's active lending capacity via the `LendingCapacityCalculator`, strictly respecting reserve ratio rules.
+- **Automated EMI Processing:** The `BankingEngine` schedules automated monthly EMI processing via the `EventScheduler`. It calculates principal and interest portions, automatically deducts payments from wallets, updates credit scores, and manages loan states (e.g., ACTIVE, PAST_DUE, DEFAULTED, PAID_OFF) upon missed payments.
+- **Money Creation:** When loans are approved, the bank credits the borrower's wallet, dynamically creating money in the broader economy while maintaining strict double-entry balance sheets tracking the loan asset against deposit liabilities.
+
 ## End-to-End Economic Flows
 
 ### Goods Flow
@@ -818,14 +826,14 @@ While the core economy flows accurately, several systems remain pending integrat
 - **Salary Payment Timing:** Currently, salaries trigger dynamically rather than adhering to a strict "first 7 days of the following month" cadence.
 - **Accounting Periods:** Fiscal period scheduling and hard closures for business accounting are not yet finalized.
 - **Financial & Supply Chain UI:** The frontend `World Inspector` currently lacks deep introspection components specifically for wallets, transaction logs, and visual shipment tracking.
-- **Banking, Loans & Macroeconomics:** Credit scoring, interest, and central taxation models are entirely planned for future sub-phases (6.4 and 6.5) and are not yet implemented.
+- **Macroeconomics & Taxes:** Central taxation and macroeconomic models are planned for future sub-phase 6.5.
 - **Long-Running Economy Tests:** Extreme scale and multi-year economic stability tests are pending.
 
 ## Test & Build Status
 
 The repository maintains strict continuous integration standards to guarantee determinism and simulation health.
 
-- **Test Suite Status:** 24 Test Suites passing successfully.
-- **Total Verified Tests:** 134 Tests passing (0 failures).
+- **Test Suite Status:** 29 Test Suites passing successfully.
+- **Total Verified Tests:** 161 Tests passing (0 failures).
 - **Typecheck:** Clean 0-error `tsc` validation across `shared`, `engine`, `backend`, and `frontend` workspaces.
 - **Build Status:** `npm run build` succeeds completely, assembling the minified production assets using Vite and TypeScript compilers.
