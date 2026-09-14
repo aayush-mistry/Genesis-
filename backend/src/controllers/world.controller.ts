@@ -47,6 +47,37 @@ export const WorldController = {
       coordinates: { x: item.coordX ?? 0, y: item.coordY ?? 0 }
     });
 
+    const mappedCitizens = dbCitizens.map(mapCoordinates);
+
+    // Generate population clusters
+    const clusterMap = new Map<string, any>();
+    mappedCitizens.forEach(citizen => {
+      const locId = citizen.locationId || 'unknown';
+      if (!clusterMap.has(locId)) {
+        // Find parent building or district to get coords if citizen coords are missing
+        const building = dbBuildings.find(b => b.id === locId);
+        let cx = citizen.coordinates.x;
+        let cy = citizen.coordinates.y;
+        
+        if (building) {
+          cx = cx || building.coordX;
+          cy = cy || building.coordY;
+        }
+
+        clusterMap.set(locId, {
+          clusterId: `cluster-${locId}`,
+          x: cx,
+          y: cy,
+          population: 0,
+          bounds: building ? { width: building.width, height: building.height } : null,
+          parentRegionId: building ? cities.find(c => districts.find(d => d.id === building.districtId)?.cityId === c.id)?.regionId : null,
+          parentCityId: building ? districts.find(d => d.id === building.districtId)?.cityId : null,
+          parentDistrictId: building ? building.districtId : null
+        });
+      }
+      clusterMap.get(locId).population++;
+    });
+
     return reply.send({
       world,
       regions,
@@ -55,8 +86,9 @@ export const WorldController = {
       buildings: dbBuildings.map(mapCoordinates), // Use DB directly for now to get backfilled ones
       workplaces,
       resources,
-      citizens: dbCitizens.map(mapCoordinates),
-      households: dbHouseholds.map(mapCoordinates)
+      citizens: mappedCitizens,
+      households: dbHouseholds.map(mapCoordinates),
+      populationClusters: Array.from(clusterMap.values())
     });
   },
 

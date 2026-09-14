@@ -10,6 +10,7 @@ export interface SpatialSnapshot {
   resources: Resource[];
   citizens: Citizen[];
   households: any[]; // Or import Household from @genesis/shared
+  populationClusters?: any[];
 }
 
 export interface CameraState {

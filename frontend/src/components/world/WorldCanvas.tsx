@@ -219,53 +219,31 @@ export const WorldCanvas: React.FC = () => {
       }
     });
 
-    // 5. Draw Citizens
-    const locationGroups = new Map<string, typeof data.citizens>();
-    data.citizens.forEach(c => {
-      const loc = c.locationId || 'unknown';
-      if (!locationGroups.has(loc)) locationGroups.set(loc, []);
-      locationGroups.get(loc)!.push(c);
-    });
-
-    if (camera.zoom < 2.0) {
+    // 5. Draw Citizens / Population Density
+    if (camera.zoom < 2.0 && data.populationClusters) {
       // Heatmap / Aggregated cluster at low zoom
-      locationGroups.forEach((citizensInLoc, locId) => {
-        let cx = 0, cy = 0;
+      data.populationClusters.forEach(cluster => {
+        const cx = cluster.x;
+        const cy = cluster.y;
+        const count = cluster.population;
         
-        // Resolve spatial bounds of this location
-        const b = data.buildings.find(b => b.id === locId);
-        if (b) {
-          cx = b.coordinates.x;
-          cy = b.coordinates.y;
-        } else {
-          const d = data.districts.find(d => d.id === locId);
-          if (d) {
-            cx = d.coordinates.x;
-            cy = d.coordinates.y;
-          } else {
-            // If no location, spawn in city/region center
-            const c = data.cities?.[0];
-            cx = c?.coordinates.x || 0;
-            cy = c?.coordinates.y || 0;
+        if (count > 0) {
+          const radius = Math.max(10, 5 + Math.log10(count) * 8);
+          const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+          grad.addColorStop(0, 'rgba(16, 185, 129, 0.8)'); // Emerald
+          grad.addColorStop(1, 'rgba(16, 185, 129, 0)');
+          
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+          ctx.fill();
+
+          if (camera.zoom >= 0.5) {
+            drawLabel(count.toString(), cx, cy, '#ffffff', 10, 'center');
           }
         }
-
-        const count = citizensInLoc.length;
-        const radius = Math.max(10, 5 + Math.log10(count) * 8);
-        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
-        grad.addColorStop(0, 'rgba(16, 185, 129, 0.8)'); // Emerald
-        grad.addColorStop(1, 'rgba(16, 185, 129, 0)');
-        
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-        ctx.fill();
-
-        if (camera.zoom >= 0.5) {
-          drawLabel(count.toString(), cx, cy, '#ffffff', 10, 'center');
-        }
       });
-    } else {
+    } else if (camera.zoom >= 2.0 && data.citizens) {
       // High zoom: Draw at exact coordinates
       ctx.fillStyle = '#34d399'; // Emerald-400
       const dotSize = Math.max(0.5, 2 / camera.zoom);

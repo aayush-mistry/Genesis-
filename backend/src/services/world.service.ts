@@ -98,6 +98,38 @@ class WorldService {
     });
     this.engine.districtManager.addBuilding(district.id, storeBuilding.id);
 
+    // Generate Residential District
+    const residentialDistrict = this.engine.districtManager.createDistrict({
+      name: 'Residential District',
+      cityId: city.id,
+      type: DistrictType.RESIDENTIAL,
+      coordinates: { x: -200, y: 100 },
+      width: 500,
+      height: 500,
+      area: 10000,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+    this.engine.cityManager.addDistrict(city.id, residentialDistrict.id);
+
+    const apartmentBuildings: any[] = [];
+    for (let i = 0; i < 10; i++) {
+      const apartment = this.engine.buildingManager.createBuilding({
+        name: `Apartment Complex ${i + 1}`,
+        districtId: residentialDistrict.id,
+        type: BuildingType.APARTMENT,
+        capacity: 500,
+        coordinates: { x: -350 + (i % 5) * 60, y: 0 + Math.floor(i / 5) * 60 },
+        width: 30,
+        height: 30,
+        status: 'ACTIVE',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+      this.engine.districtManager.addBuilding(residentialDistrict.id, apartment.id);
+      apartmentBuildings.push(apartment);
+    }
+
     // Generate Workplaces
     this.engine.workplaceGenerator.generateWorkplaces();
 
@@ -109,10 +141,37 @@ class WorldService {
     const { citizenService } = await import('./citizen.service');
     citizenService.simulator.initializePopulation(5000);
 
+    // Assign citizens to households
+    const allCitizens = citizenService.engine.listCitizens();
+    let citizenIndex = 0;
+    const generatedHouseholds: any[] = [];
+    for (const apartment of apartmentBuildings) {
+      for (let h = 0; h < 100; h++) { // 100 households per apartment (5 members each)
+        const household = citizenService.engine.householdService.createHousehold(apartment.id);
+        generatedHouseholds.push(household);
+        for (let m = 0; m < 5; m++) {
+          if (citizenIndex < allCitizens.length) {
+            const c: any = allCitizens[citizenIndex];
+            c.locationId = household.locationId;
+            c.householdId = household.id;
+            // Generate exact coordinates inside the apartment bounds
+            const w = apartment.width;
+            const h2 = apartment.height;
+            c.coordX = apartment.coordinates.x - w/2 + Math.random() * w;
+            c.coordY = apartment.coordinates.y - h2/2 + Math.random() * h2;
+            citizenService.engine.householdService.addMember(household.id, c.id);
+            citizenIndex++;
+          }
+        }
+      }
+    }
+
     // FIX: Assign a valid location to the persistent test citizen so perception API works
     const testCitizen = citizenService.engine.getCitizen('test-citizen-banking');
     if (testCitizen) {
       testCitizen.locationId = storeBuilding.id;
+      testCitizen.coordX = storeBuilding.coordinates.x;
+      testCitizen.coordY = storeBuilding.coordinates.y;
     }
 
     // FIX: Persist all generated entities to SQLite
@@ -165,49 +224,54 @@ class WorldService {
       updatedAt: city.updatedAt,
     });
 
-    await worldRepository.createDistrict({
-      id: district.id,
-      cityId: city.id,
-      name: district.name,
-      type: district.type,
-      area: district.area,
-      coordX: district.coordinates.x,
-      coordY: district.coordinates.y,
-      width: district.width,
-      height: district.height,
-      createdAt: district.createdAt,
-      updatedAt: district.updatedAt,
-    });
+    const allDistricts = this.engine.districtManager.getAllDistricts();
+    for (const d of allDistricts) {
+      await worldRepository.createDistrict({
+        id: d.id,
+        cityId: d.cityId,
+        name: d.name,
+        type: d.type,
+        area: d.area,
+        coordX: d.coordinates.x,
+        coordY: d.coordinates.y,
+        width: d.width,
+        height: d.height,
+        createdAt: d.createdAt,
+        updatedAt: d.updatedAt,
+      });
+    }
 
-    await worldRepository.createBuilding({
-      id: factoryBuilding.id,
-      districtId: district.id,
-      name: factoryBuilding.name,
-      type: factoryBuilding.type,
-      capacity: factoryBuilding.capacity,
-      status: factoryBuilding.status,
-      coordX: factoryBuilding.coordinates.x,
-      coordY: factoryBuilding.coordinates.y,
-      width: factoryBuilding.width,
-      height: factoryBuilding.height,
-      createdAt: factoryBuilding.createdAt,
-      updatedAt: factoryBuilding.updatedAt,
-    });
+    const allBuildings = this.engine.buildingManager.getAllBuildings();
+    for (const b of allBuildings) {
+      await worldRepository.createBuilding({
+        id: b.id,
+        districtId: b.districtId,
+        name: b.name,
+        type: b.type,
+        capacity: b.capacity,
+        status: b.status,
+        coordX: b.coordinates.x,
+        coordY: b.coordinates.y,
+        width: b.width,
+        height: b.height,
+        createdAt: b.createdAt,
+        updatedAt: b.updatedAt,
+      });
+    }
 
-    await worldRepository.createBuilding({
-      id: storeBuilding.id,
-      districtId: district.id,
-      name: storeBuilding.name,
-      type: storeBuilding.type,
-      capacity: storeBuilding.capacity,
-      status: storeBuilding.status,
-      coordX: storeBuilding.coordinates.x,
-      coordY: storeBuilding.coordinates.y,
-      width: storeBuilding.width,
-      height: storeBuilding.height,
-      createdAt: storeBuilding.createdAt,
-      updatedAt: storeBuilding.updatedAt,
-    });
+    // Save households
+    const { PrismaClient } = await import('@prisma/client');
+    const prisma = new PrismaClient();
+    const householdData = generatedHouseholds.map(h => ({
+      id: h.id,
+      locationId: h.locationId,
+      inventoryId: h.inventoryId,
+      walletId: h.walletId
+    }));
+    for (let i = 0; i < householdData.length; i += 50) {
+      await prisma.household.createMany({ data: householdData.slice(i, i + 50) });
+    }
+    await prisma.$disconnect();
 
     // We also need to set the activeWorldId in SimulationState
     const { timeService } = await import('./time.service');
@@ -241,8 +305,8 @@ class WorldService {
     }
 
     // Save generated citizens
-    const allCitizens = citizenService.engine.listCitizens();
-    const cData = allCitizens.map((c: any) => ({
+    const finalCitizens = citizenService.engine.listCitizens();
+    const cData = finalCitizens.map((c: any) => ({
       id: c.id,
       name: c.name,
       gender: c.gender,
@@ -260,7 +324,9 @@ class WorldService {
       workplaceId: c.workplaceId,
       jobType: c.jobType,
       jobScheduleJson: c.jobSchedule ? JSON.stringify(c.jobSchedule) : null,
-      householdId: null, // Avoid FK constraint until households are generated
+      householdId: c.householdId || null,
+      coordX: c.coordX || null,
+      coordY: c.coordY || null,
     }));
 
     for (let i = 0; i < cData.length; i += 50) {
