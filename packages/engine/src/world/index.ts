@@ -7,3 +7,4 @@ export * from './WorldEngine';
 export * from './repositories/WorkplaceRepository';
 export * from './services/WorkplaceGenerator';
 export * from './services/SpatialGenerator';
+export * from './services/SettlementGenerator';
