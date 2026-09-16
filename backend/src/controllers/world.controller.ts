@@ -40,6 +40,7 @@ export const WorldController = {
     // Re-fetch citizens to ensure we get coordX and coordY if the engine didn't cache it
     const dbCitizens = await prisma.citizen.findMany();
     const dbBuildings = await prisma.building.findMany();
+    const dbTerrains = await prisma.terrain.findMany();
     await prisma.$disconnect();
 
     const mapCoordinates = (item: any) => ({
@@ -86,6 +87,7 @@ export const WorldController = {
       buildings: dbBuildings.map(mapCoordinates), // Use DB directly for now to get backfilled ones
       workplaces,
       resources,
+      terrain: dbTerrains.map(mapCoordinates),
       citizens: mappedCitizens,
       households: dbHouseholds.map(mapCoordinates),
       populationClusters: Array.from(clusterMap.values())

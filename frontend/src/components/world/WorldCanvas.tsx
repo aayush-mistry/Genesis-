@@ -62,6 +62,67 @@ export const WorldCanvas: React.FC = () => {
       ctx.fillText(text, x, y);
     };
 
+    // 0. Draw Terrain
+    if (data.terrain) {
+      data.terrain.forEach(t => {
+        let color = 'rgba(30, 41, 59, 0.4)';
+        if (t.type === 'PLAIN') color = 'rgba(74, 222, 128, 0.15)'; // Green-400
+        if (t.type === 'HILL') color = 'rgba(163, 163, 163, 0.15)'; // Neutral-400
+        if (t.type === 'MOUNTAIN') color = 'rgba(212, 212, 216, 0.25)'; // Zinc-300
+        
+        ctx.fillStyle = color;
+        const tx = t.coordinates.x - t.width / 2;
+        const ty = t.coordinates.y - t.height / 2;
+        ctx.fillRect(tx, ty, t.width, t.height);
+
+        if (camera.zoom < 0.8) {
+          drawLabel(t.name || t.type, t.coordinates.x, t.coordinates.y, 'rgba(255,255,255,0.4)', 18, 'center');
+        }
+      });
+    }
+
+    // 0.5. Draw Resources (Water, Forest, Agriculture, Minerals)
+    if (data.resources) {
+      data.resources.forEach(r => {
+        const rx = r.coordinates.x;
+        const ry = r.coordinates.y;
+        const radius = r.radius || 50;
+
+        ctx.beginPath();
+        ctx.arc(rx, ry, radius, 0, Math.PI * 2);
+        
+        if (r.type === 'WATER') {
+          ctx.fillStyle = 'rgba(56, 189, 248, 0.4)'; // Sky-400
+          ctx.fill();
+          if (camera.zoom >= 0.5 && camera.zoom < 3.0) {
+            drawLabel('💧 ' + r.name, rx, ry, '#7dd3fc', 12, 'center');
+          }
+        } else if (r.type === 'FORESTS') {
+          ctx.fillStyle = 'rgba(34, 197, 94, 0.4)'; // Green-500
+          ctx.fill();
+          if (camera.zoom >= 0.5 && camera.zoom < 3.0) {
+            drawLabel('🌲 ' + r.name, rx, ry, '#86efac', 12, 'center');
+          }
+        } else if (r.type === 'GRASSLANDS') {
+          ctx.fillStyle = 'rgba(163, 230, 53, 0.3)'; // Lime-400
+          ctx.fill();
+          if (camera.zoom >= 0.5 && camera.zoom < 3.0) {
+            drawLabel('🌾 ' + r.name, rx, ry, '#bef264', 12, 'center');
+          }
+        } else {
+          // Other resources (minerals, potentials)
+          if (camera.zoom >= 1.5) { // Only show these at higher zoom
+            ctx.strokeStyle = 'rgba(251, 191, 36, 0.6)'; // Amber-400
+            ctx.lineWidth = 2 / camera.zoom;
+            ctx.stroke();
+            if (camera.zoom >= 2.0) {
+              drawLabel('⛏️ ' + r.name, rx, ry + radius + 10, '#fcd34d', 10, 'center');
+            }
+          }
+        }
+      });
+    }
+
     // 1. Draw Regions
     data.regions.forEach(region => {
       const rx = region.coordinates.x - 500;
@@ -419,6 +480,17 @@ export const WorldCanvas: React.FC = () => {
         if (worldX >= r.coordinates.x - 500 && worldX <= r.coordinates.x + 500 &&
             worldY >= r.coordinates.y - 500 && worldY <= r.coordinates.y + 500) {
           setSelection({ type: 'region', id: r.id, data: r });
+          return;
+        }
+      }
+    }
+
+    // 7. Check Terrain
+    if (snapshot.terrain) {
+      for (const t of snapshot.terrain) {
+        if (worldX >= t.coordinates.x - t.width/2 && worldX <= t.coordinates.x + t.width/2 &&
+            worldY >= t.coordinates.y - t.height/2 && worldY <= t.coordinates.y + t.height/2) {
+          setSelection({ type: 'terrain', id: t.id, data: t } as any);
           return;
         }
       }

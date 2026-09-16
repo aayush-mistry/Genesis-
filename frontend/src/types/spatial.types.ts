@@ -8,6 +8,7 @@ export interface SpatialSnapshot {
   buildings: Building[];
   workplaces: Workplace[];
   resources: Resource[];
+  terrain: any[]; // Or import Terrain from @genesis/shared
   citizens: Citizen[];
   households: any[]; // Or import Household from @genesis/shared
   populationClusters?: any[];

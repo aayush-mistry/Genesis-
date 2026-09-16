@@ -115,6 +115,7 @@ model Region {
   cities       City[]
   workplaces   Workplace[]
   resources    Resource[]
+  terrains     Terrain[]
   
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -247,6 +248,30 @@ model Resource {
   borrowable            Boolean  @default(false)
   exportable            Boolean  @default(true)
   reservedAmount        Float    @default(0)
+  
+  metadataJson          String?  // JSON
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([regionId])
+}
+
+// ==========================================
+// Terrain
+// ==========================================
+model Terrain {
+  id                    String   @id @default(uuid())
+  type                  String
+  name                  String
+  
+  regionId              String
+  region                Region   @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  
+  coordX                Int
+  coordY                Int
+  width                 Int
+  height                Int
   
   metadataJson          String?  // JSON
   

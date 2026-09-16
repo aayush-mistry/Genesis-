@@ -272,6 +272,41 @@ class WorldService {
       await citizenRepository.createManyCitizens(cData.slice(i, i + 50));
     }
 
+    console.log('[WorldService] Generating Terrains...');
+    const { PrismaClient } = await import('@prisma/client');
+    const prisma = new PrismaClient();
+    const terrainData = [
+      {
+        type: 'PLAIN',
+        name: 'Central Plains',
+        regionId: defaultRegion.id,
+        coordX: -500,
+        coordY: -500,
+        width: 4000,
+        height: 4000,
+      },
+      {
+        type: 'HILL',
+        name: 'Eastern Hills',
+        regionId: defaultRegion.id,
+        coordX: 2000,
+        coordY: -1500,
+        width: 2500,
+        height: 3500,
+      },
+      {
+        type: 'MOUNTAIN',
+        name: 'Northern Peaks',
+        regionId: defaultRegion.id,
+        coordX: -1500,
+        coordY: -3500,
+        width: 5000,
+        height: 2000,
+      }
+    ];
+    await prisma.terrain.createMany({ data: terrainData });
+    await prisma.$disconnect();
+
     console.log('[WorldService] World generation complete. Running spatial backfill to generate settlements...');
     const { SpatialBackfillMigration } = await import('./SpatialBackfillMigration');
     await SpatialBackfillMigration.runMigration();

@@ -62,12 +62,46 @@ export const EntityPanel: React.FC = () => {
         {selection.type === 'resource' && (
           <>
             <div className="bg-slate-800 p-3 rounded">
-              <div className="text-xs text-slate-400 uppercase">Amount</div>
-              <div className="text-sm text-white">{selection.data.currentAmount.toFixed(2)} {selection.data.unit}</div>
+              <div className="text-xs text-slate-400 uppercase">Quantity</div>
+              <div className="text-sm text-white font-mono">
+                {selection.data.currentAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })} / {selection.data.maximumAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })} {selection.data.unit}
+              </div>
+              <div className="w-full bg-slate-700 h-1 mt-2 rounded-full overflow-hidden">
+                <div 
+                  className="bg-indigo-500 h-full" 
+                  style={{ width: `${Math.min(100, Math.max(0, (selection.data.currentAmount / selection.data.maximumAmount) * 100))}%` }}
+                ></div>
+              </div>
             </div>
+            
+            {selection.data.condition && (
+              <div className="bg-slate-800 p-3 rounded">
+                <div className="text-xs text-slate-400 uppercase">{selection.data.condition.type} (Health)</div>
+                <div className="text-sm text-emerald-400 font-mono">
+                  {(selection.data.condition.value * 100).toFixed(1)}%
+                </div>
+              </div>
+            )}
+            
+            {selection.data.naturalRecoveryRate && (
+              <div className="bg-slate-800 p-3 rounded">
+                <div className="text-xs text-slate-400 uppercase">Regeneration Rate</div>
+                <div className="text-sm text-white font-mono">+{selection.data.naturalRecoveryRate} {selection.data.unit}/tick</div>
+              </div>
+            )}
+
             <div className="bg-slate-800 p-3 rounded">
               <div className="text-xs text-slate-400 uppercase">Category</div>
               <div className="text-sm text-white">{selection.data.category}</div>
+            </div>
+          </>
+        )}
+
+        {selection.type === 'terrain' && (
+          <>
+            <div className="bg-slate-800 p-3 rounded">
+              <div className="text-xs text-slate-400 uppercase">Dimensions</div>
+              <div className="text-sm text-white font-mono">{selection.data.width} × {selection.data.height} m</div>
             </div>
           </>
         )}

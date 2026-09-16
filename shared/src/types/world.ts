@@ -98,6 +98,21 @@ export interface Room extends WorldEntity {
   objectIds: string[];
 }
 
+export enum TerrainType {
+  PLAIN = 'PLAIN',
+  HILL = 'HILL',
+  MOUNTAIN = 'MOUNTAIN',
+  DESERT = 'DESERT'
+}
+
+export interface Terrain extends WorldEntity {
+  type: TerrainType | string;
+  regionId: string;
+  coordinates: Coordinate;
+  width: number;
+  height: number;
+}
+
 export interface WorldObject extends WorldEntity {
   type: string;
   roomId?: string;

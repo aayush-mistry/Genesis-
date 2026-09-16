@@ -3,7 +3,7 @@ import { SpatialSnapshot, CameraState } from '../types/spatial.types';
 import { spatialApi } from '../api/spatial.api';
 
 interface EntitySelection {
-  type: 'world' | 'region' | 'city' | 'district' | 'building' | 'workplace' | 'resource' | 'citizen';
+  type: 'world' | 'region' | 'city' | 'district' | 'building' | 'workplace' | 'resource' | 'citizen' | 'terrain';
   id: string;
   data: any;
 }

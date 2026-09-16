@@ -89,6 +89,22 @@ export const WorldRenderer: React.FC = () => {
       <div className="flex-1 relative bg-slate-950">
         <WorldCanvas />
         <EntityPanel />
+        
+        {/* Legend */}
+        <div className="absolute bottom-6 left-6 bg-slate-900/90 border border-slate-700 p-4 rounded shadow-lg backdrop-blur text-xs text-slate-300 w-48">
+          <div className="font-bold text-white mb-2 uppercase tracking-wider">Legend</div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-[rgba(74,222,128,0.3)] border border-green-500 rounded-sm"></div> Plains</div>
+            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-[rgba(163,163,163,0.3)] border border-neutral-500 rounded-sm"></div> Hills</div>
+            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-[rgba(212,212,216,0.3)] border border-zinc-400 rounded-sm"></div> Mountains</div>
+            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-[rgba(56,189,248,0.6)]"></div> Water</div>
+            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-[rgba(34,197,94,0.6)]"></div> Forests</div>
+            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-[rgba(163,230,53,0.5)]"></div> Agriculture</div>
+            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-700">
+              <div className="w-3 h-3 border-2 border-[rgba(251,191,36,0.8)] rounded-full"></div> Minerals
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
