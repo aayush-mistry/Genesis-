@@ -97,6 +97,28 @@ export const EntityPanel: React.FC = () => {
           </>
         )}
 
+
+        {selection.type === 'workplace' && (
+          <>
+            <div className="bg-slate-800 p-3 rounded">
+              <div className="text-xs text-slate-400 uppercase">Capacity</div>
+              <div className="text-sm text-white">{selection.data.capacity} workers</div>
+            </div>
+            {selection.data.revenue !== undefined && (
+              <div className="bg-slate-800 p-3 rounded">
+                <div className="text-xs text-slate-400 uppercase">Financials</div>
+                <div className="text-sm text-white font-mono">
+                  Rev: ${selection.data.revenue} | Exp: ${selection.data.expenses} | Prof: ${selection.data.profit}
+                </div>
+              </div>
+            )}
+            <div className="bg-slate-800 p-3 rounded">
+              <div className="text-xs text-slate-400 uppercase">Occupancy</div>
+              <div className="text-sm text-white">{selection.data.occupiedPositions || 0} / {selection.data.capacity}</div>
+            </div>
+          </>
+        )}
+        
         {selection.type === 'terrain' && (
           <>
             <div className="bg-slate-800 p-3 rounded">

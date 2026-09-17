@@ -4,7 +4,8 @@ import {
   citizenRepository, 
   financialRepository, 
   inventoryRepository, 
-  workplaceRepository 
+  workplaceRepository,
+  resourceRepository
 } from '../repositories';
 import { citizenService } from './citizen.service';
 import { supplyService } from './supply.service';
@@ -83,6 +84,39 @@ export class PersistenceService {
                 });
               }
             });
+          }
+
+          // Hydrate Resources
+          const { resourceService } = await import('./resource.service');
+          const allRegions = Array.from((worldService.engine.regionManager as any).regions.values()) as any[];
+          for (const region of allRegions) {
+            const dbResources = await resourceRepository.getResourcesByRegion(region.id);
+            for (const r of dbResources) {
+              const resObj = {
+                id: r.id,
+                name: r.name,
+                type: r.type as any,
+                category: r.category as any,
+                unit: r.unit,
+                renewable: r.renewable,
+                regionId: r.regionId,
+                coordinates: { x: r.coordX, y: r.coordY },
+                radius: r.radius,
+                currentAmount: r.currentAmount,
+                maximumAmount: r.maximumAmount,
+                naturalRecoveryRate: r.naturalRecoveryRate,
+                consumptionRate: r.consumptionRate,
+                condition: r.conditionType ? { type: r.conditionType, value: r.conditionValue } : null,
+                extractionDifficulty: r.extractionDifficulty,
+                createdAt: r.createdAt,
+                updatedAt: r.updatedAt
+              };
+              
+              if (!(resourceService.engine.resourceManager as any).resourcesByRegion.has(r.regionId)) {
+                (resourceService.engine.resourceManager as any).resourcesByRegion.set(r.regionId, []);
+              }
+              (resourceService.engine.resourceManager as any).resourcesByRegion.get(r.regionId)!.push(resObj);
+            }
           }
         }
       } else {

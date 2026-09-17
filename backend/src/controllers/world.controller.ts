@@ -79,13 +79,61 @@ export const WorldController = {
       clusterMap.get(locId).population++;
     });
 
+    const { SeededRandom } = await import('@genesis/engine');
+    const mappedWorkplaces = workplaces.map(wp => {
+      const building = dbBuildings.find(b => b.id === wp.locationId);
+      if (building) {
+        return { ...wp, coordinates: { x: building.coordX, y: building.coordY } };
+      }
+      if (['FARM', 'MINE', 'FISHING_SITE', 'FOREST_SITE'].includes(wp.type)) {
+        const region = regions.find(r => r.id === wp.regionId);
+        if (region) {
+          let hash = 0;
+          for (let i = 0; i < wp.id.length; i++) {
+             hash = ((hash << 5) - hash) + wp.id.charCodeAt(i);
+             hash |= 0;
+          }
+          const wpRng = new SeededRandom(world.randomSeed ^ hash);
+          return {
+            ...wp,
+            coordinates: { 
+              x: region.coordinates.x + Math.floor(wpRng.nextFloat(-1200, 1200)),
+              y: region.coordinates.y + Math.floor(wpRng.nextFloat(-1200, 1200))
+            }
+          };
+        }
+      }
+      
+      // Civic Workplaces (No building, attached to City)
+      if (['HOSPITAL', 'SCHOOL', 'POLICE_STATION', 'FIRE_STATION', 'WHOLESALE'].includes(wp.type)) {
+        // locationId for these is usually the cityId
+        const city = cities.find(c => c.id === wp.locationId) || cities.find(c => c.regionId === wp.regionId);
+        if (city) {
+          let hash = 0;
+          for (let i = 0; i < wp.id.length; i++) {
+             hash = ((hash << 5) - hash) + wp.id.charCodeAt(i);
+             hash |= 0;
+          }
+          const wpRng = new SeededRandom(world.randomSeed ^ hash);
+          return {
+            ...wp,
+            coordinates: { 
+              x: city.coordinates.x + Math.floor(wpRng.nextFloat(-city.width/3, city.width/3)),
+              y: city.coordinates.y + Math.floor(wpRng.nextFloat(-city.height/3, city.height/3))
+            }
+          };
+        }
+      }
+      return { ...wp, coordinates: { x: 0, y: 0 } };
+    });
+
     return reply.send({
       world,
       regions,
       cities,
       districts,
       buildings: dbBuildings.map(mapCoordinates), // Use DB directly for now to get backfilled ones
-      workplaces,
+      workplaces: mappedWorkplaces,
       resources,
       terrain: dbTerrains.map(mapCoordinates),
       citizens: mappedCitizens,

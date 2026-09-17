@@ -123,6 +123,100 @@ export const WorldCanvas: React.FC = () => {
       });
     }
 
+    // 0.7. Draw Resource Workplaces (Farms, Mines, Fishing)
+    if (data.workplaces) {
+      data.workplaces.forEach((wp: any) => {
+        if (!wp.coordinates || (wp.coordinates.x === 0 && wp.coordinates.y === 0)) return;
+        const wx = wp.coordinates.x;
+        const wy = wp.coordinates.y;
+
+        if (wp.type === 'FARM') {
+          // Farm / Agricultural Land
+          const size = 150; // Agricultural plot size
+          ctx.fillStyle = 'rgba(234, 179, 8, 0.2)'; // Yellow-500
+          ctx.fillRect(wx - size / 2, wy - size / 2, size, size);
+          
+          ctx.strokeStyle = 'rgba(202, 138, 4, 0.4)'; // Yellow-600
+          ctx.lineWidth = 2 / camera.zoom;
+          ctx.strokeRect(wx - size / 2, wy - size / 2, size, size);
+
+          if (camera.zoom >= 0.8 && camera.zoom < 3.0) {
+            drawLabel('🚜 Farm Land', wx, wy, '#fef08a', 14, 'center');
+          }
+        } else if (wp.type === 'MINE') {
+          // Mine
+          ctx.beginPath();
+          ctx.moveTo(wx - 40, wy + 40);
+          ctx.lineTo(wx + 40, wy + 40);
+          ctx.lineTo(wx, wy - 30);
+          ctx.closePath();
+          ctx.fillStyle = 'rgba(82, 82, 91, 0.5)'; // Zinc-600
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(161, 161, 170, 0.8)';
+          ctx.lineWidth = 2 / camera.zoom;
+          ctx.stroke();
+
+          if (camera.zoom >= 0.8 && camera.zoom < 3.0) {
+            drawLabel('⛏️ Mine', wx, wy + 50, '#d4d4d8', 14, 'center');
+          }
+        } else if (wp.type === 'FISHING_SITE') {
+          // Fishing
+          ctx.beginPath();
+          ctx.arc(wx, wy, 60, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(14, 165, 233, 0.3)'; // Sky-500
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(56, 189, 248, 0.6)';
+          ctx.lineWidth = 2 / camera.zoom;
+          ctx.stroke();
+
+          if (camera.zoom >= 0.8 && camera.zoom < 3.0) {
+            drawLabel('🎣 Fishery', wx, wy, '#bae6fd', 14, 'center');
+          }
+        } else if (wp.type === 'HOSPITAL') {
+          ctx.fillStyle = 'rgba(239, 68, 68, 0.9)'; // Red-500
+          ctx.fillRect(wx - 10, wy - 10, 20, 20);
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(wx - 8, wy - 3, 16, 6);
+          ctx.fillRect(wx - 3, wy - 8, 6, 16);
+          if (camera.zoom >= 1.5) drawLabel('🏥 Hospital', wx, wy + 20, '#f87171', 12, 'center');
+        } else if (wp.type === 'SCHOOL') {
+          ctx.fillStyle = 'rgba(234, 179, 8, 0.9)'; // Yellow-500
+          ctx.beginPath();
+          ctx.moveTo(wx, wy - 12);
+          ctx.lineTo(wx + 12, wy);
+          ctx.lineTo(wx + 8, wy + 12);
+          ctx.lineTo(wx - 8, wy + 12);
+          ctx.lineTo(wx - 12, wy);
+          ctx.closePath();
+          ctx.fill();
+          if (camera.zoom >= 1.5) drawLabel('🏫 School', wx, wy + 22, '#fde047', 12, 'center');
+        } else if (wp.type === 'POLICE_STATION') {
+          ctx.fillStyle = 'rgba(59, 130, 246, 0.9)'; // Blue-500
+          ctx.fillRect(wx - 10, wy - 10, 20, 20);
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2 / camera.zoom;
+          ctx.strokeRect(wx - 6, wy - 6, 12, 12);
+          if (camera.zoom >= 1.5) drawLabel('🚓 Police', wx, wy + 20, '#60a5fa', 12, 'center');
+        } else if (wp.type === 'FIRE_STATION') {
+          ctx.fillStyle = 'rgba(220, 38, 38, 0.9)'; // Red-600
+          ctx.beginPath();
+          ctx.moveTo(wx, wy - 12);
+          ctx.lineTo(wx + 10, wy + 10);
+          ctx.lineTo(wx - 10, wy + 10);
+          ctx.closePath();
+          ctx.fill();
+          if (camera.zoom >= 1.5) drawLabel('🚒 Fire Station', wx, wy + 20, '#f87171', 12, 'center');
+        } else if (wp.type === 'WHOLESALE') {
+          ctx.fillStyle = 'rgba(139, 92, 246, 0.9)'; // Violet-500
+          ctx.fillRect(wx - 12, wy - 12, 24, 24);
+          ctx.strokeStyle = '#ddd';
+          ctx.lineWidth = 2 / camera.zoom;
+          ctx.strokeRect(wx - 8, wy - 8, 16, 16);
+          if (camera.zoom >= 1.5) drawLabel('🏢 Wholesale', wx, wy + 20, '#a78bfa', 12, 'center');
+        }
+      });
+    }
+
     // 1. Draw Regions
     data.regions.forEach(region => {
       const rx = region.coordinates.x - 500;
@@ -439,6 +533,28 @@ export const WorldCanvas: React.FC = () => {
           worldY >= b.coordinates.y - h/2 && worldY <= b.coordinates.y + h/2) {
         setSelection({ type: 'building', id: b.id, data: b });
         return;
+      }
+    }
+    // 2.5. Check Workplaces (Farms, Mines, etc.)
+    if (snapshot.workplaces) {
+      for (const wp of snapshot.workplaces as any[]) {
+        if (!wp.coordinates || (wp.coordinates.x === 0 && wp.coordinates.y === 0)) continue;
+        if (['FARM', 'MINE', 'FISHING_SITE', 'FOREST_SITE'].includes(wp.type)) {
+           const size = wp.type === 'FARM' ? 150 : 80;
+           if (worldX >= wp.coordinates.x - size/2 && worldX <= wp.coordinates.x + size/2 &&
+               worldY >= wp.coordinates.y - size/2 && worldY <= wp.coordinates.y + size/2) {
+             setSelection({ type: 'workplace', id: wp.id, data: wp });
+             return;
+           }
+        }
+        if (['HOSPITAL', 'SCHOOL', 'POLICE_STATION', 'FIRE_STATION', 'WHOLESALE'].includes(wp.type)) {
+           const size = 30; // approx icon size
+           if (worldX >= wp.coordinates.x - size/2 && worldX <= wp.coordinates.x + size/2 &&
+               worldY >= wp.coordinates.y - size/2 && worldY <= wp.coordinates.y + size/2) {
+             setSelection({ type: 'workplace', id: wp.id, data: wp });
+             return;
+           }
+        }
       }
     }
     

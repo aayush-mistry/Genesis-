@@ -272,9 +272,35 @@ class WorldService {
       await citizenRepository.createManyCitizens(cData.slice(i, i + 50));
     }
 
-    console.log('[WorldService] Generating Terrains...');
+    console.log('[WorldService] Generating Terrains and Resources...');
     const { PrismaClient } = await import('@prisma/client');
     const prisma = new PrismaClient();
+    
+    // Persist Resources
+    const { resourceService: resService } = await import('./resource.service');
+    const resourcesToPersist = resService.engine.resourceManager.getAllResources().map(r => ({
+      id: r.id,
+      name: r.name,
+      type: r.type,
+      category: r.category,
+      unit: r.unit,
+      renewable: r.renewable,
+      regionId: r.regionId,
+      coordX: r.coordinates?.x || 0,
+      coordY: r.coordinates?.y || 0,
+      radius: r.radius,
+      currentAmount: r.currentAmount,
+      maximumAmount: r.maximumAmount,
+      naturalRecoveryRate: r.naturalRecoveryRate,
+      consumptionRate: r.consumptionRate,
+      conditionType: r.condition?.type || null,
+      conditionValue: r.condition?.value || null,
+      extractionDifficulty: r.extractionDifficulty,
+    }));
+    if (resourcesToPersist.length > 0) {
+      await prisma.resource.createMany({ data: resourcesToPersist });
+    }
+
     const terrainData = [
       {
         type: 'PLAIN',
