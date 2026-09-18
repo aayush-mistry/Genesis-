@@ -38,10 +38,13 @@ export const EntityPanel: React.FC = () => {
           </div>
         )}
         
-        {selection.data.coordinates && (
+        {(selection.data.coordinates || (selection.data.x !== undefined && selection.data.y !== undefined)) && (
           <div className="bg-slate-800 p-3 rounded">
             <div className="text-xs text-slate-400 uppercase">Coordinates</div>
-            <div className="text-sm text-white font-mono">X: {Math.round(selection.data.coordinates.x)}, Y: {Math.round(selection.data.coordinates.y)}</div>
+            <div className="text-sm text-white font-mono">
+              X: {Math.round(selection.data.x ?? selection.data.coordinates?.x ?? 0)}, 
+              Y: {Math.round(selection.data.y ?? selection.data.coordinates?.y ?? 0)}
+            </div>
           </div>
         )}
         
@@ -131,8 +134,24 @@ export const EntityPanel: React.FC = () => {
         {selection.type === 'citizen' && (
           <>
             <div className="bg-slate-800 p-3 rounded">
-              <div className="text-xs text-slate-400 uppercase">Status</div>
-              <div className="text-sm text-white">{selection.data.status}</div>
+              <div className="text-xs text-slate-400 uppercase">Movement State</div>
+              <div className="text-sm font-mono" style={{ color: selection.data.movementState === 'TRAVELLING' ? '#f59e0b' : '#34d399' }}>
+                {selection.data.movementState || 'IDLE'}
+              </div>
+            </div>
+            {selection.data.movementState === 'TRAVELLING' && selection.data.activeRoute && (
+              <div className="bg-slate-800 p-3 rounded">
+                <div className="text-xs text-slate-400 uppercase">Route</div>
+                <div className="text-sm text-white">
+                  From: {selection.data.activeRoute.sourceId}<br/>
+                  To: {selection.data.activeRoute.destinationId}<br/>
+                  Progress: {Math.round((selection.data.travelProgress || 0) * 100)}%
+                </div>
+              </div>
+            )}
+            <div className="bg-slate-800 p-3 rounded">
+              <div className="text-xs text-slate-400 uppercase">Location ID</div>
+              <div className="text-sm font-mono text-white break-all">{selection.data.locationId || 'None'}</div>
             </div>
             <div className="bg-slate-800 p-3 rounded">
               <div className="text-xs text-slate-400 uppercase">Employment</div>

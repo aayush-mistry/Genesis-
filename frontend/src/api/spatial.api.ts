@@ -12,5 +12,12 @@ export const spatialApi = {
       throw new Error(`API Error: ${response.status}`);
     }
     return response.json();
+  },
+  getDynamicState: async (): Promise<import('../types/spatial.types').DynamicSpatialState> => {
+    const response = await fetch(`${API_BASE}/world/spatial/dynamic`);
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.status}`);
+    }
+    return response.json();
   }
 };

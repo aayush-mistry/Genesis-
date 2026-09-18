@@ -142,6 +142,120 @@ export const WorldController = {
     });
   },
 
+  getDynamicSpatialState: async (_request: FastifyRequest, reply: FastifyReply) => {
+    const world = worldService.engine.worldManager.getWorld();
+    if (!world) {
+      return reply.status(404).send({ error: 'World not initialized' });
+    }
+
+    const { citizenService } = await import('../services/citizen.service');
+    const citizens = citizenService.engine.listCitizens();
+    
+    // Quick fix: directly fetch buildings and workplaces for location resolution
+    const { PrismaClient } = await import('@prisma/client');
+    const prisma = new PrismaClient();
+    const dbBuildings = await prisma.building.findMany();
+    const dbCitizens = await prisma.citizen.findMany(); // to get persisted coords if needed
+    await prisma.$disconnect();
+
+    const { timeService } = await import('../services/time.service');
+    const currentTime = timeService.engine.getCurrentTime();
+
+    // Map building coords for quick lookup
+    const buildingMap = new Map<string, { x: number, y: number, width: number, height: number }>();
+    dbBuildings.forEach(b => buildingMap.set(b.id, { x: b.coordX, y: b.coordY, width: b.width, height: b.height }));
+
+    // Generate population clusters
+    const clusterMap = new Map<string, any>();
+    const { SeededRandom, TimeUtils } = await import('@genesis/engine');
+
+    const mappedCitizens = citizens.map(citizen => {
+      const dbCit = dbCitizens.find(c => c.id === citizen.id);
+      
+      let x = dbCit?.coordX ?? 0;
+      let y = dbCit?.coordY ?? 0;
+      let destinationX: number | undefined = undefined;
+      let destinationY: number | undefined = undefined;
+      let travelProgress: number | undefined = undefined;
+
+      if (citizen.movementState === 'IDLE' && citizen.locationId) {
+        const b = buildingMap.get(citizen.locationId);
+        if (b) {
+           let hash = 0;
+           for (let i = 0; i < citizen.id.length; i++) {
+              hash = ((hash << 5) - hash) + citizen.id.charCodeAt(i);
+              hash |= 0;
+           }
+           const cRng = new SeededRandom(world.randomSeed ^ hash);
+           // Add deterministic jitter so they don't stack perfectly
+           x = b.x + Math.floor(cRng.nextFloat(-b.width/4, b.width/4));
+           y = b.y + Math.floor(cRng.nextFloat(-b.height/4, b.height/4));
+        }
+      } else if (citizen.movementState === 'TRAVELLING' && citizen.activeRoute) {
+        const route = citizen.activeRoute;
+        const srcB = buildingMap.get(route.sourceId);
+        const destB = buildingMap.get(route.destinationId);
+        
+        let startX = x, startY = y;
+        if (srcB) { startX = srcB.x; startY = srcB.y; }
+        
+        if (destB) {
+           destinationX = destB.x;
+           destinationY = destB.y;
+        }
+
+        const startSecs = TimeUtils.toSeconds(route.startedAtSimulationTime);
+        const expectedSecs = TimeUtils.toSeconds(route.expectedArrivalSimulationTime);
+        const currentSecs = TimeUtils.toSeconds(currentTime);
+        
+        if (expectedSecs > startSecs) {
+           travelProgress = Math.min(1, Math.max(0, (currentSecs - startSecs) / (expectedSecs - startSecs)));
+        } else {
+           travelProgress = 1;
+        }
+        
+        // Let frontend interpolate, but we can send current interpolated pos as x, y fallback
+        if (destinationX !== undefined && destinationY !== undefined) {
+           x = startX + (destinationX - startX) * travelProgress;
+           y = startY + (destinationY - startY) * travelProgress;
+        }
+      }
+
+      // Aggregate clusters
+      const locId = citizen.locationId || 'unknown';
+      if (!clusterMap.has(locId)) {
+        const b = buildingMap.get(locId);
+        clusterMap.set(locId, {
+          clusterId: `cluster-${locId}`,
+          x: b ? b.x : x,
+          y: b ? b.y : y,
+          population: 0
+        });
+      }
+      clusterMap.get(locId).population++;
+
+      return {
+        id: citizen.id,
+        householdId: citizen.householdId,
+        workplaceId: citizen.workplaceId,
+        x,
+        y,
+        locationId: citizen.locationId,
+        movementState: citizen.movementState,
+        activeRoute: citizen.activeRoute,
+        destinationX,
+        destinationY,
+        travelProgress
+      };
+    });
+
+    return reply.send({
+      time: currentTime,
+      citizens: mappedCitizens,
+      populationClusters: Array.from(clusterMap.values())
+    });
+  },
+
   createWorld: async (request: FastifyRequest, _reply: FastifyReply) => {
     const { name, description, seed } = request.body as { name: string; description: string; seed: number };
     

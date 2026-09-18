@@ -14,6 +14,20 @@ export interface SpatialSnapshot {
   populationClusters?: any[];
 }
 
+export interface DynamicSpatialState {
+  time: any; // SimulationTime
+  citizens: SpatialCitizen[];
+  populationClusters: any[];
+}
+
+export interface SpatialCitizen extends Citizen {
+  x: number;
+  y: number;
+  destinationX?: number;
+  destinationY?: number;
+  travelProgress?: number;
+}
+
 export interface CameraState {
   x: number;
   y: number;

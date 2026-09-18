@@ -10,12 +10,14 @@ interface EntitySelection {
 
 interface SpatialState {
   snapshot: SpatialSnapshot | null;
+  dynamicState: import('../types/spatial.types').DynamicSpatialState | null;
   isLoading: boolean;
   error: string | null;
   camera: CameraState;
   selection: EntitySelection | null;
   
   fetchSnapshot: () => Promise<void>;
+  fetchDynamicState: () => Promise<void>;
   setCamera: (camera: Partial<CameraState>) => void;
   setSelection: (selection: EntitySelection | null) => void;
   resetCamera: () => void;
@@ -29,6 +31,7 @@ const DEFAULT_CAMERA: CameraState = {
 
 export const useSpatialStore = create<SpatialState>((set) => ({
   snapshot: null,
+  dynamicState: null,
   isLoading: true,
   error: null,
   camera: { ...DEFAULT_CAMERA },
@@ -66,6 +69,15 @@ export const useSpatialStore = create<SpatialState>((set) => ({
       set({ snapshot, isLoading: false, camera });
     } catch (error: any) {
       set({ error: error.message, isLoading: false });
+    }
+  },
+
+  fetchDynamicState: async () => {
+    try {
+      const dynamicState = await spatialApi.getDynamicState();
+      set({ dynamicState });
+    } catch (error: any) {
+      console.error('Failed to fetch dynamic spatial state', error);
     }
   },
 

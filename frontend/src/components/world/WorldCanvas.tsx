@@ -11,13 +11,13 @@ export const WorldCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
-  const { snapshot, camera, setCamera, setSelection } = useSpatialStore();
+  const { snapshot, dynamicState, fetchDynamicState, camera, setCamera, setSelection } = useSpatialStore();
   
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState<Point>({ x: 0, y: 0 });
 
   // Map backend spatial coordinates to canvas rendering
-  const renderWorld = (ctx: CanvasRenderingContext2D, width: number, height: number, data: SpatialSnapshot) => {
+  const renderWorld = (ctx: CanvasRenderingContext2D, width: number, height: number, data: SpatialSnapshot, dynamicData: any) => {
     ctx.clearRect(0, 0, width, height);
     
     ctx.save();
@@ -375,9 +375,10 @@ export const WorldCanvas: React.FC = () => {
     });
 
     // 5. Draw Citizens / Population Density
-    if (camera.zoom < 2.0 && data.populationClusters) {
+    const activeClusters = dynamicData?.populationClusters || data.populationClusters;
+    if (camera.zoom < 2.0 && activeClusters) {
       // Heatmap / Aggregated cluster at low zoom
-      data.populationClusters.forEach(cluster => {
+      activeClusters.forEach((cluster: any) => {
         const cx = cluster.x;
         const cy = cluster.y;
         const count = cluster.population;
@@ -398,19 +399,31 @@ export const WorldCanvas: React.FC = () => {
           }
         }
       });
-    } else if (camera.zoom >= 2.0 && data.citizens) {
+    } else if (camera.zoom >= 2.0 && (dynamicData?.citizens || data.citizens)) {
+      const activeCitizens = dynamicData?.citizens || data.citizens;
       // High zoom: Draw at exact coordinates
-      ctx.fillStyle = '#34d399'; // Emerald-400
       const dotSize = Math.max(0.5, 2 / camera.zoom);
       
-      data.citizens.forEach((citizen: any) => {
+      activeCitizens.forEach((citizen: any) => {
         // Use exact coordinates
-        const cX = citizen.coordinates?.x ?? 0;
-        const cY = citizen.coordinates?.y ?? 0;
+        const cX = citizen.x ?? (citizen.coordinates?.x ?? 0);
+        const cY = citizen.y ?? (citizen.coordinates?.y ?? 0);
+        
+        ctx.fillStyle = citizen.movementState === 'TRAVELLING' ? '#f59e0b' : '#34d399'; // Amber if travelling, Emerald if idle
         
         ctx.beginPath();
         ctx.arc(cX, cY, dotSize, 0, Math.PI * 2);
         ctx.fill();
+        
+        // Draw subtle destination trail if selected or high zoom
+        if (citizen.movementState === 'TRAVELLING' && citizen.destinationX !== undefined && camera.zoom >= 3.0) {
+           ctx.strokeStyle = 'rgba(245, 158, 11, 0.3)';
+           ctx.lineWidth = 1 / camera.zoom;
+           ctx.beginPath();
+           ctx.moveTo(cX, cY);
+           ctx.lineTo(citizen.destinationX, citizen.destinationY);
+           ctx.stroke();
+        }
       });
     }
     
@@ -426,7 +439,7 @@ export const WorldCanvas: React.FC = () => {
     let animationFrameId: number;
     
     const render = () => {
-      renderWorld(ctx, canvas.width, canvas.height, snapshot);
+      renderWorld(ctx, canvas.width, canvas.height, snapshot, dynamicState);
       animationFrameId = requestAnimationFrame(render);
     };
     
@@ -435,7 +448,17 @@ export const WorldCanvas: React.FC = () => {
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [snapshot, camera]);
+  }, [snapshot, dynamicState, camera]);
+
+  // Poll dynamic state
+  useEffect(() => {
+    if (!snapshot) return;
+    
+    fetchDynamicState(); // initial fetch
+    const intervalId = setInterval(fetchDynamicState, 1000); // 1 second polling
+    
+    return () => clearInterval(intervalId);
+  }, [snapshot, fetchDynamicState]);
 
   // Handle Resize
   useEffect(() => {
@@ -510,13 +533,13 @@ export const WorldCanvas: React.FC = () => {
     const worldX = (clickX - centerX) / camera.zoom + camera.x;
     const worldY = (clickY - centerY) / camera.zoom + camera.y;
     
-    // Simple hit detection (reverse order of rendering so top gets clicked)
     // 1. Check Citizens/Clusters (if applicable)
     if (camera.zoom >= 2.0) {
       const clickDist = 5 / camera.zoom;
-      for (const c of snapshot.citizens) {
-        const cX = (c as any).coordinates?.x ?? 0;
-        const cY = (c as any).coordinates?.y ?? 0;
+      const activeCitizens = dynamicState?.citizens || snapshot.citizens;
+      for (const c of activeCitizens) {
+        const cX = (c as any).x ?? ((c as any).coordinates?.x ?? 0);
+        const cY = (c as any).y ?? ((c as any).coordinates?.y ?? 0);
         const dist = Math.sqrt(Math.pow(worldX - cX, 2) + Math.pow(worldY - cY, 2));
         if (dist <= clickDist) {
           setSelection({ type: 'citizen', id: c.id, data: c });
