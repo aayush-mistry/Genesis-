@@ -131,6 +131,12 @@ export class MovementService {
 
     // Process arrival
     citizen.locationId = destinationId;
+    const destCoords = this.spatialQueryService['worldEngine'].getEntityCoordinates(destinationId);
+    if (destCoords) {
+      citizen.coordX = destCoords.x;
+      citizen.coordY = destCoords.y;
+    }
+    
     citizen.movementState = MovementState.IDLE;
     if (citizen.activeRoute) {
       citizen.activeRoute.status = 'COMPLETED';

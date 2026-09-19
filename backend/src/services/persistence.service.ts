@@ -345,6 +345,11 @@ export class PersistenceService {
           if (citizen) {
             await citizenRepository.updateCitizen(citizenId, {
               vitalStateJson: JSON.stringify(citizen.vitalState),
+              locationId: citizen.locationId || null,
+              coordX: citizen.coordX || null,
+              coordY: citizen.coordY || null,
+              movementState: citizen.movementState,
+              activeRouteJson: citizen.activeRoute ? JSON.stringify(citizen.activeRoute) : null,
             });
     
             const inventory = supplyService.inventoryManager.getInventoryByOwner(citizenId);

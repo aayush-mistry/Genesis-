@@ -149,59 +149,42 @@ export const WorldController = {
     }
 
     const { citizenService } = await import('../services/citizen.service');
+    const { spatialService } = await import('../services/spatial.service');
     const citizens = citizenService.engine.listCitizens();
     
     // Quick fix: directly fetch buildings and workplaces for location resolution
     const { PrismaClient } = await import('@prisma/client');
     const prisma = new PrismaClient();
     const dbBuildings = await prisma.building.findMany();
-    const dbCitizens = await prisma.citizen.findMany(); // to get persisted coords if needed
     await prisma.$disconnect();
 
     const { timeService } = await import('../services/time.service');
     const currentTime = timeService.engine.getCurrentTime();
 
-    // Map building coords for quick lookup
-    const buildingMap = new Map<string, { x: number, y: number, width: number, height: number }>();
-    dbBuildings.forEach(b => buildingMap.set(b.id, { x: b.coordX, y: b.coordY, width: b.width, height: b.height }));
-
     // Generate population clusters
     const clusterMap = new Map<string, any>();
-    const { SeededRandom, TimeUtils } = await import('@genesis/engine');
+    const { TimeUtils } = await import('@genesis/engine');
 
     const mappedCitizens = citizens.map(citizen => {
-      const dbCit = dbCitizens.find(c => c.id === citizen.id);
-      
-      let x = dbCit?.coordX ?? 0;
-      let y = dbCit?.coordY ?? 0;
+      let x = citizen.coordX ?? 0;
+      let y = citizen.coordY ?? 0;
       let destinationX: number | undefined = undefined;
       let destinationY: number | undefined = undefined;
       let travelProgress: number | undefined = undefined;
 
-      if (citizen.movementState === 'IDLE' && citizen.locationId) {
-        const b = buildingMap.get(citizen.locationId);
-        if (b) {
-           let hash = 0;
-           for (let i = 0; i < citizen.id.length; i++) {
-              hash = ((hash << 5) - hash) + citizen.id.charCodeAt(i);
-              hash |= 0;
-           }
-           const cRng = new SeededRandom(world.randomSeed ^ hash);
-           // Add deterministic jitter so they don't stack perfectly
-           x = b.x + Math.floor(cRng.nextFloat(-b.width/4, b.width/4));
-           y = b.y + Math.floor(cRng.nextFloat(-b.height/4, b.height/4));
-        }
-      } else if (citizen.movementState === 'TRAVELLING' && citizen.activeRoute) {
+      const exactCoords = spatialService.engine.queryService.resolveCitizenLocation(citizen, currentTime);
+      if (exactCoords) {
+        x = exactCoords.x;
+        y = exactCoords.y;
+      }
+
+      if (citizen.movementState === 'TRAVELLING' && citizen.activeRoute) {
         const route = citizen.activeRoute;
-        const srcB = buildingMap.get(route.sourceId);
-        const destB = buildingMap.get(route.destinationId);
+        const destCoords = spatialService.engine.queryService['worldEngine'].getEntityCoordinates(route.destinationId);
         
-        let startX = x, startY = y;
-        if (srcB) { startX = srcB.x; startY = srcB.y; }
-        
-        if (destB) {
-           destinationX = destB.x;
-           destinationY = destB.y;
+        if (destCoords) {
+           destinationX = destCoords.x;
+           destinationY = destCoords.y;
         }
 
         const startSecs = TimeUtils.toSeconds(route.startedAtSimulationTime);
@@ -213,22 +196,16 @@ export const WorldController = {
         } else {
            travelProgress = 1;
         }
-        
-        // Let frontend interpolate, but we can send current interpolated pos as x, y fallback
-        if (destinationX !== undefined && destinationY !== undefined) {
-           x = startX + (destinationX - startX) * travelProgress;
-           y = startY + (destinationY - startY) * travelProgress;
-        }
       }
 
       // Aggregate clusters
       const locId = citizen.locationId || 'unknown';
       if (!clusterMap.has(locId)) {
-        const b = buildingMap.get(locId);
+        const b = dbBuildings.find(b => b.id === locId);
         clusterMap.set(locId, {
           clusterId: `cluster-${locId}`,
-          x: b ? b.x : x,
-          y: b ? b.y : y,
+          x: b ? b.coordX : x,
+          y: b ? b.coordY : y,
           population: 0
         });
       }

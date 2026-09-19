@@ -62,6 +62,8 @@ export interface Citizen {
   status: CitizenStatus;
   createdAt: SimulationTime;
   locationId: string | null;
+  coordX?: number;
+  coordY?: number;
   vitalState: VitalState;
   wallet: import('./market').Wallet;
   movementState: MovementState;

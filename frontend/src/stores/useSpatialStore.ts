@@ -20,6 +20,8 @@ interface SpatialState {
   fetchDynamicState: () => Promise<void>;
   setCamera: (camera: Partial<CameraState>) => void;
   setSelection: (selection: EntitySelection | null) => void;
+  isFocused: boolean;
+  toggleFocus: () => void;
   resetCamera: () => void;
 }
 
@@ -36,6 +38,9 @@ export const useSpatialStore = create<SpatialState>((set) => ({
   error: null,
   camera: { ...DEFAULT_CAMERA },
   selection: null,
+  isFocused: false,
+
+  toggleFocus: () => set((state) => ({ isFocused: !state.isFocused })),
 
   fetchSnapshot: async () => {
     set({ isLoading: true, error: null });
@@ -85,7 +90,7 @@ export const useSpatialStore = create<SpatialState>((set) => ({
     camera: { ...state.camera, ...cameraUpdate }
   })),
 
-  setSelection: (selection) => set({ selection }),
+  setSelection: (selection) => set({ selection, isFocused: false }),
 
   resetCamera: () => set((state) => {
     let camera = { ...DEFAULT_CAMERA };

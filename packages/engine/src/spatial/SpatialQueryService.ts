@@ -1,4 +1,5 @@
-import { Coordinate, SpatialEntity, SpatialQueryOptions, SpatialRelationship } from '@genesis/shared';
+import { Coordinate, SpatialEntity, SpatialQueryOptions, SpatialRelationship, Citizen, MovementState, SimulationTime } from '@genesis/shared';
+import { TimeUtils } from '../utils/TimeUtils';
 import { SpatialIndex } from './SpatialIndex';
 import { SpatialCalculator } from './SpatialCalculator';
 import { WorldEngine } from '../world/WorldEngine';
@@ -153,5 +154,49 @@ export class SpatialQueryService {
       path: [sourceId, destinationId],
       distance
     };
+  }
+
+  /**
+   * Resolves the exact spatial location of a citizen based on their current state.
+   * If travelling, interpolates based on simulation time.
+   */
+  public resolveCitizenLocation(citizen: Citizen, currentTime: SimulationTime): Coordinate | null {
+    if (citizen.movementState === MovementState.TRAVELLING && citizen.activeRoute) {
+      const sourceCoords = this.worldEngine.getEntityCoordinates(citizen.activeRoute.sourceId);
+      const destCoords = this.worldEngine.getEntityCoordinates(citizen.activeRoute.destinationId);
+      
+      if (!sourceCoords || !destCoords) {
+        // Fallback to source or dest if one is missing, though this is an error state
+        return sourceCoords || destCoords || null;
+      }
+      
+      const startSecs = TimeUtils.toSeconds(citizen.activeRoute.startedAtSimulationTime);
+      const expectedSecs = TimeUtils.toSeconds(citizen.activeRoute.expectedArrivalSimulationTime);
+      const currentSecs = TimeUtils.toSeconds(currentTime);
+      
+      if (currentSecs >= expectedSecs) {
+        return destCoords;
+      }
+      
+      const progress = Math.max(0, (currentSecs - startSecs) / (expectedSecs - startSecs));
+      
+      return {
+        x: sourceCoords.x + (destCoords.x - sourceCoords.x) * progress,
+        y: sourceCoords.y + (destCoords.y - sourceCoords.y) * progress
+      };
+    }
+    
+    // Fallback: IDLE or no route, use locationId
+    if (citizen.locationId) {
+      const coords = this.worldEngine.getEntityCoordinates(citizen.locationId);
+      if (coords) return coords;
+    }
+    
+    // If citizen has persisted coords
+    if (citizen.coordX !== undefined && citizen.coordY !== undefined) {
+      return { x: citizen.coordX, y: citizen.coordY };
+    }
+    
+    return null;
   }
 }

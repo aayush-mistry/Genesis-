@@ -460,6 +460,33 @@ export const WorldCanvas: React.FC = () => {
     return () => clearInterval(intervalId);
   }, [snapshot, fetchDynamicState]);
 
+  // Focus effect
+  useEffect(() => {
+    const { isFocused, selection, dynamicState, snapshot, setCamera } = useSpatialStore.getState();
+    if (!isFocused || !selection) return;
+
+    let targetX: number | undefined;
+    let targetY: number | undefined;
+
+    if (selection.type === 'citizen') {
+      const citizenData = dynamicState?.citizens.find(c => c.id === selection.id) || snapshot?.citizens.find(c => c.id === selection.id);
+      if (citizenData) {
+        targetX = (citizenData as any).x ?? (citizenData as any).coordinates?.x ?? (citizenData as any).coordX;
+        targetY = (citizenData as any).y ?? (citizenData as any).coordinates?.y ?? (citizenData as any).coordY;
+      }
+    } else {
+      targetX = selection.data.x ?? selection.data.coordinates?.x;
+      targetY = selection.data.y ?? selection.data.coordinates?.y;
+    }
+
+    if (targetX !== undefined && targetY !== undefined) {
+      setCamera({
+        x: targetX,
+        y: targetY
+      });
+    }
+  }, [dynamicState, snapshot]);
+
   // Handle Resize
   useEffect(() => {
     const handleResize = () => {

@@ -2,7 +2,7 @@ import React from 'react';
 import { useSpatialStore } from '../../stores/useSpatialStore';
 
 export const EntityPanel: React.FC = () => {
-  const { selection, setSelection } = useSpatialStore();
+  const { selection, setSelection, isFocused, toggleFocus } = useSpatialStore();
 
   if (!selection) return null;
 
@@ -17,6 +17,17 @@ export const EntityPanel: React.FC = () => {
           &times;
         </button>
       </div>
+      
+      {(selection.type === 'citizen' || selection.type === 'workplace' || selection.type === 'building') && (
+        <button
+          onClick={toggleFocus}
+          className={`mb-4 w-full py-2 rounded text-sm font-semibold transition-colors ${
+            isFocused ? 'bg-indigo-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+          }`}
+        >
+          {isFocused ? 'Stop Focusing' : 'Focus Camera'}
+        </button>
+      )}
 
       <div className="space-y-4">
         <div className="bg-slate-800 p-3 rounded">
