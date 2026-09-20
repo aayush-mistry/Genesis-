@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { Play, Pause, Square } from 'lucide-react';
+import { useSpatialStore } from '../stores/useSpatialStore';
 
 interface SimulationTime {
   year: number;
@@ -11,25 +12,14 @@ interface SimulationTime {
   second: number;
 }
 
-interface TimeResponse {
-  time: SimulationTime;
-  state: 'Running' | 'Paused' | 'Stopped' | 'Reset';
-  speed: number;
-}
-
 export function TimeEngineCard() {
   const queryClient = useQueryClient();
   const [customSpeed, setCustomSpeed] = useState<number>(1);
+  
+  const { liveTime: time, liveSimulationState: state, liveSpeed: speed } = useSpatialStore();
 
-  const { data, isLoading, isError } = useQuery<TimeResponse>({
-    queryKey: ['timeEngine'],
-    queryFn: async () => {
-      const res = await fetch('/api/v1/time');
-      if (!res.ok) throw new Error('Failed to fetch time');
-      return res.json();
-    },
-    refetchInterval: 1000, // Poll every second for live updates
-  });
+  const isLoading = time === null;
+  const isError = false; // Error handled by store now
 
   const startMutation = useMutation({
     mutationFn: async () => fetch('/api/v1/time/start', { method: 'POST' }),
@@ -81,7 +71,7 @@ export function TimeEngineCard() {
     );
   }
 
-  if (isError || !data) {
+  if (isError) {
     return (
       <div className="rounded-xl border bg-card text-card-foreground shadow mt-8 p-6 border-red-500">
         <h3 className="text-lg font-medium mb-2 text-red-500">Time Engine Error</h3>
@@ -89,8 +79,6 @@ export function TimeEngineCard() {
       </div>
     );
   }
-
-  const { time, state, speed } = data;
 
   const pad = (n: number) => n.toString().padStart(2, '0');
   const formattedTime = `Year ${time.year}, Month ${pad(time.month)}, Day ${pad(time.day)} - ${pad(time.hour)}:${pad(time.minute)}:${pad(time.second)}`;

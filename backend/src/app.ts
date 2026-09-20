@@ -18,6 +18,7 @@ import decisionRoutes from './routes/decision.routes';
 import { perceptionRoutes } from './routes/perception.routes';
 import { supplyRoutes } from './routes/supply.routes';
 import { bankingRoutes } from './routes/banking.routes';
+import { liveRoutes } from './routes/live.routes';
 
 export async function buildApp() {
   const app = Fastify({
@@ -50,6 +51,7 @@ export async function buildApp() {
   app.register(perceptionRoutes, { prefix: '/api/v1' });
   app.register(supplyRoutes, { prefix: '/api/v1' });
   app.register(bankingRoutes, { prefix: '/api/v1' });
+  app.register(liveRoutes, { prefix: '/api/v1' });
 
   // Bootstrap persistence state
   await persistenceService.bootstrap();

@@ -7,11 +7,13 @@ interface Point {
   y: number;
 }
 
+import { ActivityFeed } from './ActivityFeed';
+
 export const WorldCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
-  const { snapshot, dynamicState, fetchDynamicState, camera, setCamera, setSelection } = useSpatialStore();
+  const { snapshot, dynamicState, initLiveSimulation, stopLiveSimulation, camera, setCamera, setSelection } = useSpatialStore();
   
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState<Point>({ x: 0, y: 0 });
@@ -450,15 +452,14 @@ export const WorldCanvas: React.FC = () => {
     };
   }, [snapshot, dynamicState, camera]);
 
-  // Poll dynamic state
+  // Connect to live simulation SSE
   useEffect(() => {
     if (!snapshot) return;
     
-    fetchDynamicState(); // initial fetch
-    const intervalId = setInterval(fetchDynamicState, 1000); // 1 second polling
+    initLiveSimulation();
     
-    return () => clearInterval(intervalId);
-  }, [snapshot, fetchDynamicState]);
+    return () => stopLiveSimulation();
+  }, [snapshot, initLiveSimulation, stopLiveSimulation]);
 
   // Focus effect
   useEffect(() => {
@@ -677,6 +678,7 @@ export const WorldCanvas: React.FC = () => {
       onClick={handleClick}
       style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
     >
+      <ActivityFeed />
       <canvas ref={canvasRef} className="block w-full h-full" />
     </div>
   );

@@ -16,6 +16,7 @@ export class TimeEngine {
   private tickCount = 0;
   private lastTpsCalculateTime = 0;
   public startTime = 0;
+  public currentTick = 0;
 
   constructor() {
     this.time = this.getDefaultTime();
@@ -102,6 +103,7 @@ export class TimeEngine {
     
     this.lastTickDurationMs = performance.now() - start;
     this.tickCount++;
+    this.currentTick++;
     
     const now = Date.now();
     if (now - this.lastTpsCalculateTime >= 1000) {
