@@ -79,6 +79,21 @@ npm run dev:frontend
 npm run dev
 ```
 
+## Building the Project
+
+To build the entire project (shared, engine, backend, and frontend workspaces) in the correct dependency order:
+```bash
+npm run build
+```
+
+To build individual workspaces:
+```bash
+npm run build:shared
+npm run build:engine
+npm run build:backend
+npm run build:frontend
+```
+
 ## Current Phase Status (Phase 6.x-1)
 - **Completed:** Phase 1 (Core Engine) including Time Engine, Event Scheduler, and Foundation.
 - **Completed:** Phase 2 (World Engine) including Environment, Resource, and Spatial engines.
