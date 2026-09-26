@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { useSpatialStore } from '../../stores/useSpatialStore';
 import { Clock, Activity } from 'lucide-react';
 

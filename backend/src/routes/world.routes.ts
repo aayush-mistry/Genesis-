@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { WorldController } from '../controllers/world.controller';
+import { EntityController } from '../controllers/entity.controller';
 
 export const worldRoutes: FastifyPluginAsync = async (server: FastifyInstance) => {
   // World
@@ -10,6 +11,11 @@ export const worldRoutes: FastifyPluginAsync = async (server: FastifyInstance) =
   server.post('/world', WorldController.createWorld);
   server.delete('/world', WorldController.deleteWorld);
   server.get('/world/hierarchy', WorldController.getHierarchy);
+  
+  // Entities
+  server.get('/world/entities/search', EntityController.searchEntities);
+  server.get('/world/entities/:type/:id', EntityController.getEntityDetail);
+  server.get('/world/entities/:type/:id/path', EntityController.getHierarchyPath);
 
   // Regions
   server.get('/regions', WorldController.getRegions);

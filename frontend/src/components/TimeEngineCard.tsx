@@ -3,14 +3,7 @@ import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { Play, Pause, Square } from 'lucide-react';
 import { useSpatialStore } from '../stores/useSpatialStore';
 
-interface SimulationTime {
-  year: number;
-  month: number;
-  day: number;
-  hour: number;
-  minute: number;
-  second: number;
-}
+
 
 export function TimeEngineCard() {
   const queryClient = useQueryClient();

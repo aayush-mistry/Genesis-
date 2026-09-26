@@ -2,9 +2,11 @@ import React, { useEffect } from 'react';
 import { useSpatialStore } from '../../stores/useSpatialStore';
 import { WorldCanvas } from './WorldCanvas';
 import { EntityPanel } from './EntityPanel';
+import { CivilizationHeader } from './CivilizationHeader';
+import { CivilizationSummary } from './CivilizationSummary';
 
 export const WorldRenderer: React.FC = () => {
-  const { snapshot, isLoading, error, fetchSnapshot, resetCamera } = useSpatialStore();
+  const { snapshot, isLoading, error, fetchSnapshot } = useSpatialStore();
 
   useEffect(() => {
     fetchSnapshot();
@@ -48,50 +50,18 @@ export const WorldRenderer: React.FC = () => {
   }
 
   return (
-    <div className="w-full h-full flex flex-col relative font-sans">
+    <div className="w-full h-full flex flex-col relative font-sans overflow-hidden">
       {/* Top Bar / HUD */}
-      <div className="absolute top-0 left-0 right-0 h-14 bg-slate-900/80 backdrop-blur border-b border-slate-700/50 flex items-center px-6 z-10 justify-between">
-        <div className="flex items-center gap-4">
-          <div className="font-bold text-xl text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">
-            GENESIS
-          </div>
-          <div className="h-4 w-px bg-slate-600 mx-2"></div>
-          <div className="text-slate-300 font-medium">
-            {snapshot.world.name}
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-slate-400">Pop:</span>
-            <span className="text-white font-mono">{snapshot.citizens.length}</span>
-          </div>
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-slate-400">Regions:</span>
-            <span className="text-white font-mono">{snapshot.regions.length}</span>
-          </div>
-          <button 
-            onClick={resetCamera}
-            className="px-3 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs text-white transition-colors"
-          >
-            Reset Camera
-          </button>
-          <button 
-            onClick={fetchSnapshot}
-            className="px-3 py-1 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 rounded text-xs transition-colors"
-          >
-            Refresh
-          </button>
-        </div>
-      </div>
+      <CivilizationHeader />
 
       {/* Main Canvas Area */}
-      <div className="flex-1 relative bg-slate-950">
+      <div className="flex-1 relative bg-slate-950 mt-16">
         <WorldCanvas />
         <EntityPanel />
+        <CivilizationSummary />
         
         {/* Legend */}
-        <div className="absolute bottom-6 left-6 bg-slate-900/90 border border-slate-700 p-4 rounded shadow-lg backdrop-blur text-xs text-slate-300 w-48">
+        <div className="absolute bottom-6 left-6 bg-slate-900/90 border border-slate-700 p-4 rounded shadow-lg backdrop-blur text-xs text-slate-300 w-48 z-10">
           <div className="font-bold text-white mb-2 uppercase tracking-wider">Legend</div>
           <div className="space-y-2">
             <div className="flex items-center gap-2"><div className="w-3 h-3 bg-[rgba(74,222,128,0.3)] border border-green-500 rounded-sm"></div> Plains</div>

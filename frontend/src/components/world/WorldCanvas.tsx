@@ -13,7 +13,7 @@ export const WorldCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
-  const { snapshot, dynamicState, initLiveSimulation, stopLiveSimulation, camera, setCamera, setSelection } = useSpatialStore();
+  const { snapshot, dynamicState, initLiveSimulation, stopLiveSimulation, camera, setCamera, setSelection, selectEntity, selection, layers } = useSpatialStore();
   
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState<Point>({ x: 0, y: 0 });
@@ -65,7 +65,7 @@ export const WorldCanvas: React.FC = () => {
     };
 
     // 0. Draw Terrain
-    if (data.terrain) {
+    if (layers.terrain && data.terrain) {
       data.terrain.forEach(t => {
         let color = 'rgba(30, 41, 59, 0.4)';
         if (t.type === 'PLAIN') color = 'rgba(74, 222, 128, 0.15)'; // Green-400
@@ -84,7 +84,7 @@ export const WorldCanvas: React.FC = () => {
     }
 
     // 0.5. Draw Resources (Water, Forest, Agriculture, Minerals)
-    if (data.resources) {
+    if (layers.resources && data.resources) {
       data.resources.forEach(r => {
         const rx = r.coordinates.x;
         const ry = r.coordinates.y;
@@ -126,7 +126,7 @@ export const WorldCanvas: React.FC = () => {
     }
 
     // 0.7. Draw Resource Workplaces (Farms, Mines, Fishing)
-    if (data.workplaces) {
+    if (layers.buildings && data.workplaces) {
       data.workplaces.forEach((wp: any) => {
         if (!wp.coordinates || (wp.coordinates.x === 0 && wp.coordinates.y === 0)) return;
         const wx = wp.coordinates.x;
@@ -293,7 +293,8 @@ export const WorldCanvas: React.FC = () => {
     });
 
     // 4. Draw Buildings (Icons)
-    data.buildings.forEach((building) => {
+    if (layers.buildings) {
+      data.buildings.forEach((building) => {
       const bx = building.coordinates.x;
       const by = building.coordinates.y;
       
@@ -375,10 +376,11 @@ export const WorldCanvas: React.FC = () => {
         drawLabel(building.name, bx, by + 18, '#ffffff', 8, 'center');
       }
     });
+    }
 
     // 5. Draw Citizens / Population Density
     const activeClusters = dynamicData?.populationClusters || data.populationClusters;
-    if (camera.zoom < 2.0 && activeClusters) {
+    if (layers.citizens && camera.zoom < 2.0 && activeClusters) {
       // Heatmap / Aggregated cluster at low zoom
       activeClusters.forEach((cluster: any) => {
         const cx = cluster.x;
@@ -401,7 +403,7 @@ export const WorldCanvas: React.FC = () => {
           }
         }
       });
-    } else if (camera.zoom >= 2.0 && (dynamicData?.citizens || data.citizens)) {
+    } else if (layers.citizens && camera.zoom >= 2.0 && (dynamicData?.citizens || data.citizens)) {
       const activeCitizens = dynamicData?.citizens || data.citizens;
       // High zoom: Draw at exact coordinates
       const dotSize = Math.max(0.5, 2 / camera.zoom);
@@ -427,6 +429,47 @@ export const WorldCanvas: React.FC = () => {
            ctx.stroke();
         }
       });
+    }
+    
+    // HIGHLIGHT SELECTION
+    if (selection && selection.data) {
+       const sel = selection.data;
+       const sX = sel.x ?? sel.coordinates?.x ?? sel.coordX;
+       const sY = sel.y ?? sel.coordinates?.y ?? sel.coordY;
+       
+       if (sX !== undefined && sY !== undefined) {
+         ctx.save();
+         ctx.translate(sX, sY);
+         
+         ctx.strokeStyle = '#6366f1'; // Indigo-500
+         ctx.lineWidth = 4 / camera.zoom;
+         ctx.shadowBlur = 15 / camera.zoom;
+         ctx.shadowColor = '#818cf8';
+         
+         const t = performance.now() / 500;
+         const pulse = 1 + Math.sin(t) * 0.1;
+         ctx.scale(pulse, pulse);
+         
+         if (selection.type === 'citizen') {
+           ctx.beginPath();
+           ctx.arc(0, 0, 10 / camera.zoom, 0, Math.PI * 2);
+           ctx.stroke();
+         } else if (selection.type === 'building' || selection.type === 'workplace') {
+           const size = Math.max(30, sel.width || 24);
+           ctx.strokeRect(-size/2, -size/2, size, size);
+         } else if (selection.type === 'city' || selection.type === 'district') {
+           const size = Math.sqrt(sel.area);
+           ctx.strokeRect(-size/2, -size/2, size, size);
+         } else if (selection.type === 'region') {
+           ctx.strokeRect(-500, -500, 1000, 1000);
+         } else if (selection.type === 'resource') {
+           ctx.beginPath();
+           ctx.arc(0, 0, sel.radius || 50, 0, Math.PI * 2);
+           ctx.stroke();
+         }
+         
+         ctx.restore();
+       }
     }
     
     ctx.restore();
@@ -481,9 +524,17 @@ export const WorldCanvas: React.FC = () => {
     }
 
     if (targetX !== undefined && targetY !== undefined) {
+      let targetZoom = camera.zoom;
+      if (selection.type === 'citizen') targetZoom = 6.0;
+      else if (selection.type === 'building' || selection.type === 'workplace') targetZoom = 4.0;
+      else if (selection.type === 'district') targetZoom = 2.0;
+      else if (selection.type === 'city') targetZoom = 1.0;
+      else if (selection.type === 'region') targetZoom = 0.5;
+      
       setCamera({
         x: targetX,
-        y: targetY
+        y: targetY,
+        zoom: targetZoom
       });
     }
   }, [dynamicState, snapshot]);
@@ -570,7 +621,7 @@ export const WorldCanvas: React.FC = () => {
         const cY = (c as any).y ?? ((c as any).coordinates?.y ?? 0);
         const dist = Math.sqrt(Math.pow(worldX - cX, 2) + Math.pow(worldY - cY, 2));
         if (dist <= clickDist) {
-          setSelection({ type: 'citizen', id: c.id, data: c });
+          selectEntity('citizen', c.id, c);
           return;
         }
       }
@@ -582,7 +633,7 @@ export const WorldCanvas: React.FC = () => {
       const h = b.height || (b.capacity > 50 ? 24 : 16);
       if (worldX >= b.coordinates.x - w/2 && worldX <= b.coordinates.x + w/2 &&
           worldY >= b.coordinates.y - h/2 && worldY <= b.coordinates.y + h/2) {
-        setSelection({ type: 'building', id: b.id, data: b });
+        selectEntity('building', b.id, b);
         return;
       }
     }
@@ -594,7 +645,7 @@ export const WorldCanvas: React.FC = () => {
            const size = wp.type === 'FARM' ? 150 : 80;
            if (worldX >= wp.coordinates.x - size/2 && worldX <= wp.coordinates.x + size/2 &&
                worldY >= wp.coordinates.y - size/2 && worldY <= wp.coordinates.y + size/2) {
-             setSelection({ type: 'workplace', id: wp.id, data: wp });
+             selectEntity('workplace', wp.id, wp);
              return;
            }
         }
@@ -602,7 +653,7 @@ export const WorldCanvas: React.FC = () => {
            const size = 30; // approx icon size
            if (worldX >= wp.coordinates.x - size/2 && worldX <= wp.coordinates.x + size/2 &&
                worldY >= wp.coordinates.y - size/2 && worldY <= wp.coordinates.y + size/2) {
-             setSelection({ type: 'workplace', id: wp.id, data: wp });
+             selectEntity('workplace', wp.id, wp);
              return;
            }
         }
@@ -613,7 +664,7 @@ export const WorldCanvas: React.FC = () => {
     for (const r of snapshot.resources) {
       const dist = Math.sqrt(Math.pow(worldX - r.coordinates.x, 2) + Math.pow(worldY - r.coordinates.y, 2));
       if (dist <= r.radius) {
-        setSelection({ type: 'resource', id: r.id, data: r });
+        selectEntity('resource', r.id, r);
         return;
       }
     }
@@ -623,7 +674,7 @@ export const WorldCanvas: React.FC = () => {
         const size = Math.sqrt(d.area);
         if (worldX >= d.coordinates.x - size/2 && worldX <= d.coordinates.x + size/2 &&
             worldY >= d.coordinates.y - size/2 && worldY <= d.coordinates.y + size/2) {
-          setSelection({ type: 'district', id: d.id, data: d });
+          selectEntity('district', d.id, d);
           return;
         }
       }
@@ -635,7 +686,7 @@ export const WorldCanvas: React.FC = () => {
         const size = Math.sqrt(c.area);
         if (worldX >= c.coordinates.x - size/2 && worldX <= c.coordinates.x + size/2 &&
             worldY >= c.coordinates.y - size/2 && worldY <= c.coordinates.y + size/2) {
-          setSelection({ type: 'city', id: c.id, data: c });
+          selectEntity('city', c.id, c);
           return;
         }
       }
@@ -646,7 +697,7 @@ export const WorldCanvas: React.FC = () => {
       for (const r of snapshot.regions) {
         if (worldX >= r.coordinates.x - 500 && worldX <= r.coordinates.x + 500 &&
             worldY >= r.coordinates.y - 500 && worldY <= r.coordinates.y + 500) {
-          setSelection({ type: 'region', id: r.id, data: r });
+          selectEntity('region', r.id, r);
           return;
         }
       }
@@ -657,7 +708,7 @@ export const WorldCanvas: React.FC = () => {
       for (const t of snapshot.terrain) {
         if (worldX >= t.coordinates.x - t.width/2 && worldX <= t.coordinates.x + t.width/2 &&
             worldY >= t.coordinates.y - t.height/2 && worldY <= t.coordinates.y + t.height/2) {
-          setSelection({ type: 'terrain', id: t.id, data: t } as any);
+          selectEntity('terrain', t.id, t);
           return;
         }
       }

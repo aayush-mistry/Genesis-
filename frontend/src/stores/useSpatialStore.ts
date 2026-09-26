@@ -3,9 +3,11 @@ import { SpatialSnapshot, CameraState } from '../types/spatial.types';
 import { spatialApi } from '../api/spatial.api';
 
 interface EntitySelection {
-  type: 'world' | 'region' | 'city' | 'district' | 'building' | 'workplace' | 'resource' | 'citizen' | 'terrain';
+  type: 'world' | 'region' | 'city' | 'district' | 'building' | 'workplace' | 'household' | 'citizen' | 'resource' | 'terrain';
   id: string;
-  data: any;
+  data?: any; // lightweight data
+  detailedData?: any; // fetched full data
+  hierarchyPath?: any[]; // path for breadcrumbs
 }
 
 interface SpatialState {
@@ -20,12 +22,15 @@ interface SpatialState {
   error: string | null;
   camera: CameraState;
   selection: EntitySelection | null;
+  layers: { citizens: boolean; buildings: boolean; resources: boolean; terrain: boolean };
   
   fetchSnapshot: () => Promise<void>;
   initLiveSimulation: () => void;
   stopLiveSimulation: () => void;
   setCamera: (camera: Partial<CameraState>) => void;
   setSelection: (selection: EntitySelection | null) => void;
+  selectEntity: (type: EntitySelection['type'], id: string, data?: any) => Promise<void>;
+  toggleLayer: (layer: keyof SpatialState['layers']) => void;
   isFocused: boolean;
   toggleFocus: () => void;
   resetCamera: () => void;
@@ -51,9 +56,11 @@ export const useSpatialStore = create<SpatialState>((set, get) => ({
   error: null,
   camera: { ...DEFAULT_CAMERA },
   selection: null,
+  layers: { citizens: true, buildings: true, resources: true, terrain: true },
   isFocused: false,
 
   toggleFocus: () => set((state) => ({ isFocused: !state.isFocused })),
+  toggleLayer: (layer) => set((state) => ({ layers: { ...state.layers, [layer]: !state.layers[layer] } })),
 
   fetchSnapshot: async () => {
     set({ isLoading: true, error: null });
@@ -145,6 +152,32 @@ export const useSpatialStore = create<SpatialState>((set, get) => ({
   })),
 
   setSelection: (selection) => set({ selection, isFocused: false }),
+  
+  selectEntity: async (type, id, data = null) => {
+    // Optimistic set
+    set({ selection: { type, id, data }, isFocused: false });
+    try {
+      const [detailRes, pathRes] = await Promise.all([
+        fetch(`/api/v1/world/entities/${type}/${id}`),
+        fetch(`/api/v1/world/entities/${type}/${id}/path`)
+      ]);
+      if (detailRes.ok && pathRes.ok) {
+        const detailedData = await detailRes.json();
+        const pathData = await pathRes.json();
+        const currentSelection = get().selection;
+        if (currentSelection && currentSelection.id === id && currentSelection.type === type) {
+          set({ selection: { ...currentSelection, detailedData, hierarchyPath: pathData.path } });
+        }
+      } else {
+        // Fallback or clear if not found
+        console.error('Failed to fetch entity details');
+        set({ selection: null });
+      }
+    } catch (e) {
+      console.error(e);
+      set({ selection: null });
+    }
+  },
 
   resetCamera: () => set((state) => {
     let camera = { ...DEFAULT_CAMERA };
