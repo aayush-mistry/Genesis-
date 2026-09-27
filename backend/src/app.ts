@@ -56,20 +56,20 @@ export async function buildApp() {
   // Bootstrap persistence state
   await persistenceService.bootstrap();
 
-  // Initialize engines
-  import('./services/world.service').then(m => m.worldService.initialize());
-  import('./services/environment.service').then(m => m.environmentService.initialize());
-  import('./services/resource.service').then(m => m.resourceService.initialize());
-  import('./services/spatial.service').then(m => m.spatialService.initialize());
-  import('./services/citizen.service').then(m => m.citizenService.initialize());
-  import('./services/decision.service').then(m => m.decisionService.initialize());
-  import('./services/perception.service').then(m => m.perceptionService.initialize());
-  import('./services/market.service').then(m => m.marketService.initialize());
-  import('./services/finance.service').then(m => m.financeService.initialize());
-  import('./services/supply.service').then(m => m.supplyService.initialize());
-  import('./services/banking.service').then(m => m.bankingService.initialize());
+  // Initialize engines sequentially or Promise.all
+  await import('./services/world.service').then(m => m.worldService.initialize());
+  await import('./services/environment.service').then(m => m.environmentService.initialize());
+  await import('./services/resource.service').then(m => m.resourceService.initialize());
+  await import('./services/spatial.service').then(m => m.spatialService.initialize());
+  await import('./services/citizen.service').then(m => m.citizenService.initialize());
+  await import('./services/decision.service').then(m => m.decisionService.initialize());
+  await import('./services/perception.service').then(m => m.perceptionService.initialize());
+  await import('./services/market.service').then(m => m.marketService.initialize());
+  await import('./services/finance.service').then(m => m.financeService.initialize());
+  await import('./services/supply.service').then(m => m.supplyService.initialize());
+  await import('./services/banking.service').then(m => m.bankingService.initialize());
   
-  import('./services/SpatialBackfillMigration').then(m => m.SpatialBackfillMigration.runMigration());
+  await import('./services/SpatialBackfillMigration').then(m => m.SpatialBackfillMigration.runMigration());
 
   return app;
 }

@@ -27,7 +27,11 @@ export class WorldRepository {
   }
 
   async createWorld(data: any) {
-    return prisma.world.create({ data });
+    return prisma.world.upsert({
+      where: { id: data.id },
+      update: data,
+      create: data
+    });
   }
 
   async deleteWorld(id: string) {
@@ -37,19 +41,35 @@ export class WorldRepository {
   }
 
   async createRegion(data: any) {
-    return prisma.region.create({ data });
+    return prisma.region.upsert({
+      where: { id: data.id },
+      update: data,
+      create: data
+    });
   }
 
   async createCity(data: any) {
-    return prisma.city.create({ data });
+    return prisma.city.upsert({
+      where: { id: data.id },
+      update: data,
+      create: data
+    });
   }
 
   async createDistrict(data: any) {
-    return prisma.district.create({ data });
+    return prisma.district.upsert({
+      where: { id: data.id },
+      update: data,
+      create: data
+    });
   }
 
   async createBuilding(data: any) {
-    return prisma.building.create({ data });
+    return prisma.building.upsert({
+      where: { id: data.id },
+      update: data,
+      create: data
+    });
   }
 
   async updateRegion(id: string, data: any) {

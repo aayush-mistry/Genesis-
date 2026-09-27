@@ -34,14 +34,12 @@ export const WorldController = {
     const citizens = citizenService.engine.listCitizens();
     
     // Quick fix: directly fetch households from DB or use a service if it exists
-    const { PrismaClient } = await import('@prisma/client');
-    const prisma = new PrismaClient();
+    const { prisma } = await import('../repositories/prisma');
     const dbHouseholds = await prisma.household.findMany();
     // Re-fetch citizens to ensure we get coordX and coordY if the engine didn't cache it
     const dbCitizens = await prisma.citizen.findMany();
     const dbBuildings = await prisma.building.findMany();
     const dbTerrains = await prisma.terrain.findMany();
-    await prisma.$disconnect();
 
     const mapCoordinates = (item: any) => ({
       ...item,
@@ -153,10 +151,8 @@ export const WorldController = {
     const citizens = citizenService.engine.listCitizens();
     
     // Quick fix: directly fetch buildings and workplaces for location resolution
-    const { PrismaClient } = await import('@prisma/client');
-    const prisma = new PrismaClient();
+    const { prisma } = await import('../repositories/prisma');
     const dbBuildings = await prisma.building.findMany();
-    await prisma.$disconnect();
 
     const { timeService } = await import('../services/time.service');
     const currentTime = timeService.engine.getCurrentTime();

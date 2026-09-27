@@ -21,6 +21,40 @@ class WorldService {
   }
 
   public async generatePopulatedWorld(name: string, description: string, seed: number) {
+    this.engine.reset();
+    
+    const { citizenService: cService } = await import('./citizen.service');
+    cService.engine.clear();
+    
+    const { resourceService } = await import('./resource.service');
+    resourceService.engine.clear();
+
+    const { prisma } = await import('../repositories/prisma');
+    // Genesis currently supports one active world per database in Phase 3.
+    // Clear previous world data from DB to avoid deterministic ID collisions.
+    await prisma.transactionRecord.deleteMany({});
+    await prisma.loanPayment.deleteMany({});
+    await prisma.loan.deleteMany({});
+    await prisma.loanApplication.deleteMany({});
+    await prisma.bankAccount.deleteMany({});
+    await prisma.bank.deleteMany({});
+    await prisma.creditHistory.deleteMany({});
+    await prisma.wallet.deleteMany({});
+    await prisma.inventoryItem.deleteMany({});
+    await prisma.inventory.deleteMany({});
+    await prisma.citizen.deleteMany({});
+    await prisma.household.deleteMany({});
+    await prisma.jobPosition.deleteMany({});
+    await prisma.workplace.deleteMany({});
+    await prisma.resource.deleteMany({});
+    await prisma.terrain.deleteMany({});
+    await prisma.room.deleteMany({});
+    await prisma.building.deleteMany({});
+    await prisma.district.deleteMany({});
+    await prisma.city.deleteMany({});
+    await prisma.region.deleteMany({});
+    await prisma.world.deleteMany({});
+    
     const world = this.engine.worldManager.createWorld(name, description, seed);
     
     // Auto-create a default region
@@ -39,7 +73,6 @@ class WorldService {
     this.engine.worldManager.addRegion(defaultRegion.id);
 
     // Auto-generate resources for this new region
-    const { resourceService } = await import('./resource.service');
     resourceService.engine.generateResourcesForRegion(defaultRegion.id, world.randomSeed);
 
     // Generate basic urban hierarchy to allow workplaces to spawn
@@ -126,7 +159,7 @@ class WorldService {
     await worldRepository.createWorld({
       id: world.id,
       name: world.name,
-      description: world.description,
+      description: world.description || '',
       randomSeed: world.randomSeed,
       creationTime: world.creationTime,
       currentPopulation: world.currentPopulation,
@@ -273,12 +306,9 @@ class WorldService {
     }
 
     console.log('[WorldService] Generating Terrains and Resources...');
-    const { PrismaClient } = await import('@prisma/client');
-    const prisma = new PrismaClient();
     
     // Persist Resources
-    const { resourceService: resService } = await import('./resource.service');
-    const resourcesToPersist = resService.engine.resourceManager.getAllResources().map(r => ({
+    const resourcesToPersist = resourceService.engine.resourceManager.getAllResources().map(r => ({
       id: r.id,
       name: r.name,
       type: r.type,
@@ -331,7 +361,6 @@ class WorldService {
       }
     ];
     await prisma.terrain.createMany({ data: terrainData });
-    await prisma.$disconnect();
 
     console.log('[WorldService] World generation complete. Running spatial backfill to generate settlements...');
     const { SpatialBackfillMigration } = await import('./SpatialBackfillMigration');

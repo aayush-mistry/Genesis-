@@ -95,10 +95,12 @@ export class BankingRepository {
         const existing = await this.getCreditHistory(ownerId);
         
         if (existing) {
-            let events = [];
+            let events: any[] = [];
             try {
                 events = JSON.parse(existing.historyEventsJson);
-            } catch(e) {}
+            } catch(e) {
+                console.error(`Failed to parse historyEventsJson for owner ${ownerId}`, e);
+            }
             events.push({ event: eventStr, timestamp: Date.now() });
             
             return prisma.creditHistory.update({

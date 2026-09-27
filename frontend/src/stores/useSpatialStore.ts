@@ -23,6 +23,7 @@ interface SpatialState {
   camera: CameraState;
   selection: EntitySelection | null;
   layers: { citizens: boolean; buildings: boolean; resources: boolean; terrain: boolean };
+  mapMode: 'NORMAL' | 'POPULATION' | 'RESOURCES' | 'ECONOMY' | 'ACTIVITY';
   
   fetchSnapshot: () => Promise<void>;
   initLiveSimulation: () => void;
@@ -34,6 +35,7 @@ interface SpatialState {
   isFocused: boolean;
   toggleFocus: () => void;
   resetCamera: () => void;
+  setMapMode: (mode: SpatialState['mapMode']) => void;
 }
 
 const DEFAULT_CAMERA: CameraState = {
@@ -57,10 +59,12 @@ export const useSpatialStore = create<SpatialState>((set, get) => ({
   camera: { ...DEFAULT_CAMERA },
   selection: null,
   layers: { citizens: true, buildings: true, resources: true, terrain: true },
+  mapMode: 'NORMAL',
   isFocused: false,
 
   toggleFocus: () => set((state) => ({ isFocused: !state.isFocused })),
   toggleLayer: (layer) => set((state) => ({ layers: { ...state.layers, [layer]: !state.layers[layer] } })),
+  setMapMode: (mode) => set({ mapMode: mode }),
 
   fetchSnapshot: async () => {
     set({ isLoading: true, error: null });

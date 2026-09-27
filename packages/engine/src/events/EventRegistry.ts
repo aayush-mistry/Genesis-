@@ -26,4 +26,9 @@ export class EventRegistry {
   public static getRegisteredHandlers(): string[] {
     return Array.from(this.handlers.keys());
   }
+
+  public static clear(): void {
+    this.handlers.clear();
+    EventRegistry.register('Global.NoOp', async () => {});
+  }
 }

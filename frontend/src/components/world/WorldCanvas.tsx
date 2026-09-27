@@ -13,7 +13,7 @@ export const WorldCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
-  const { snapshot, dynamicState, initLiveSimulation, stopLiveSimulation, camera, setCamera, setSelection, selectEntity, selection, layers } = useSpatialStore();
+  const { snapshot, dynamicState, initLiveSimulation, stopLiveSimulation, camera, setCamera, setSelection, selectEntity, selection, layers, mapMode } = useSpatialStore();
   
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState<Point>({ x: 0, y: 0 });
@@ -65,6 +65,7 @@ export const WorldCanvas: React.FC = () => {
     };
 
     // 0. Draw Terrain
+    ctx.globalAlpha = mapMode === 'RESOURCES' || mapMode === 'NORMAL' ? 1.0 : 0.3;
     if (layers.terrain && data.terrain) {
       data.terrain.forEach(t => {
         let color = 'rgba(30, 41, 59, 0.4)';
@@ -84,6 +85,7 @@ export const WorldCanvas: React.FC = () => {
     }
 
     // 0.5. Draw Resources (Water, Forest, Agriculture, Minerals)
+    ctx.globalAlpha = mapMode === 'RESOURCES' || mapMode === 'NORMAL' ? 1.0 : (mapMode === 'ECONOMY' ? 0.6 : 0.2);
     if (layers.resources && data.resources) {
       data.resources.forEach(r => {
         const rx = r.coordinates.x;
@@ -126,6 +128,7 @@ export const WorldCanvas: React.FC = () => {
     }
 
     // 0.7. Draw Resource Workplaces (Farms, Mines, Fishing)
+    ctx.globalAlpha = mapMode === 'ECONOMY' || mapMode === 'NORMAL' || mapMode === 'ACTIVITY' ? 1.0 : 0.4;
     if (layers.buildings && data.workplaces) {
       data.workplaces.forEach((wp: any) => {
         if (!wp.coordinates || (wp.coordinates.x === 0 && wp.coordinates.y === 0)) return;
@@ -220,6 +223,7 @@ export const WorldCanvas: React.FC = () => {
     }
 
     // 1. Draw Regions
+    ctx.globalAlpha = mapMode === 'POPULATION' ? 0.3 : 1.0;
     data.regions.forEach(region => {
       const rx = region.coordinates.x - 500;
       const ry = region.coordinates.y - 500;
@@ -238,6 +242,7 @@ export const WorldCanvas: React.FC = () => {
     });
 
     // 2. Draw Cities (Urban Sprawl)
+    ctx.globalAlpha = mapMode === 'POPULATION' || mapMode === 'ECONOMY' ? 0.5 : 1.0;
     data.cities?.forEach(city => {
       const cx = city.coordinates.x - Math.sqrt(city.area) / 2;
       const cy = city.coordinates.y - Math.sqrt(city.area) / 2;
@@ -264,6 +269,7 @@ export const WorldCanvas: React.FC = () => {
     });
 
     // 3. Draw Districts (Zoning)
+    ctx.globalAlpha = mapMode === 'POPULATION' ? 0.2 : (mapMode === 'ECONOMY' ? 0.8 : 1.0);
     data.districts.forEach(district => {
       const isCommercial = district.type === 'COMMERCIAL';
       const isResidential = district.type === 'RESIDENTIAL';
@@ -293,6 +299,7 @@ export const WorldCanvas: React.FC = () => {
     });
 
     // 4. Draw Buildings (Icons)
+    ctx.globalAlpha = mapMode === 'ECONOMY' || mapMode === 'NORMAL' || mapMode === 'ACTIVITY' ? 1.0 : 0.3;
     if (layers.buildings) {
       data.buildings.forEach((building) => {
       const bx = building.coordinates.x;
@@ -379,6 +386,7 @@ export const WorldCanvas: React.FC = () => {
     }
 
     // 5. Draw Citizens / Population Density
+    ctx.globalAlpha = mapMode === 'POPULATION' || mapMode === 'NORMAL' || mapMode === 'ACTIVITY' ? 1.0 : 0.2;
     const activeClusters = dynamicData?.populationClusters || data.populationClusters;
     if (layers.citizens && camera.zoom < 2.0 && activeClusters) {
       // Heatmap / Aggregated cluster at low zoom
@@ -493,7 +501,7 @@ export const WorldCanvas: React.FC = () => {
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [snapshot, dynamicState, camera]);
+  }, [snapshot, dynamicState, camera, layers, mapMode]);
 
   // Connect to live simulation SSE
   useEffect(() => {

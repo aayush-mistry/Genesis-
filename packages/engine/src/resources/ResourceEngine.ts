@@ -50,6 +50,10 @@ export class ResourceEngine {
     this.scheduleRegenerationCheck();
   }
 
+  public clear(): void {
+    this.resourceManager.clear();
+  }
+
   /**
    * Initializes resources for a newly created region.
    */

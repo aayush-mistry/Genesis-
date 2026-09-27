@@ -4,7 +4,7 @@ import { Layers, Map, Users } from 'lucide-react';
 import { EntitySearch } from './EntitySearch';
 
 export const CivilizationHeader: React.FC = () => {
-  const { snapshot, layers, toggleLayer, resetCamera, liveTime, liveSimulationState, liveSpeed } = useSpatialStore();
+  const { snapshot, layers, toggleLayer, resetCamera, liveTime, liveSimulationState, liveSpeed, mapMode, setMapMode } = useSpatialStore();
 
   if (!snapshot) return null;
 
@@ -67,6 +67,25 @@ export const CivilizationHeader: React.FC = () => {
 
         {/* Actions */}
         <div className="flex items-center gap-2">
+          {/* Map Mode Selector */}
+          <div className="group relative">
+            <button className="flex items-center gap-2 px-3 h-9 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-md text-slate-300 transition-colors">
+              <span className="text-xs font-semibold">{mapMode}</span>
+            </button>
+            <div className="absolute right-0 top-full mt-2 w-36 bg-slate-800 border border-slate-700 rounded-md shadow-xl hidden group-hover:block p-2 z-50">
+              <div className="text-[10px] font-bold text-slate-400 uppercase mb-2 px-2">Map Mode</div>
+              {['NORMAL', 'POPULATION', 'RESOURCES', 'ECONOMY', 'ACTIVITY'].map(mode => (
+                <button 
+                  key={mode} 
+                  onClick={() => setMapMode(mode as any)}
+                  className={`w-full text-left px-2 py-1.5 rounded text-sm mb-1 transition-colors ${mapMode === mode ? 'bg-indigo-600 text-white font-medium' : 'text-slate-300 hover:bg-slate-700'}`}
+                >
+                  {mode}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Layer Controls Dropdown */}
           <div className="group relative">
             <button className="flex items-center justify-center w-9 h-9 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-md text-slate-300 transition-colors tooltip-trigger">

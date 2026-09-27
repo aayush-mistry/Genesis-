@@ -2,8 +2,11 @@ import { Resource, ResourceType, ResourceCategory, ResourceStatistics } from '@g
 import { randomUUID } from 'crypto';
 
 export class ResourceManager {
-  // Map of regionId -> Resource[]
   private resourcesByRegion: Map<string, Resource[]> = new Map();
+
+  public clear(): void {
+    this.resourcesByRegion.clear();
+  }
 
   public addResource(resourceData: Omit<Resource, 'id' | 'createdAt' | 'updatedAt'>): Resource {
     const resource: Resource = {
