@@ -11,8 +11,6 @@ export const EntityController = {
     const { resourceService } = await import('../services/resource.service');
     const { timeService } = await import('../services/time.service');
     const { spatialService } = await import('../services/spatial.service');
-    const { financeService } = await import('../services/finance.service');
-    const { marketService } = await import('../services/market.service');
 
     const prisma = new PrismaClient();
     try {
@@ -56,8 +54,9 @@ export const EntityController = {
         const workers = citizenService.engine.listCitizens().filter(c => c.workplaceId === id);
         
         // Add financial/inventory data if applicable
-        const wallet = financeService.walletManager.getWallet(id);
-        const inventory = marketService.inventoryManager?.getInventory(id);
+        const wallet = workplace.wallet;
+        const { supplyService } = await import('../services/supply.service');
+        const inventory = workplace.inventoryId ? supplyService.inventoryManager?.getInventory(workplace.inventoryId) : null;
         
         return reply.send({ 
           ...workplace, 
@@ -65,7 +64,7 @@ export const EntityController = {
           districtId: building?.districtId,
           workers: workers.map(w => w.id),
           finances: wallet ? { balance: wallet.balance } : null,
-          inventory: inventory ? { items: Array.from(inventory.items.values()) } : null
+          inventory: inventory ? { items: Object.values(inventory.items) } : null
         });
       }
       
@@ -92,7 +91,7 @@ export const EntityController = {
         const time = timeService.engine.getCurrentTime();
         const exactCoords = spatialService.engine.queryService.resolveCitizenLocation(citizen!, time);
         
-        const wallet = financeService.walletManager.getWallet(id);
+        const wallet = citizen!.wallet;
         
         return reply.send({
           ...citizen,
@@ -103,7 +102,7 @@ export const EntityController = {
       }
       
       else if (type === 'resource') {
-        const resource = resourceService.engine.resourceManager.getResource(id);
+        const resource = resourceService.engine.resourceManager.getAllResources().find(r => r.id === id);
         if (!resource) return reply.status(404).send({ error: 'Resource not found' });
         return reply.send(resource);
       }
@@ -128,14 +127,14 @@ export const EntityController = {
     try {
       // 1. Citizens
       const citizens = await prisma.citizen.findMany({
-        where: { OR: [ { id: { contains: q } }, { firstName: { contains: q } }, { lastName: { contains: q } } ] },
+        where: { OR: [ { id: { contains: q } }, { name: { contains: q } } ] },
         take: 5
       });
-      citizens.forEach(c => results.push({ type: 'citizen', id: c.id, name: `${c.firstName} ${c.lastName}`.trim() || c.id }));
+      citizens.forEach(c => results.push({ type: 'citizen', id: c.id, name: c.name || c.id }));
 
       // 2. Workplaces
-      const workplaces = worldService.engine.workplaceRepository.findAll().filter(w => w.id.toLowerCase().includes(q) || w.name?.toLowerCase().includes(q)).slice(0, 5);
-      workplaces.forEach(w => results.push({ type: 'workplace', id: w.id, name: w.name || w.id }));
+      const workplaces = worldService.engine.workplaceRepository.findAll().filter(w => w.id.toLowerCase().includes(q) || w.type.toLowerCase().includes(q)).slice(0, 5);
+      workplaces.forEach(w => results.push({ type: 'workplace', id: w.id, name: w.type || w.id }));
 
       // 3. Buildings
       const buildings = await prisma.building.findMany({
@@ -186,7 +185,7 @@ export const EntityController = {
         if (currentType === 'citizen') {
           const c = await prisma.citizen.findUnique({ where: { id: currentId } });
           if (!c) break;
-          path.unshift({ type: 'citizen', id: currentId, name: `${c.firstName || ''} ${c.lastName || ''}`.trim() || currentId });
+          path.unshift({ type: 'citizen', id: currentId, name: c.name || currentId });
           
           if (c.householdId) {
             currentType = 'household';
@@ -210,7 +209,7 @@ export const EntityController = {
         else if (currentType === 'workplace') {
           const w = worldService.engine.workplaceRepository.findById(currentId);
           if (!w) break;
-          path.unshift({ type: 'workplace', id: currentId, name: w.name || currentId });
+          path.unshift({ type: 'workplace', id: currentId, name: w.type || currentId });
           
           if (w.locationId) {
             currentType = 'building';
@@ -266,7 +265,7 @@ export const EntityController = {
         }
         else if (currentType === 'resource') {
           const { resourceService } = await import('../services/resource.service');
-          const r = resourceService.engine.resourceManager.getResource(currentId);
+          const r = resourceService.engine.resourceManager.getAllResources().find(res => res.id === currentId);
           if (!r) break;
           path.unshift({ type: 'resource', id: currentId, name: r.type || currentId });
           

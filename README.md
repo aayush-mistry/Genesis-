@@ -94,13 +94,14 @@ npm run build:backend
 npm run build:frontend
 ```
 
-## Current Phase Status (Phase 6.x-1)
+## Current Phase Status (Phase 8.x)
 - **Completed:** Phase 1 (Core Engine) including Time Engine, Event Scheduler, and Foundation.
 - **Completed:** Phase 2 (World Engine) including Environment, Resource, and Spatial engines.
 - **Completed:** Phase 3 (Citizen Engine) including Needs, Movement, and Occupation systems.
 - **Completed:** Phase 4 (AI Decision Engine) up to Phase 4.5 (Action Execution System).
 - **Completed:** Phase 5 (Economy Engine) including Production, Inventory, Supply Chain, and Market.
-- **In Progress:** Phase 6 (Financial Engine & Advanced Economy) currently completing Phase 6.4 (Banking & Loans).
+- **Completed:** Phase 6 (Financial Engine) up to Banking & Loans.
+- **In Progress:** Phase 8 (Visualization & UI) currently implementing spatial renderers, movement visualization, and civilization overview.
 
 ## Genesis Roadmap
 
@@ -146,7 +147,13 @@ Phase 6 🚧 Financial Engine & Advanced Economy
 └── 6.5 Macro Economics & Taxes (Planned)
 
 Phase 7 🔜 Social Framework & Relationships
-Phase 8 🔜 Visualization & UI
+Phase 8 🚧 Visualization & UI
+├── 8.1 Spatial Foundation & World Renderer
+├── 8.2 Settlement & City Visualization
+├── 8.3 Natural World & Resource Visualization
+├── 8.4 Citizen Movement & Action Visualization
+├── 8.5 Live Simulation Synchronization
+└── 8.6 Civilization Overview Dashboard
 Phase 9 🔜 Persistence
 Phase 10 🔜 Optimization & Scale
 ```
@@ -174,6 +181,9 @@ Phase 10 🔜 Optimization & Scale
 | Supplier Quality | ✅ Implemented | Dynamic quality tracking and ranking |
 | Banking & Loans | ✅ Implemented | Core banking, credit scores, and EMI processing |
 | Taxes | 🔴 Not implemented | Slated for future phase |
+| Spatial Renderer | ✅ Implemented | Canvas-based rendering of the world |
+| Live Simulation UI | ✅ Implemented | Real-time visualization of citizens and environment |
+| Civilization Overview | ✅ Implemented | Aggregated dashboard for Phase 2-4 systems |
 
 ## Phase 2 – World Engine
 
