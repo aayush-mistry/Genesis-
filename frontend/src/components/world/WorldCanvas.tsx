@@ -7,7 +7,6 @@ interface Point {
   y: number;
 }
 
-import { ActivityFeed } from './ActivityFeed';
 
 export const WorldCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -237,7 +236,7 @@ export const WorldCanvas: React.FC = () => {
       ctx.strokeRect(rx, ry, 1000, 1000);
 
       if (camera.zoom < 0.8) {
-        drawLabel(`REGION: ${region.name}`, region.coordinates.x, region.coordinates.y - 450, '#94a3b8', 24, 'center');
+        drawLabel(region.name, region.coordinates.x, region.coordinates.y - 450, '#94a3b8', 16, 'center');
       }
     });
 
@@ -264,7 +263,7 @@ export const WorldCanvas: React.FC = () => {
       ctx.strokeRect(cx, cy, size, size);
       
       if (camera.zoom >= 0.5 && camera.zoom < 2.0) {
-        drawLabel(`CITY: ${city.name}`, city.coordinates.x, city.coordinates.y - size/2 - 15, '#7dd3fc', 16, 'center');
+        drawLabel(city.name, city.coordinates.x, city.coordinates.y - size/2 - 15, '#7dd3fc', 14, 'center');
       }
     });
 
@@ -737,7 +736,6 @@ export const WorldCanvas: React.FC = () => {
       onClick={handleClick}
       style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
     >
-      <ActivityFeed />
       <canvas ref={canvasRef} className="block w-full h-full" />
     </div>
   );

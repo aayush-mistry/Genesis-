@@ -106,6 +106,10 @@ export const EntityController = {
         if (!resource) return reply.status(404).send({ error: 'Resource not found' });
         return reply.send(resource);
       }
+      else if (type === 'terrain') {
+        // Return a mock/empty object for terrain since it's fully described in the snapshot
+        return reply.send({ id, type: 'terrain' });
+      }
       
       return reply.status(400).send({ error: 'Invalid entity type' });
       

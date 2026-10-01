@@ -5,19 +5,22 @@ import { Clock, Activity } from 'lucide-react';
 export function ActivityFeed() {
   const { liveEvents, liveTime } = useSpatialStore();
 
-  if (!liveEvents || liveEvents.length === 0) {
+  const validEvents = liveEvents?.filter((e: any) => e && e.type && String(e.type).trim() !== '') || [];
+
+  if (validEvents.length === 0) {
     return (
-      <div className="absolute top-20 right-4 w-80 bg-slate-900/90 border border-slate-800 text-slate-200 shadow-xl rounded-lg overflow-hidden backdrop-blur-sm z-10 p-4">
+      <div className="w-full bg-slate-900/90 border-b border-slate-800 text-slate-200 p-4 flex-shrink-0">
         <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-2 mb-2">
           <Activity size={14} /> Simulation Activity
         </h4>
-        <p className="text-sm text-slate-500 italic">No recent activity.</p>
+        <p className="text-sm font-semibold text-slate-300 mt-4 uppercase">No recent activity</p>
+        <p className="text-xs text-slate-500 italic mt-1">The simulation is running.</p>
       </div>
     );
   }
 
   return (
-    <div className="absolute top-20 right-4 w-80 bg-slate-900/90 border border-slate-800 text-slate-200 shadow-xl rounded-lg overflow-hidden backdrop-blur-sm z-10">
+    <div className="w-full bg-slate-900/90 border-b border-slate-800 text-slate-200 overflow-hidden flex flex-col flex-shrink-0">
       <div className="p-3 bg-slate-800/50 border-b border-slate-800 flex justify-between items-center">
         <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-2">
           <Activity size={14} /> Simulation Activity
@@ -29,13 +32,12 @@ export function ActivityFeed() {
           </span>
         )}
       </div>
-      
-      <div className="max-h-64 overflow-y-auto p-2 space-y-2">
-        {liveEvents.map((event: any, idx: number) => (
+      <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
+        {validEvents.map((event: any, idx: number) => (
           <div key={event.id || idx} className="text-sm p-2 rounded hover:bg-slate-800 transition-colors">
             <div className="flex justify-between items-start mb-1">
               <span className="font-medium text-slate-300 text-xs">
-                {event.type.replace(/_/g, ' ')}
+                {event.type ? String(event.type).replace(/_/g, ' ') : 'UNKNOWN'}
               </span>
               <span className="text-[10px] font-mono text-slate-500">
                 {event.executedAtSimulationTime ? 
@@ -44,7 +46,7 @@ export function ActivityFeed() {
               </span>
             </div>
             <p className="text-xs text-slate-400 leading-snug break-words">
-              {event.data?.description || JSON.stringify(event.data).slice(0, 50) + '...'}
+              {event.data?.description || (event.data ? String(JSON.stringify(event.data) || '').slice(0, 50) + '...' : 'No details available')}
             </p>
           </div>
         ))}

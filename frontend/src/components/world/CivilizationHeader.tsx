@@ -1,12 +1,35 @@
 import React from 'react';
 import { useSpatialStore } from '../../stores/useSpatialStore';
-import { Layers, Map, Users } from 'lucide-react';
+import { Layers, Map, Users, Play, Pause, FastForward } from 'lucide-react';
 import { EntitySearch } from './EntitySearch';
+import { timeApi } from '../../api/time';
 
 export const CivilizationHeader: React.FC = () => {
   const { snapshot, layers, toggleLayer, resetCamera, liveTime, liveSimulationState, liveSpeed, mapMode, setMapMode } = useSpatialStore();
 
   if (!snapshot) return null;
+
+  const handleTogglePlay = async () => {
+    try {
+      if (liveSimulationState === 'Running') {
+        await timeApi.pause();
+      } else if (liveSimulationState === 'Stopped' || liveSimulationState === 'Reset') {
+        await timeApi.start();
+      } else {
+        await timeApi.resume();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleSpeedChange = async (speed: number) => {
+    try {
+      await timeApi.setSpeed(speed);
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   return (
     <div className="absolute top-0 left-0 right-0 h-16 bg-slate-900/90 backdrop-blur border-b border-slate-700/50 flex items-center px-6 z-20 justify-between shadow-md">
@@ -36,17 +59,38 @@ export const CivilizationHeader: React.FC = () => {
       <div className="flex items-center gap-6">
         
         {/* Simulation State */}
-        <div className="flex items-center gap-4 bg-slate-950/50 px-4 py-1.5 rounded-lg border border-slate-800">
+        <div className="flex items-center gap-3 bg-slate-950/50 pl-4 pr-2 py-1.5 rounded-lg border border-slate-800">
            <div className="flex flex-col items-end">
              <div className="text-xs text-slate-400 uppercase tracking-widest font-semibold">Simulation</div>
              <div className={`text-sm font-bold ${liveSimulationState === 'Running' ? 'text-emerald-400' : 'text-amber-400'}`}>
                {liveSimulationState} {liveSpeed > 1 && `(${liveSpeed}x)`}
              </div>
            </div>
+
+           <div className="flex items-center gap-1 ml-2 border-l border-slate-700 pl-3">
+             <button onClick={handleTogglePlay} className="p-1.5 rounded-md hover:bg-slate-800 text-slate-300 hover:text-white transition-colors">
+               {liveSimulationState === 'Running' ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+             </button>
+             
+             <div className="group relative">
+                <button className="p-1.5 rounded-md hover:bg-slate-800 text-slate-300 hover:text-white transition-colors flex items-center">
+                  <FastForward className="w-4 h-4" />
+                </button>
+                <div className="absolute right-0 top-full mt-2 w-32 bg-slate-800 border border-slate-700 rounded-md shadow-xl hidden group-hover:block p-1 z-50">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase mb-1 px-2 pt-1">Speed</div>
+                  {[1, 2, 5, 10].map(s => (
+                    <button key={s} onClick={() => handleSpeedChange(s)} className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors ${liveSpeed === s ? 'bg-indigo-600 text-white font-medium' : 'text-slate-300 hover:bg-slate-700'}`}>
+                      {s}x Speed
+                    </button>
+                  ))}
+                </div>
+             </div>
+           </div>
+
            {liveTime && (
              <>
-               <div className="h-6 w-px bg-slate-700"></div>
-               <div className="flex flex-col text-right">
+               <div className="h-6 w-px bg-slate-700 mx-1"></div>
+               <div className="flex flex-col text-right pr-2">
                  <div className="text-xs text-slate-400">Day {liveTime.day || 0}</div>
                  <div className="text-sm font-mono text-slate-200">
                    {String(liveTime.hour || 0).padStart(2, '0')}:{String(liveTime.minute || 0).padStart(2, '0')}

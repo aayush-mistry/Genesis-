@@ -4,6 +4,7 @@ import { WorldCanvas } from './WorldCanvas';
 import { EntityPanel } from './EntityPanel';
 import { CivilizationHeader } from './CivilizationHeader';
 import { CivilizationSummary } from './CivilizationSummary';
+import { ActivityFeed } from './ActivityFeed';
 
 export const WorldRenderer: React.FC = () => {
   const { snapshot, isLoading, error, fetchSnapshot } = useSpatialStore();
@@ -50,31 +51,47 @@ export const WorldRenderer: React.FC = () => {
   }
 
   return (
-    <div className="w-full h-full flex flex-col relative font-sans overflow-hidden">
+    <div className="w-full h-full flex flex-col relative font-sans overflow-hidden bg-slate-950">
       {/* Top Bar / HUD */}
       <CivilizationHeader />
 
-      {/* Main Canvas Area */}
-      <div className="flex-1 relative bg-slate-950 mt-16">
-        <WorldCanvas />
-        <EntityPanel />
-        <CivilizationSummary />
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-row overflow-hidden pt-16">
         
-        {/* Legend */}
-        <div className="absolute bottom-6 left-6 bg-slate-900/90 border border-slate-700 p-4 rounded shadow-lg backdrop-blur text-xs text-slate-300 w-48 z-10">
-          <div className="font-bold text-white mb-2 uppercase tracking-wider">Legend</div>
-          <div className="space-y-2">
-            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-[rgba(74,222,128,0.3)] border border-green-500 rounded-sm"></div> Plains</div>
-            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-[rgba(163,163,163,0.3)] border border-neutral-500 rounded-sm"></div> Hills</div>
-            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-[rgba(212,212,216,0.3)] border border-zinc-400 rounded-sm"></div> Mountains</div>
-            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-[rgba(56,189,248,0.6)]"></div> Water</div>
-            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-[rgba(34,197,94,0.6)]"></div> Forests</div>
-            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-[rgba(163,230,53,0.5)]"></div> Agriculture</div>
-            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-700">
-              <div className="w-3 h-3 border-2 border-[rgba(251,191,36,0.8)] rounded-full"></div> Minerals
+        {/* Left Sidebar */}
+        <div className="w-80 flex-shrink-0 flex flex-col border-r border-slate-800/60 bg-slate-900/50 backdrop-blur z-10 overflow-y-auto no-scrollbar">
+          <CivilizationSummary />
+          
+          {/* Legend */}
+          <div className="bg-slate-900/90 border-t border-slate-700/80 p-4 shadow-lg flex-shrink-0 text-xs text-slate-300">
+            <div className="font-bold text-white mb-2 uppercase tracking-wider">Legend</div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2"><div className="w-3 h-3 bg-[rgba(74,222,128,0.3)] border border-green-500 rounded-sm"></div> Plains</div>
+              <div className="flex items-center gap-2"><div className="w-3 h-3 bg-[rgba(163,163,163,0.3)] border border-neutral-500 rounded-sm"></div> Hills</div>
+              <div className="flex items-center gap-2"><div className="w-3 h-3 bg-[rgba(212,212,216,0.3)] border border-zinc-400 rounded-sm"></div> Mountains</div>
+              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-[rgba(56,189,248,0.6)]"></div> Water</div>
+              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-[rgba(34,197,94,0.6)]"></div> Forests</div>
+              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-[rgba(163,230,53,0.5)]"></div> Agriculture</div>
+              <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-700">
+                <div className="w-3 h-3 border-2 border-[rgba(251,191,36,0.8)] rounded-full"></div> Minerals
+              </div>
             </div>
           </div>
         </div>
+
+        {/* Center Canvas Area */}
+        <div className="flex-1 relative bg-slate-950">
+          <WorldCanvas />
+        </div>
+        
+        {/* Right Sidebar */}
+        <div className="w-80 flex-shrink-0 flex flex-col border-l border-slate-800/60 bg-slate-900/50 backdrop-blur z-10 overflow-hidden">
+          <ActivityFeed />
+          <div className="flex-1 flex flex-col overflow-hidden relative">
+             <EntityPanel />
+          </div>
+        </div>
+        
       </div>
     </div>
   );

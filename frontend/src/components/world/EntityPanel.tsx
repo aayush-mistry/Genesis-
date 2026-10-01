@@ -60,28 +60,32 @@ export const EntityPanel: React.FC = () => {
     );
   };
 
-  const renderList = (label: string, type: string, ids: string[]) => {
-    if (!ids || ids.length === 0) return null;
+  const renderList = (label: string, type: string, items: any[]) => {
+    if (!items || items.length === 0) return null;
     return (
       <div className="bg-slate-800/50 p-2 rounded mb-2 border border-slate-700/50">
-        <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">{label} ({ids.length})</div>
+        <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">{label} ({items.length})</div>
         <div className="max-h-32 overflow-y-auto space-y-1 pr-1">
-          {ids.map(id => (
-            <button 
-              key={id}
-              onClick={() => handleLinkClick(type, id)}
-              className="block w-full text-left text-xs text-indigo-400 hover:text-indigo-300 hover:bg-slate-700/50 p-1 rounded font-mono truncate"
-            >
-              {id}
-            </button>
-          ))}
+          {items.map((item, index) => {
+            const id = typeof item === 'object' && item !== null ? item.id : item;
+            const display = typeof item === 'object' && item !== null ? (item.name || item.id) : item;
+            return (
+              <button 
+                key={id || index}
+                onClick={() => handleLinkClick(type, id)}
+                className="block w-full text-left text-xs text-indigo-400 hover:text-indigo-300 hover:bg-slate-700/50 p-1 rounded font-mono truncate"
+              >
+                {display}
+              </button>
+            );
+          })}
         </div>
       </div>
     );
   };
 
   return (
-    <div className="absolute right-0 top-0 bottom-0 w-80 bg-slate-900 border-l border-slate-700 p-4 shadow-xl overflow-y-auto z-10 flex flex-col">
+    <div className="w-full h-full bg-slate-900 p-4 overflow-y-auto flex flex-col custom-scrollbar">
       <div className="flex justify-between items-start mb-2">
         <h2 className="text-lg font-bold text-white uppercase tracking-wider leading-tight">
           {data.name || selection.type}
