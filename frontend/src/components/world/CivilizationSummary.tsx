@@ -3,7 +3,7 @@ import { useSpatialStore } from '../../stores/useSpatialStore';
 import { Activity, Briefcase, Droplets, Wheat, Home, Hammer } from 'lucide-react';
 
 export const CivilizationSummary: React.FC = () => {
-  const { snapshot, dynamicState } = useSpatialStore();
+  const { snapshot, dynamicState, selection } = useSpatialStore();
 
   const metrics = useMemo(() => {
     if (!snapshot) return null;
@@ -31,7 +31,7 @@ export const CivilizationSummary: React.FC = () => {
   if (!snapshot || !metrics) return null;
 
   return (
-    <div className="absolute right-6 top-24 w-80 bg-slate-900/90 border border-slate-700/80 rounded-xl shadow-2xl backdrop-blur-md flex flex-col overflow-hidden z-10 transition-all">
+    <div className={`absolute top-24 w-80 bg-slate-900/90 border border-slate-700/80 rounded-xl shadow-2xl backdrop-blur-md flex flex-col overflow-hidden z-10 transition-all duration-300 ease-in-out ${selection ? 'right-[340px]' : 'right-6'}`}>
       <div className="bg-slate-800/80 px-4 py-3 border-b border-slate-700 flex items-center justify-between">
         <h3 className="text-sm font-bold text-slate-200 tracking-wide uppercase flex items-center gap-2">
           <Activity className="w-4 h-4 text-indigo-400" />

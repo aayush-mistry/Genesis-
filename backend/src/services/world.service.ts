@@ -13,11 +13,7 @@ class WorldService {
       console.log('[WorldService] World already loaded from persistence, skipping generation.');
       return;
     }
-    
-    // Removed "Genesis Prime (Recovered)" dummy check.
-    // If we're here, it means we don't have an active world loaded. We will generate a new one.
-
-    await this.generatePopulatedWorld('Genesis Prime', 'The first simulation world.', Math.floor(Date.now() / 1000));
+    console.log('[WorldService] No world loaded from persistence. Remaining uninitialized.');
   }
 
   public async generatePopulatedWorld(name: string, description: string, seed: number) {

@@ -2,8 +2,6 @@ import { JobPosition, JobType, SkillType, Workplace, WorkplaceType } from '@gene
 import { WorldEngine } from '../WorldEngine';
 import { WorkplaceRepository } from '../repositories/WorkplaceRepository';
 
-let workplaceIdCounter = 1;
-
 const MIN_WHOLESALE_CENTERS_PER_REGION = 2;
 
 export class WorkplaceGenerator {
@@ -110,8 +108,8 @@ export class WorkplaceGenerator {
   }
 
   private createWorkplace(regionId: string, locationId: string, type: WorkplaceType, jobType: JobType, reqSkill: SkillType, capacity: number): void {
-    const id = `wp-${workplaceIdCounter.toString().padStart(6, '0')}`;
-    workplaceIdCounter++;
+    const { v4: uuidv4 } = require('uuid');
+    const id = `wp-${uuidv4()}`;
 
     const positions: JobPosition[] = [];
     for (let i = 0; i < capacity; i++) {
