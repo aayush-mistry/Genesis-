@@ -98,7 +98,8 @@ export class TimeEngine {
     
     const start = performance.now();
 
-    this.advanceTime(this.speedMultiplier);
+    // 1x speed = 1 game minute (60 seconds) per real second tick
+    this.advanceTime(this.speedMultiplier * 60);
     this.notifySubscribers();
     
     this.lastTickDurationMs = performance.now() - start;
@@ -115,7 +116,7 @@ export class TimeEngine {
 
   /**
    * Sets the speed multiplier of the simulation.
-   * e.g., speed = 60 means 1 real second advances 60 simulation seconds (1 minute)
+   * e.g., speed = 1 means 1 real second advances 60 simulation seconds (1 minute).
    */
   public setSpeed(speed: number): void {
     if (speed <= 0) return;

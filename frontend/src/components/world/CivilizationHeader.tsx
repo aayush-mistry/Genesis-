@@ -73,16 +73,33 @@ export const CivilizationHeader: React.FC = () => {
              </button>
              
              <div className="group relative">
-                <button className="p-1.5 rounded-md hover:bg-slate-800 text-slate-300 hover:text-white transition-colors flex items-center">
+                <button 
+                  onClick={() => {
+                    const speeds = [1, 2, 5, 10];
+                    const nextSpeed = speeds[(speeds.indexOf(liveSpeed) + 1) % speeds.length] || 1;
+                    handleSpeedChange(nextSpeed);
+                  }}
+                  className="p-1.5 rounded-md hover:bg-slate-800 text-slate-300 hover:text-white transition-colors flex items-center"
+                  title="Click to cycle speed, or hover for options"
+                >
                   <FastForward className="w-4 h-4" />
                 </button>
-                <div className="absolute right-0 top-full mt-2 w-32 bg-slate-800 border border-slate-700 rounded-md shadow-xl hidden group-hover:block p-1 z-50">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase mb-1 px-2 pt-1">Speed</div>
-                  {[1, 2, 5, 10].map(s => (
-                    <button key={s} onClick={() => handleSpeedChange(s)} className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors ${liveSpeed === s ? 'bg-indigo-600 text-white font-medium' : 'text-slate-300 hover:bg-slate-700'}`}>
-                      {s}x Speed
-                    </button>
-                  ))}
+                <div className="absolute right-0 top-full pt-1 w-32 z-50 hidden group-hover:block">
+                  <div className="bg-slate-800 border border-slate-700 rounded-md shadow-xl p-1">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase mb-1 px-2 pt-1">Speed</div>
+                    {[1, 2, 5, 10].map(s => (
+                      <button 
+                        key={s} 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSpeedChange(s);
+                        }} 
+                        className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors ${liveSpeed === s ? 'bg-indigo-600 text-white font-medium' : 'text-slate-300 hover:bg-slate-700'}`}
+                      >
+                        {s}x Speed
+                      </button>
+                    ))}
+                  </div>
                 </div>
              </div>
            </div>
