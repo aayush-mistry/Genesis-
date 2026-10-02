@@ -24,8 +24,9 @@ interface SpatialState {
   selection: EntitySelection | null;
   layers: { citizens: boolean; buildings: boolean; resources: boolean; terrain: boolean };
   mapMode: 'NORMAL' | 'POPULATION' | 'RESOURCES' | 'ECONOMY' | 'ACTIVITY';
-  
+  summary: any | null;
   fetchSnapshot: () => Promise<void>;
+  fetchSummary: () => Promise<void>;
   initLiveSimulation: () => void;
   stopLiveSimulation: () => void;
   setCamera: (camera: Partial<CameraState>) => void;
@@ -58,6 +59,7 @@ export const useSpatialStore = create<SpatialState>((set, get) => ({
   error: null,
   camera: { ...DEFAULT_CAMERA },
   selection: null,
+  summary: null,
   layers: { citizens: true, buildings: true, resources: true, terrain: true },
   mapMode: 'NORMAL',
   isFocused: false,
@@ -65,6 +67,18 @@ export const useSpatialStore = create<SpatialState>((set, get) => ({
   toggleFocus: () => set((state) => ({ isFocused: !state.isFocused })),
   toggleLayer: (layer) => set((state) => ({ layers: { ...state.layers, [layer]: !state.layers[layer] } })),
   setMapMode: (mode) => set({ mapMode: mode }),
+
+  fetchSummary: async () => {
+    try {
+      const res = await fetch('/api/v1/world/summary');
+      if (res.ok) {
+        const summary = await res.json();
+        set({ summary });
+      }
+    } catch (e) {
+      console.error('Failed to fetch summary', e);
+    }
+  },
 
   fetchSnapshot: async () => {
     set({ isLoading: true, error: null });

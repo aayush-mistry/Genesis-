@@ -15,6 +15,79 @@ export const WorldController = {
     return world ? world : reply.status(404).send({ error: 'World not found' });
   },
 
+  getWorldSummary: async (_request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const { prisma } = await import('../repositories/prisma');
+
+      // Fetch population and employment metrics
+      const population = await prisma.citizen.count();
+      
+      const employed = await prisma.citizen.count({
+        where: { employmentStatus: 'EMPLOYED' }
+      });
+      const unemployed = await prisma.citizen.count({
+        where: { employmentStatus: 'UNEMPLOYED' }
+      });
+      const inactive = await prisma.citizen.count({
+        where: { employmentStatus: 'INACTIVE' }
+      });
+      
+      const workforce = employed + unemployed; // Explicitly defined
+
+      // Determine food and water quantities using DB aggregation
+      const foodItems = await prisma.inventoryItem.groupBy({
+        by: ['unit'],
+        _sum: { totalQuantity: true },
+        where: { productId: { in: ['wheat', 'raw_fish'] } }
+      });
+
+      const waterItems = await prisma.inventoryItem.groupBy({
+        by: ['unit'],
+        _sum: { totalQuantity: true },
+        where: { productId: 'water' }
+      });
+
+      let foodQuantity = 0;
+      let foodUnit = 'kg'; 
+      for (const item of foodItems) {
+        if (item.unit === 'kg') {
+          foodQuantity += item._sum.totalQuantity || 0;
+        }
+      }
+
+      let waterQuantity = 0;
+      let waterUnit = 'L';
+      for (const item of waterItems) {
+        if (item.unit === 'L') {
+          waterQuantity += item._sum.totalQuantity || 0;
+        }
+      }
+
+      return reply.send({
+        population,
+        employment: {
+          workforce,
+          employed,
+          unemployed,
+          inactive
+        },
+        resources: {
+          food: {
+            quantity: foodQuantity,
+            unit: foodUnit
+          },
+          water: {
+            quantity: waterQuantity,
+            unit: waterUnit
+          }
+        }
+      });
+    } catch (e) {
+      console.error(e);
+      return reply.status(500).send({ error: 'Failed to aggregate world summary.' });
+    }
+  },
+
   getSpatialSnapshot: async (_request: FastifyRequest, reply: FastifyReply) => {
     const world = worldService.engine.worldManager.getWorld();
     if (!world) {

@@ -1,35 +1,29 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useSpatialStore } from '../../stores/useSpatialStore';
-import { Activity, Briefcase, Droplets, Wheat, Home, Hammer } from 'lucide-react';
 
 export const CivilizationSummary: React.FC = () => {
-  const { snapshot, dynamicState, selection } = useSpatialStore();
+  const { summary, fetchSummary } = useSpatialStore();
 
-  const metrics = useMemo(() => {
-    if (!snapshot) return null;
+  useEffect(() => {
+    fetchSummary();
+    const interval = setInterval(fetchSummary, 5000);
+    return () => clearInterval(interval);
+  }, [fetchSummary]);
+
+  const formatQuantity = (quantity: number, unit: string) => {
+    if (quantity === undefined || quantity === null) return 'Data Unavailable';
+    if (quantity === 0) return `0 ${unit}`;
     
-    // Calculate employment metrics from snapshot if possible
-    // Note: detailed employment might require an aggregated backend API
-    const totalPop = snapshot.citizens.length;
-    let employed = 0;
-    if (snapshot.workplaces) {
-      employed = snapshot.workplaces.reduce((sum: number, wp: any) => sum + (wp.occupiedPositions || 0), 0);
+    if (unit === 'kg' && quantity >= 1000) {
+      return `${(quantity / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} t`;
     }
-    let unemployed = totalPop - employed;
-    if (unemployed < 0) unemployed = 0;
-    
-    return {
-      population: totalPop,
-      employed,
-      unemployed,
-      households: snapshot.citizens.filter((c: any) => c.householdId).length,
-      workplaces: snapshot.buildings.filter((b: any) => 
-        ['FACTORY', 'OFFICE', 'STORE', 'FARM'].includes(b.type)
-      ).length
-    };
-  }, [snapshot, dynamicState]);
+    if (unit === 'L' && quantity >= 1000) {
+      return `${(quantity / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })}k L`;
+    }
+    return `${quantity.toLocaleString()} ${unit}`;
+  };
 
-  if (!snapshot || !metrics) return null;
+  if (!summary) return null;
 
   return (
     <div className="w-full h-full flex flex-col bg-slate-950/80">
@@ -45,35 +39,36 @@ export const CivilizationSummary: React.FC = () => {
         <div className="space-y-3">
           <div className="flex justify-between items-center border-b border-slate-800 pb-2">
             <span className="text-sm text-slate-400">Population</span>
-            <span className="text-lg font-mono text-slate-100">{metrics.population.toLocaleString()}</span>
+            <span className="text-lg font-mono text-slate-100">{summary.population.toLocaleString()}</span>
           </div>
           
           <div className="flex justify-between items-center border-b border-slate-800 pb-2">
             <span className="text-sm text-slate-400">Workforce</span>
-            <span className="text-lg font-mono text-slate-100">{metrics.employed > 0 ? metrics.employed.toLocaleString() : 'Data Unavailable'}</span>
+            <span className="text-lg font-mono text-slate-100">{summary.employment.workforce > 0 ? summary.employment.workforce.toLocaleString() : '0'}</span>
           </div>
 
           <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-            <span className="text-sm text-slate-400">Employment</span>
-            <span className="text-lg font-mono text-slate-100">{metrics.employed > 0 ? `${Math.round((metrics.employed / metrics.population) * 100)}%` : 'Data Unavailable'}</span>
+            <span className="text-sm text-slate-400">Employed</span>
+            <span className="text-lg font-mono text-slate-100">{summary.employment.employed.toLocaleString()}</span>
           </div>
-
+          
           <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-            <span className="text-sm text-slate-400">Households</span>
-            <span className="text-lg font-mono text-slate-100">{metrics.households.toLocaleString()}</span>
+            <span className="text-sm text-slate-400">Unemployed</span>
+            <span className="text-lg font-mono text-slate-100">{summary.employment.unemployed.toLocaleString()}</span>
           </div>
         </div>
 
         {/* Resources */}
         <div className="space-y-3 mt-2">
+          <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">RESOURCES</h4>
           <div className="flex justify-between items-center border-b border-slate-800 pb-2">
             <span className="text-sm text-slate-400">Food</span>
-            <span className="text-sm font-mono text-slate-500 italic">Data Unavailable</span>
+            <span className="text-sm font-mono text-emerald-400">{formatQuantity(summary.resources?.food?.quantity, summary.resources?.food?.unit)}</span>
           </div>
           
           <div className="flex justify-between items-center border-b border-slate-800 pb-2">
             <span className="text-sm text-slate-400">Water</span>
-            <span className="text-sm font-mono text-slate-500 italic">Data Unavailable</span>
+            <span className="text-sm font-mono text-blue-400">{formatQuantity(summary.resources?.water?.quantity, summary.resources?.water?.unit)}</span>
           </div>
         </div>
       </div>
