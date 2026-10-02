@@ -18,37 +18,49 @@ export const WorldController = {
   getWorldSummary: async (_request: FastifyRequest, reply: FastifyReply) => {
     try {
       const { prisma } = await import('../repositories/prisma');
+      const { supplyService } = await import('../services/supply.service');
+      const { ProductCategory } = await import('@genesis/shared');
 
-      // Fetch population and employment metrics
+      // 1. Employment Aggregation
       const population = await prisma.citizen.count();
       
-      const employed = await prisma.citizen.count({
-        where: { employmentStatus: 'EMPLOYED' }
-      });
-      const unemployed = await prisma.citizen.count({
-        where: { employmentStatus: 'UNEMPLOYED' }
-      });
-      const inactive = await prisma.citizen.count({
-        where: { employmentStatus: 'INACTIVE' }
-      });
+      const employed = await prisma.citizen.count({ where: { employmentStatus: 'EMPLOYED' } });
+      const unemployed = await prisma.citizen.count({ where: { employmentStatus: 'UNEMPLOYED' } });
+      const student = await prisma.citizen.count({ where: { employmentStatus: 'STUDENT' } });
+      const retired = await prisma.citizen.count({ where: { employmentStatus: 'RETIRED' } });
       
-      const workforce = employed + unemployed; // Explicitly defined
+      const workforce = employed + unemployed;
+      const inactive = student + retired; // Represents populations outside the labor market
+
+      // 2. Resource Aggregation (Dynamic Commodity Resolution)
+      const foodProductIds: string[] = [];
+      const waterProductIds: string[] = [];
+      
+      for (const commodity of supplyService.productionEngine.commodities.values()) {
+        if (commodity.category === ProductCategory.FOOD) {
+           if (commodity.id === 'water') {
+             waterProductIds.push(commodity.id);
+           } else {
+             foodProductIds.push(commodity.id);
+           }
+        }
+      }
 
       // Determine food and water quantities using DB aggregation
       const foodItems = await prisma.inventoryItem.groupBy({
         by: ['unit'],
         _sum: { totalQuantity: true },
-        where: { productId: { in: ['wheat', 'raw_fish'] } }
+        where: { productId: { in: foodProductIds } }
       });
 
       const waterItems = await prisma.inventoryItem.groupBy({
         by: ['unit'],
         _sum: { totalQuantity: true },
-        where: { productId: 'water' }
+        where: { productId: { in: waterProductIds } }
       });
 
       let foodQuantity = 0;
-      let foodUnit = 'kg'; 
+      let foodUnit = 'kg'; // Fallback / assumed common unit
       for (const item of foodItems) {
         if (item.unit === 'kg') {
           foodQuantity += item._sum.totalQuantity || 0;
@@ -56,7 +68,7 @@ export const WorldController = {
       }
 
       let waterQuantity = 0;
-      let waterUnit = 'L';
+      let waterUnit = 'L'; // Water is strictly tracked in Litres
       for (const item of waterItems) {
         if (item.unit === 'L') {
           waterQuantity += item._sum.totalQuantity || 0;
@@ -69,7 +81,9 @@ export const WorldController = {
           workforce,
           employed,
           unemployed,
-          inactive
+          inactive,
+          students: student,
+          retired
         },
         resources: {
           food: {

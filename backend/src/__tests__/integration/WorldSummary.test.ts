@@ -94,7 +94,12 @@ describe('World Summary API', () => {
         {
           id: 'c3', name: 'C', gender: 'MALE', status: 'ACTIVE',
           birthDateJson: '{}', createdAtSimJson: '{}', vitalStateJson: '{}', personalityJson: '{}', skillsJson: '[]',
-          employmentStatus: 'INACTIVE', locationId: locId, movementState: 'IDLE'
+          employmentStatus: 'STUDENT', locationId: locId, movementState: 'IDLE'
+        },
+        {
+          id: 'c4', name: 'D', gender: 'FEMALE', status: 'ACTIVE',
+          birthDateJson: '{}', createdAtSimJson: '{}', vitalStateJson: '{}', personalityJson: '{}', skillsJson: '[]',
+          employmentStatus: 'RETIRED', locationId: locId, movementState: 'IDLE'
         }
       ]
     });
@@ -107,10 +112,12 @@ describe('World Summary API', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     
-    expect(body.population).toBe(3);
+    expect(body.population).toBe(4);
     expect(body.employment.employed).toBe(1);
     expect(body.employment.unemployed).toBe(1);
-    expect(body.employment.inactive).toBe(1);
+    expect(body.employment.students).toBe(1);
+    expect(body.employment.retired).toBe(1);
+    expect(body.employment.inactive).toBe(2);
     expect(body.employment.workforce).toBe(2); // employed + unemployed
   });
 });
