@@ -101,7 +101,8 @@ npm run build:frontend
 - **Completed:** Phase 4 (AI Decision Engine) up to Phase 4.5 (Action Execution System).
 - **Completed:** Phase 5 (Economy Engine) including Production, Inventory, Supply Chain, and Market.
 - **Completed:** Phase 6 (Financial Engine) up to Banking & Loans.
-- **In Progress:** Phase 8 (Visualization & UI) currently implementing spatial renderers, movement visualization, and civilization overview.
+- **Completed:** Phase 7 (Runtime Lifecycle & Persistence).
+- **Completed:** Phase 8 (Visualization & UI) including spatial renderers, movement visualization, and an authoritative civilization overview dashboard.
 
 ## Genesis Roadmap
 
@@ -138,23 +139,28 @@ Phase 5 ✅ Economy Engine
 ├── 5.3 Supply Chain & Procurement
 └── 5.4 Market & Consumer Purchasing
 
-Phase 6 🚧 Financial Engine & Advanced Economy
+Phase 6 ✅ Financial Engine & Advanced Economy
 ├── 6.1 Wallets & Transaction Ledger
 ├── 6.2 Salary & Employment Economy
 ├── 6.3 Business Accounting
 ├── 6.x-1 Production Costing & Supplier Quality
-├── 6.4 Banking & Loans (Planned)
+├── 6.4 Banking & Loans
 └── 6.5 Macro Economics & Taxes (Planned)
 
-Phase 7 🔜 Social Framework & Relationships
-Phase 8 🚧 Visualization & UI
+Phase 7 ✅ Runtime Lifecycle & Persistence
+├── 7.1 Database Bootstrap
+├── 7.2 Backend Data Hydration
+└── 7.3 Runtime Lifecycle & Safe Shutdown
+
+Phase 8 ✅ Visualization & UI
 ├── 8.1 Spatial Foundation & World Renderer
 ├── 8.2 Settlement & City Visualization
 ├── 8.3 Natural World & Resource Visualization
 ├── 8.4 Citizen Movement & Action Visualization
 ├── 8.5 Live Simulation Synchronization
-└── 8.6 Civilization Overview Dashboard
-Phase 9 🔜 Persistence
+└── 8.6 Civilization Overview & Metrics Exposure
+
+Phase 9 🔜 Social Framework & Relationships
 Phase 10 🔜 Optimization & Scale
 ```
 
