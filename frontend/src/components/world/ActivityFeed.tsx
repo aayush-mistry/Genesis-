@@ -32,24 +32,32 @@ export function ActivityFeed() {
           </span>
         )}
       </div>
-      <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
-        {validEvents.map((event: any, idx: number) => (
-          <div key={event.id || idx} className="text-sm p-2 rounded hover:bg-slate-800 transition-colors">
-            <div className="flex justify-between items-start mb-1">
-              <span className="font-medium text-slate-300 text-xs">
-                {event.type ? String(event.type).replace(/_/g, ' ') : 'UNKNOWN'}
-              </span>
-              <span className="text-[10px] font-mono text-slate-500">
-                {event.executedAtSimulationTime ? 
-                  `${String(event.executedAtSimulationTime.hour).padStart(2, '0')}:${String(event.executedAtSimulationTime.minute).padStart(2, '0')}` : 
-                  ''}
-              </span>
+      <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar pointer-events-auto">
+        {validEvents.map((event: any, idx: number) => {
+          const title = event.type ? String(event.type).replace(/_/g, ' ') : 'Event';
+          const description = event.data?.description || (event.data ? String(JSON.stringify(event.data) || '').slice(0, 50) + '...' : '');
+          if (!event.type && !description) return null;
+          
+          return (
+            <div key={event.id || idx} className="text-sm p-2 rounded hover:bg-slate-800 transition-colors">
+              <div className="flex justify-between items-start mb-1">
+                <span className="font-medium text-slate-300 text-xs">
+                  {title}
+                </span>
+                <span className="text-[10px] font-mono text-slate-500">
+                  {event.executedAtSimulationTime ? 
+                    `${String(event.executedAtSimulationTime.hour).padStart(2, '0')}:${String(event.executedAtSimulationTime.minute).padStart(2, '0')}` : 
+                    ''}
+                </span>
+              </div>
+              {description && (
+                <p className="text-xs text-slate-400 leading-snug break-words">
+                  {description}
+                </p>
+              )}
             </div>
-            <p className="text-xs text-slate-400 leading-snug break-words">
-              {event.data?.description || (event.data ? String(JSON.stringify(event.data) || '').slice(0, 50) + '...' : 'No details available')}
-            </p>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
