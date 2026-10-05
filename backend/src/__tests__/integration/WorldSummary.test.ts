@@ -38,7 +38,7 @@ describe('World Summary API', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     
-    expect(body.population).toBe(0);
+    expect(body.population.total).toBe(0);
     expect(body.employment.workforce).toBe(0);
     expect(body.employment.employed).toBe(0);
     expect(body.employment.unemployed).toBe(0);
@@ -112,7 +112,7 @@ describe('World Summary API', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     
-    expect(body.population).toBe(4);
+    expect(body.population.total).toBe(4);
     expect(body.employment.employed).toBe(1);
     expect(body.employment.unemployed).toBe(1);
     expect(body.employment.students).toBe(1);

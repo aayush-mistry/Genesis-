@@ -1,16 +1,25 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useSpatialStore } from '../../stores/useSpatialStore';
 
 export const CivilizationSummary: React.FC = () => {
   const { summary, fetchSummary } = useSpatialStore();
+  const [error, setError] = useState<boolean>(false);
 
   useEffect(() => {
-    fetchSummary();
-    const interval = setInterval(fetchSummary, 5000);
+    const doFetch = async () => {
+      try {
+        await fetchSummary();
+        setError(false);
+      } catch (e) {
+        setError(true);
+      }
+    };
+    doFetch();
+    const interval = setInterval(doFetch, 5000);
     return () => clearInterval(interval);
   }, [fetchSummary]);
 
-  const formatQuantity = (quantity: number, unit: string) => {
+  const formatQuantity = (quantity: number | undefined | null, unit: string) => {
     if (quantity === undefined || quantity === null) return 'Data Unavailable';
     if (quantity === 0) return `0 ${unit}`;
     
@@ -23,7 +32,25 @@ export const CivilizationSummary: React.FC = () => {
     return `${quantity.toLocaleString()} ${unit}`;
   };
 
+  const formatMoney = (amount: number | undefined | null) => {
+    if (amount === undefined || amount === null) return 'Data Unavailable';
+    if (amount === 0) return '0 GEN';
+    if (amount >= 1000000) return `${(amount / 1000000).toLocaleString(undefined, { maximumFractionDigits: 1 })}M GEN`;
+    if (amount >= 1000) return `${(amount / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })}k GEN`;
+    return `${amount.toLocaleString()} GEN`;
+  };
+
+  if (error) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-slate-950/80">
+        <span className="text-red-500 font-mono text-sm">Connection Error</span>
+      </div>
+    );
+  }
+
   if (!summary) return null;
+
+  const pop = typeof summary.population === 'number' ? summary.population : summary.population?.total;
 
   return (
     <div className="w-full h-full flex flex-col bg-slate-950/80">
@@ -35,26 +62,26 @@ export const CivilizationSummary: React.FC = () => {
       
       <div className="p-4 flex flex-col gap-4 flex-1 overflow-y-auto no-scrollbar">
         
-        {/* Population & Employment */}
+        {/* Civilization */}
         <div className="space-y-3">
+          <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">CIVILIZATION</h4>
           <div className="flex justify-between items-center border-b border-slate-800 pb-2">
             <span className="text-sm text-slate-400">Population</span>
-            <span className="text-lg font-mono text-slate-100">{summary.population.toLocaleString()}</span>
+            <span className="text-sm font-mono text-slate-100">{pop !== undefined ? pop.toLocaleString() : 'Data Unavailable'}</span>
           </div>
           
           <div className="flex justify-between items-center border-b border-slate-800 pb-2">
             <span className="text-sm text-slate-400">Workforce</span>
-            <span className="text-lg font-mono text-slate-100">{summary.employment.workforce > 0 ? summary.employment.workforce.toLocaleString() : '0'}</span>
+            <span className="text-sm font-mono text-slate-100">{summary.employment?.workforce !== undefined ? summary.employment.workforce.toLocaleString() : 'Data Unavailable'}</span>
           </div>
 
           <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-            <span className="text-sm text-slate-400">Employed</span>
-            <span className="text-lg font-mono text-slate-100">{summary.employment.employed.toLocaleString()}</span>
-          </div>
-          
-          <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-            <span className="text-sm text-slate-400">Unemployed</span>
-            <span className="text-lg font-mono text-slate-100">{summary.employment.unemployed.toLocaleString()}</span>
+            <span className="text-sm text-slate-400">Employment</span>
+            <span className="text-sm font-mono text-slate-100">
+              {summary.employment?.workforce > 0 
+                ? `${Math.round((summary.employment.employed / summary.employment.workforce) * 100)}%` 
+                : '0%'}
+            </span>
           </div>
         </div>
 
@@ -62,15 +89,81 @@ export const CivilizationSummary: React.FC = () => {
         <div className="space-y-3 mt-2">
           <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">RESOURCES</h4>
           <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-            <span className="text-sm text-slate-400">Food</span>
+            <span className="text-sm text-slate-400">Food Inventory</span>
             <span className="text-sm font-mono text-emerald-400">{formatQuantity(summary.resources?.food?.quantity, summary.resources?.food?.unit)}</span>
           </div>
           
           <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-            <span className="text-sm text-slate-400">Water</span>
+            <span className="text-sm text-slate-400">Daily Hunger Demand</span>
+            <span className="text-sm font-mono text-orange-400">{formatQuantity(summary.resources?.food?.dailyHungerDemand, 'hunger')}</span>
+          </div>
+          
+          <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+            <span className="text-sm text-slate-400">Water Inventory</span>
             <span className="text-sm font-mono text-blue-400">{formatQuantity(summary.resources?.water?.quantity, summary.resources?.water?.unit)}</span>
           </div>
+
+          <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+            <span className="text-sm text-slate-400">Daily Thirst Demand</span>
+            <span className="text-sm font-mono text-orange-400">{formatQuantity(summary.resources?.water?.dailyThirstDemand, 'thirst')}</span>
+          </div>
         </div>
+
+        {/* Economy */}
+        {summary.production && summary.finance && (
+          <div className="space-y-3 mt-2">
+            <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">ECONOMY</h4>
+            
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <span className="text-sm text-slate-400">Active Producers</span>
+              <span className="text-sm font-mono text-slate-100">{summary.production.activeProducers ?? '0'}</span>
+            </div>
+
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <span className="text-sm text-slate-400">Commerce Outlets</span>
+              <span className="text-sm font-mono text-slate-100">{summary.commerce?.activeStores ?? '0'}</span>
+            </div>
+            
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <span className="text-sm text-slate-400">Total Money</span>
+              <span className="text-sm font-mono text-yellow-400">{formatMoney(summary.finance.totalMoney)}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Supply */}
+        {summary.supplyChain && (
+          <div className="space-y-3 mt-2">
+            <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">SUPPLY</h4>
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <span className="text-sm text-slate-400">Pending Orders</span>
+              <span className="text-sm font-mono text-slate-100">{summary.supplyChain.pendingOrders ?? '0'}</span>
+            </div>
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <span className="text-sm text-slate-400">Active Shipments</span>
+              <span className="text-sm font-mono text-slate-100">{summary.supplyChain.activeShipments ?? '0'}</span>
+            </div>
+          </div>
+        )}
+        
+        {/* Activity */}
+        {summary.activity && (
+          <div className="space-y-3 mt-2">
+            <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">ACTIVITY</h4>
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <span className="text-sm text-slate-400">Working</span>
+              <span className="text-sm font-mono text-slate-100">{summary.activity.working ?? '0'}</span>
+            </div>
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <span className="text-sm text-slate-400">Travelling</span>
+              <span className="text-sm font-mono text-slate-100">{summary.activity.travelling ?? '0'}</span>
+            </div>
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <span className="text-sm text-slate-400">Idle</span>
+              <span className="text-sm font-mono text-slate-100">{summary.activity.idle ?? '0'}</span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

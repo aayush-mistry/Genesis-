@@ -17,85 +17,9 @@ export const WorldController = {
 
   getWorldSummary: async (_request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const { prisma } = await import('../repositories/prisma');
-      const { supplyService } = await import('../services/supply.service');
-      const { ProductCategory } = await import('@genesis/shared');
-
-      // 1. Employment Aggregation
-      const population = await prisma.citizen.count();
-      
-      const employed = await prisma.citizen.count({ where: { employmentStatus: 'EMPLOYED' } });
-      const unemployed = await prisma.citizen.count({ where: { employmentStatus: 'UNEMPLOYED' } });
-      const student = await prisma.citizen.count({ where: { employmentStatus: 'STUDENT' } });
-      const retired = await prisma.citizen.count({ where: { employmentStatus: 'RETIRED' } });
-      
-      const workforce = employed + unemployed;
-      const inactive = student + retired; // Represents populations outside the labor market
-
-      // 2. Resource Aggregation (Dynamic Commodity Resolution)
-      const foodProductIds: string[] = [];
-      const waterProductIds: string[] = [];
-      
-      for (const commodity of supplyService.productionEngine.commodities.values()) {
-        if (commodity.category === ProductCategory.FOOD) {
-           if (commodity.id === 'water') {
-             waterProductIds.push(commodity.id);
-           } else {
-             foodProductIds.push(commodity.id);
-           }
-        }
-      }
-
-      // Determine food and water quantities using DB aggregation
-      const foodItems = await prisma.inventoryItem.groupBy({
-        by: ['unit'],
-        _sum: { totalQuantity: true },
-        where: { productId: { in: foodProductIds } }
-      });
-
-      const waterItems = await prisma.inventoryItem.groupBy({
-        by: ['unit'],
-        _sum: { totalQuantity: true },
-        where: { productId: { in: waterProductIds } }
-      });
-
-      let foodQuantity = 0;
-      let foodUnit = 'kg'; // Fallback / assumed common unit
-      for (const item of foodItems) {
-        if (item.unit === 'kg') {
-          foodQuantity += item._sum.totalQuantity || 0;
-        }
-      }
-
-      let waterQuantity = 0;
-      let waterUnit = 'L'; // Water is strictly tracked in Litres
-      for (const item of waterItems) {
-        if (item.unit === 'L') {
-          waterQuantity += item._sum.totalQuantity || 0;
-        }
-      }
-
-      return reply.send({
-        population,
-        employment: {
-          workforce,
-          employed,
-          unemployed,
-          inactive,
-          students: student,
-          retired
-        },
-        resources: {
-          food: {
-            quantity: foodQuantity,
-            unit: foodUnit
-          },
-          water: {
-            quantity: waterQuantity,
-            unit: waterUnit
-          }
-        }
-      });
+      const { civilizationIntelligenceService } = await import('../services/civilizationIntelligence.service');
+      const summary = await civilizationIntelligenceService.getCivilizationSummary();
+      return reply.send(summary);
     } catch (e) {
       console.error(e);
       return reply.status(500).send({ error: 'Failed to aggregate world summary.' });
@@ -103,217 +27,218 @@ export const WorldController = {
   },
 
   getSpatialSnapshot: async (_request: FastifyRequest, reply: FastifyReply) => {
-    const world = worldService.engine.worldManager.getWorld();
-    if (!world) {
-      return reply.status(404).send({ error: 'World not initialized' });
-    }
-
-    const regions = worldService.engine.regionManager.getAllRegions();
-    const cities = worldService.engine.cityManager.getAllCities();
-    const districts = worldService.engine.districtManager.getAllDistricts();
-    const buildings = worldService.engine.buildingManager.getAllBuildings();
-    const workplaces = worldService.engine.workplaceRepository.findAll();
-
-    const { resourceService } = await import('../services/resource.service');
-    const resources = resourceService.engine.resourceManager.getAllResources();
-
-    const { citizenService } = await import('../services/citizen.service');
-    const citizens = citizenService.engine.listCitizens();
-    
-    // Quick fix: directly fetch households from DB or use a service if it exists
-    const { prisma } = await import('../repositories/prisma');
-    const dbHouseholds = await prisma.household.findMany();
-    // Re-fetch citizens to ensure we get coordX and coordY if the engine didn't cache it
-    const dbCitizens = await prisma.citizen.findMany();
-    const dbBuildings = await prisma.building.findMany();
-    const dbTerrains = await prisma.terrain.findMany();
-
-    const mapCoordinates = (item: any) => ({
-      ...item,
-      coordinates: { x: item.coordX ?? 0, y: item.coordY ?? 0 }
-    });
-
-    const mappedCitizens = dbCitizens.map(mapCoordinates);
-
-    // Generate population clusters
-    const clusterMap = new Map<string, any>();
-    mappedCitizens.forEach(citizen => {
-      const locId = citizen.locationId || 'unknown';
-      if (!clusterMap.has(locId)) {
-        // Find parent building or district to get coords if citizen coords are missing
-        const building = dbBuildings.find(b => b.id === locId);
-        let cx = citizen.coordinates.x;
-        let cy = citizen.coordinates.y;
-        
-        if (building) {
-          cx = cx || building.coordX;
-          cy = cy || building.coordY;
-        }
-
-        clusterMap.set(locId, {
-          clusterId: `cluster-${locId}`,
-          x: cx,
-          y: cy,
-          population: 0,
-          bounds: building ? { width: building.width, height: building.height } : null,
-          parentRegionId: building ? cities.find(c => districts.find(d => d.id === building.districtId)?.cityId === c.id)?.regionId : null,
-          parentCityId: building ? districts.find(d => d.id === building.districtId)?.cityId : null,
-          parentDistrictId: building ? building.districtId : null
-        });
+    try {
+      const world = worldService.engine.worldManager.getWorld();
+      if (!world) {
+        return reply.status(404).send({ error: 'World not initialized' });
       }
-      clusterMap.get(locId).population++;
-    });
 
-    const { SeededRandom } = await import('@genesis/engine');
-    const mappedWorkplaces = workplaces.map(wp => {
-      const building = dbBuildings.find(b => b.id === wp.locationId);
-      if (building) {
-        return { ...wp, coordinates: { x: building.coordX, y: building.coordY } };
-      }
-      if (['FARM', 'MINE', 'FISHING_SITE', 'FOREST_SITE'].includes(wp.type)) {
-        const region = regions.find(r => r.id === wp.regionId);
-        if (region) {
-          let hash = 0;
-          for (let i = 0; i < wp.id.length; i++) {
-             hash = ((hash << 5) - hash) + wp.id.charCodeAt(i);
-             hash |= 0;
-          }
-          const wpRng = new SeededRandom(world.randomSeed ^ hash);
-          return {
-            ...wp,
-            coordinates: { 
-              x: region.coordinates.x + Math.floor(wpRng.nextFloat(-1200, 1200)),
-              y: region.coordinates.y + Math.floor(wpRng.nextFloat(-1200, 1200))
-            }
-          };
-        }
-      }
+      const regions = worldService.engine.regionManager.getAllRegions();
+      const cities = worldService.engine.cityManager.getAllCities();
+      const districts = worldService.engine.districtManager.getAllDistricts();
+      const buildings = worldService.engine.buildingManager.getAllBuildings();
+      const workplaces = worldService.engine.workplaceRepository.findAll();
+
+      const { resourceService } = await import('../services/resource.service');
+      const resources = resourceService.engine.resourceManager.getAllResources();
+
+      const { citizenService } = await import('../services/citizen.service');
+      const citizens = citizenService.engine.listCitizens();
       
-      // Civic Workplaces (No building, attached to City)
-      if (['HOSPITAL', 'SCHOOL', 'POLICE_STATION', 'FIRE_STATION', 'WHOLESALE'].includes(wp.type)) {
-        // locationId for these is usually the cityId
-        const city = cities.find(c => c.id === wp.locationId) || cities.find(c => c.regionId === wp.regionId);
-        if (city) {
-          let hash = 0;
-          for (let i = 0; i < wp.id.length; i++) {
-             hash = ((hash << 5) - hash) + wp.id.charCodeAt(i);
-             hash |= 0;
-          }
-          const wpRng = new SeededRandom(world.randomSeed ^ hash);
-          return {
-            ...wp,
-            coordinates: { 
-              x: city.coordinates.x + Math.floor(wpRng.nextFloat(-city.width/3, city.width/3)),
-              y: city.coordinates.y + Math.floor(wpRng.nextFloat(-city.height/3, city.height/3))
-            }
-          };
-        }
-      }
-      return { ...wp, coordinates: { x: 0, y: 0 } };
-    });
+      const { prisma } = await import('../repositories/prisma');
+      const dbHouseholds = await prisma.household.findMany();
+      const dbCitizens = await prisma.citizen.findMany();
+      const dbBuildings = await prisma.building.findMany();
+      const dbTerrains = await prisma.terrain.findMany();
 
-    return reply.send({
-      world,
-      regions,
-      cities,
-      districts,
-      buildings: dbBuildings.map(mapCoordinates), // Use DB directly for now to get backfilled ones
-      workplaces: mappedWorkplaces,
-      resources,
-      terrain: dbTerrains.map(mapCoordinates),
-      citizens: mappedCitizens,
-      households: dbHouseholds.map(mapCoordinates),
-      populationClusters: Array.from(clusterMap.values())
-    });
+      const mapCoordinates = (item: any) => ({
+        ...item,
+        coordinates: { x: item.coordX ?? 0, y: item.coordY ?? 0 }
+      });
+
+      const mappedCitizens = dbCitizens.map(mapCoordinates);
+
+      const clusterMap = new Map<string, any>();
+      mappedCitizens.forEach(citizen => {
+        const locId = citizen.locationId || 'unknown';
+        if (!clusterMap.has(locId)) {
+          const building = dbBuildings.find(b => b.id === locId);
+          let cx = citizen.coordinates.x;
+          let cy = citizen.coordinates.y;
+          
+          if (building) {
+            cx = cx || building.coordX;
+            cy = cy || building.coordY;
+          }
+
+          clusterMap.set(locId, {
+            clusterId: `cluster-${locId}`,
+            x: cx,
+            y: cy,
+            population: 0,
+            bounds: building ? { width: building.width, height: building.height } : null,
+            parentRegionId: building ? cities.find(c => districts.find(d => d.id === building.districtId)?.cityId === c.id)?.regionId : null,
+            parentCityId: building ? districts.find(d => d.id === building.districtId)?.cityId : null,
+            parentDistrictId: building ? building.districtId : null
+          });
+        }
+        clusterMap.get(locId).population++;
+      });
+
+      const { SeededRandom } = await import('@genesis/engine');
+      const mappedWorkplaces = workplaces.map(wp => {
+        const building = dbBuildings.find(b => b.id === wp.locationId);
+        if (building) {
+          return { ...wp, coordinates: { x: building.coordX, y: building.coordY } };
+        }
+        if (['FARM', 'MINE', 'FISHING_SITE', 'FOREST_SITE'].includes(wp.type)) {
+          const region = regions.find(r => r.id === wp.regionId);
+          if (region) {
+            let hash = 0;
+            for (let i = 0; i < wp.id.length; i++) {
+               hash = ((hash << 5) - hash) + wp.id.charCodeAt(i);
+               hash |= 0;
+            }
+            const wpRng = new SeededRandom(world.randomSeed ^ hash);
+            return {
+              ...wp,
+              coordinates: { 
+                x: region.coordinates.x + Math.floor(wpRng.nextFloat(-1200, 1200)),
+                y: region.coordinates.y + Math.floor(wpRng.nextFloat(-1200, 1200))
+              }
+            };
+          }
+        }
+        
+        if (['HOSPITAL', 'SCHOOL', 'POLICE_STATION', 'FIRE_STATION', 'WHOLESALE'].includes(wp.type)) {
+          const city = cities.find(c => c.id === wp.locationId) || cities.find(c => c.regionId === wp.regionId);
+          if (city) {
+            let hash = 0;
+            for (let i = 0; i < wp.id.length; i++) {
+               hash = ((hash << 5) - hash) + wp.id.charCodeAt(i);
+               hash |= 0;
+            }
+            const wpRng = new SeededRandom(world.randomSeed ^ hash);
+            return {
+              ...wp,
+              coordinates: { 
+                x: city.coordinates.x + Math.floor(wpRng.nextFloat(-city.width/3, city.width/3)),
+                y: city.coordinates.y + Math.floor(wpRng.nextFloat(-city.height/3, city.height/3))
+              }
+            };
+          }
+        }
+        return { ...wp, coordinates: { x: 0, y: 0 } };
+      });
+
+      return reply.send({
+        world,
+        regions,
+        cities,
+        districts,
+        buildings: dbBuildings.map(mapCoordinates),
+        workplaces: mappedWorkplaces,
+        resources,
+        terrain: dbTerrains.map(mapCoordinates),
+        citizens: mappedCitizens,
+        households: dbHouseholds.map(mapCoordinates),
+        populationClusters: Array.from(clusterMap.values())
+      });
+    } catch (error) {
+      console.error('getSpatialSnapshot error:', error);
+      return reply.status(500).send({ error: 'Internal Server Error in getSpatialSnapshot', details: (error as any).message });
+    }
   },
 
   getDynamicSpatialState: async (_request: FastifyRequest, reply: FastifyReply) => {
-    const world = worldService.engine.worldManager.getWorld();
-    if (!world) {
-      return reply.status(404).send({ error: 'World not initialized' });
+    try {
+      const world = worldService.engine.worldManager.getWorld();
+      if (!world) {
+        return reply.status(404).send({ error: 'World not initialized' });
+      }
+
+      const { citizenService } = await import('../services/citizen.service');
+      const { spatialService } = await import('../services/spatial.service');
+      const citizens = citizenService.engine.listCitizens();
+      
+      const { prisma } = await import('../repositories/prisma');
+      const dbBuildings = await prisma.building.findMany();
+
+      const { timeService } = await import('../services/time.service');
+      const currentTime = timeService.engine.getCurrentTime();
+
+      const clusterMap = new Map<string, any>();
+      const { TimeUtils } = await import('@genesis/engine');
+
+      const mappedCitizens = citizens.map(citizen => {
+        let x = citizen.coordX ?? 0;
+        let y = citizen.coordY ?? 0;
+        let destinationX: number | undefined = undefined;
+        let destinationY: number | undefined = undefined;
+        let travelProgress: number | undefined = undefined;
+
+        const exactCoords = spatialService.engine.queryService.resolveCitizenLocation(citizen, currentTime);
+        if (exactCoords) {
+          x = exactCoords.x;
+          y = exactCoords.y;
+        }
+
+        if (citizen.movementState === 'TRAVELLING' && citizen.activeRoute) {
+          const route = citizen.activeRoute;
+          const destCoords = spatialService.engine.queryService['worldEngine'].getEntityCoordinates(route.destinationId);
+          
+          if (destCoords) {
+             destinationX = destCoords.x;
+             destinationY = destCoords.y;
+          }
+
+          const startSecs = TimeUtils.toSeconds(route.startedAtSimulationTime);
+          const expectedSecs = TimeUtils.toSeconds(route.expectedArrivalSimulationTime);
+          const currentSecs = TimeUtils.toSeconds(currentTime);
+          
+          if (expectedSecs > startSecs) {
+             travelProgress = Math.min(1, Math.max(0, (currentSecs - startSecs) / (expectedSecs - startSecs)));
+          } else {
+             travelProgress = 1;
+          }
+        }
+
+        const locId = citizen.locationId || 'unknown';
+        if (!clusterMap.has(locId)) {
+          const b = dbBuildings.find(b => b.id === locId);
+          clusterMap.set(locId, {
+            clusterId: `cluster-${locId}`,
+            x: b ? b.coordX : x,
+            y: b ? b.coordY : y,
+            population: 0
+          });
+        }
+        clusterMap.get(locId).population++;
+
+        return {
+          id: citizen.id,
+          householdId: citizen.householdId,
+          workplaceId: citizen.workplaceId,
+          x,
+          y,
+          locationId: citizen.locationId,
+          movementState: citizen.movementState,
+          activeRoute: citizen.activeRoute,
+          destinationX,
+          destinationY,
+          travelProgress
+        };
+      });
+
+      return reply.send({
+        time: currentTime,
+        citizens: mappedCitizens,
+        populationClusters: Array.from(clusterMap.values())
+      });
+    } catch (error) {
+      console.error('getDynamicSpatialState error:', error);
+      return reply.status(500).send({ error: 'Internal Server Error in getDynamicSpatialState', details: (error as any).message });
     }
-
-    const { citizenService } = await import('../services/citizen.service');
-    const { spatialService } = await import('../services/spatial.service');
-    const citizens = citizenService.engine.listCitizens();
-    
-    // Quick fix: directly fetch buildings and workplaces for location resolution
-    const { prisma } = await import('../repositories/prisma');
-    const dbBuildings = await prisma.building.findMany();
-
-    const { timeService } = await import('../services/time.service');
-    const currentTime = timeService.engine.getCurrentTime();
-
-    // Generate population clusters
-    const clusterMap = new Map<string, any>();
-    const { TimeUtils } = await import('@genesis/engine');
-
-    const mappedCitizens = citizens.map(citizen => {
-      let x = citizen.coordX ?? 0;
-      let y = citizen.coordY ?? 0;
-      let destinationX: number | undefined = undefined;
-      let destinationY: number | undefined = undefined;
-      let travelProgress: number | undefined = undefined;
-
-      const exactCoords = spatialService.engine.queryService.resolveCitizenLocation(citizen, currentTime);
-      if (exactCoords) {
-        x = exactCoords.x;
-        y = exactCoords.y;
-      }
-
-      if (citizen.movementState === 'TRAVELLING' && citizen.activeRoute) {
-        const route = citizen.activeRoute;
-        const destCoords = spatialService.engine.queryService['worldEngine'].getEntityCoordinates(route.destinationId);
-        
-        if (destCoords) {
-           destinationX = destCoords.x;
-           destinationY = destCoords.y;
-        }
-
-        const startSecs = TimeUtils.toSeconds(route.startedAtSimulationTime);
-        const expectedSecs = TimeUtils.toSeconds(route.expectedArrivalSimulationTime);
-        const currentSecs = TimeUtils.toSeconds(currentTime);
-        
-        if (expectedSecs > startSecs) {
-           travelProgress = Math.min(1, Math.max(0, (currentSecs - startSecs) / (expectedSecs - startSecs)));
-        } else {
-           travelProgress = 1;
-        }
-      }
-
-      // Aggregate clusters
-      const locId = citizen.locationId || 'unknown';
-      if (!clusterMap.has(locId)) {
-        const b = dbBuildings.find(b => b.id === locId);
-        clusterMap.set(locId, {
-          clusterId: `cluster-${locId}`,
-          x: b ? b.coordX : x,
-          y: b ? b.coordY : y,
-          population: 0
-        });
-      }
-      clusterMap.get(locId).population++;
-
-      return {
-        id: citizen.id,
-        householdId: citizen.householdId,
-        workplaceId: citizen.workplaceId,
-        x,
-        y,
-        locationId: citizen.locationId,
-        movementState: citizen.movementState,
-        activeRoute: citizen.activeRoute,
-        destinationX,
-        destinationY,
-        travelProgress
-      };
-    });
-
-    return reply.send({
-      time: currentTime,
-      citizens: mappedCitizens,
-      populationClusters: Array.from(clusterMap.values())
-    });
   },
 
   createWorld: async (request: FastifyRequest, _reply: FastifyReply) => {
