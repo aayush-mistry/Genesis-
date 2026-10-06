@@ -33,8 +33,9 @@ describe('Commerce Integration (Phase 6.4)', () => {
       worldEngine, 
       timeEngine, 
       eventScheduler, 
-      spatialEngine.queryService
-    , new (require('../../citizen/services/HouseholdService').HouseholdService)(new (require('../../inventory/InventoryManager').InventoryManager)()));
+      spatialEngine.queryService,
+      new (require('../../citizen/services/HouseholdService').HouseholdService)(inventoryManager)
+    );
 
     // Provide a mocked perception service to return our store
     citizenService.setPerceptionService({
@@ -56,8 +57,7 @@ describe('Commerce Integration (Phase 6.4)', () => {
       worldEngine, 
       timeEngine, 
       eventScheduler, 
-      (id) => citizenService.getCitizen(id)?.wallet,
-      inventoryManager
+      (id) => citizenService.getCitizen(id)?.wallet
     );
 
     const { StoreRanker } = require('../../decision/scoring/StoreRanker');
@@ -132,9 +132,9 @@ describe('Commerce Integration (Phase 6.4)', () => {
     const storeWheat = inventoryManager.getInventory('inv-store-1')?.items['wheat']?.totalQuantity || 0;
     expect(storeWheat).toBe(49); // Started at 50
 
-    const citizenInvId = `inv-${citizen.id}`;
-    const citizenWheat = inventoryManager.getInventory(citizenInvId)?.items['wheat']?.totalQuantity || 0;
-    expect(citizenWheat).toBe(1);
+    const householdInvId = citizen.householdId ? citizenService.householdService.getHousehold(citizen.householdId)?.inventoryId || '' : `inv-${citizen.id}`;
+    const householdWheat = inventoryManager.getInventory(householdInvId)?.items['wheat']?.totalQuantity || 0;
+    expect(householdWheat).toBe(21); // Started with 20 starter wheat, bought 1
 
     // Verify hunger did NOT decrease (consumption is out of scope for Phase 6.4)
     expect(citizen.vitalState.hunger).toBe(100);

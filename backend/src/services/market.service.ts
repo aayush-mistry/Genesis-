@@ -13,8 +13,7 @@ class MarketService {
       worldService.engine,
       timeService.engine,
       eventService.scheduler,
-      (citizenId) => citizenService.engine.getCitizen(citizenId)?.wallet,
-      supplyService.inventoryManager
+      (citizenId) => citizenService.engine.getCitizen(citizenId)?.wallet
     );
   }
 

@@ -108,8 +108,8 @@ export class WorkplaceGenerator {
   }
 
   private createWorkplace(regionId: string, locationId: string, type: WorkplaceType, jobType: JobType, reqSkill: SkillType, capacity: number): void {
-    const { v4: uuidv4 } = require('uuid');
-    const id = `wp-${uuidv4()}`;
+    const { randomUUID } = require('crypto');
+    const id = `wp-${randomUUID()}`;
 
     const positions: JobPosition[] = [];
     for (let i = 0; i < capacity; i++) {

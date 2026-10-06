@@ -12,6 +12,7 @@ export interface StoreCandidate {
 }
 
 export interface RankedStore extends StoreCandidate {
+  sellerId: string;
   score: number;
   price: number;
   availableQuantity: number;
@@ -23,7 +24,8 @@ export interface RankedStore extends StoreCandidate {
 export class StoreRanker {
   constructor(
     private marketEngine: MarketEngine,
-    private inventoryManager: InventoryManager
+    private inventoryManager: InventoryManager,
+    private workplaceRepository?: import('../../world/repositories/WorkplaceRepository').WorkplaceRepository
   ) {}
 
   public rankStores(context: DecisionContext, stores: StoreCandidate[], productId: string, requiredQuantity: number): RankedStore[] {
@@ -43,11 +45,19 @@ export class StoreRanker {
     let maxDistance = 0;
 
     // First pass to find limits
-    const validStores: (StoreCandidate & { price: number; availableQuantity: number })[] = [];
+    const validStores: (StoreCandidate & { price: number; availableQuantity: number, sellerId: string })[] = [];
     for (const store of stores) {
       // Need to find the store's inventory. We assume the store id matches its inventory owner id (or workplace id)
       // Usually workplace ID is used for inventory owner ID
-      const inventory = this.inventoryManager.getInventoryByOwner(store.id);
+      let sellerId = store.id;
+      if (this.workplaceRepository) {
+        const wp = this.workplaceRepository.findAll().find(w => w.locationId === store.id && (w.type === 'SHOP' || w.type === 'RETAIL' || w.type === 'WHOLESALE'));
+        if (wp) {
+          sellerId = wp.id;
+        }
+      }
+
+      const inventory = this.inventoryManager.getInventoryByOwner(sellerId);
       if (!inventory) continue;
 
       const availableQuantity = this.inventoryManager.getUsableQuantity(inventory.id, productId, currentTime);
@@ -62,7 +72,8 @@ export class StoreRanker {
       validStores.push({
         ...store,
         price,
-        availableQuantity
+        availableQuantity,
+        sellerId
       });
     }
 
@@ -83,6 +94,7 @@ export class StoreRanker {
 
       rankedStores.push({
         id: store.id,
+        sellerId: store.sellerId,
         type: store.type,
         coordinates: store.coordinates,
         distance: store.distance,

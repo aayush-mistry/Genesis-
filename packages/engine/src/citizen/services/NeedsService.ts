@@ -79,6 +79,14 @@ export class NeedsService {
     }
 
     citizen.vitalState.energy -= elapsedHours * energyModifier;
+
+    // Health deterioration from critical hunger or thirst
+    if (citizen.vitalState.hunger > 90) {
+      citizen.vitalState.health -= elapsedHours * 5.0; // Lose 5 health per hour of critical hunger
+    }
+    if (citizen.vitalState.thirst > 90) {
+      citizen.vitalState.health -= elapsedHours * 10.0; // Lose 10 health per hour of critical thirst
+    }
     
     this.clampVitalState(citizen.vitalState);
 

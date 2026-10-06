@@ -344,6 +344,10 @@ export class PersistenceService {
           const citizen = citizenService.engine.getCitizen(citizenId);
           if (citizen) {
             await citizenRepository.updateCitizen(citizenId, {
+              status: citizen.status,
+              employmentStatus: citizen.employmentStatus,
+              workplaceId: citizen.workplaceId,
+              jobType: citizen.jobType,
               vitalStateJson: JSON.stringify(citizen.vitalState),
               locationId: citizen.locationId || null,
               coordX: citizen.coordX || null,
@@ -353,6 +357,7 @@ export class PersistenceService {
             });
     
             const inventory = supplyService.inventoryManager.getInventoryByOwner(citizenId);
+            console.log(`persistTickBoundary retrieved inventory for ${citizenId}:`, !!inventory);
             await syncInventory(inventory);
             await syncWallet(citizen.wallet);
           }

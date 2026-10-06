@@ -64,9 +64,11 @@ export class PurchaseActionExecutor extends BaseActionExecutor {
 
       action.target = { type: 'BUILDING', id: rankedStores[0].id };
       action.metadata = action.metadata || {};
-      action.metadata.selectedStoreId = rankedStores[0].id;
+      action.metadata.sellerId = rankedStores[0].sellerId || rankedStores[0].id;
     }
 
+    console.log(`[PurchaseActionExecutor] START. citizen.locationId=${citizen.locationId}, action.target.id=${action.target?.id}`);
+    
     if (citizen.locationId !== action.target.id) {
       // Need to travel to the target first
       const route = this.movementService.requestMovement(citizen.id, action.target.id);
@@ -99,7 +101,7 @@ export class PurchaseActionExecutor extends BaseActionExecutor {
 
     if (action.state === ActionState.PURCHASING) {
       // We are at the store, execute purchase
-      const sellerId = action.target!.id;
+      const sellerId = action.metadata?.sellerId || action.target!.id;
       const productId = action.metadata?.productId || 'wheat';
       
       // Check if store is in a region to get regional pricing
@@ -118,6 +120,10 @@ export class PurchaseActionExecutor extends BaseActionExecutor {
 
       // Check stock before transaction
       const inventory = this.storeRanker['inventoryManager'].getInventoryByOwner(sellerId);
+      
+      const allInvs = this.storeRanker['inventoryManager'].getAllInventories().map((i: any) => i.id + ":" + i.ownerId).join(", ");
+      console.log(`[PurchaseActionExecutor] PURCHASING! sellerId: ${sellerId}, inventory: ${inventory?.id}. All invs: ${allInvs}`);
+
       if (!inventory) {
         this.lifecycleManager.transition(action, ActionState.FAILED, 'Store has no inventory');
         return;
@@ -145,6 +151,16 @@ export class PurchaseActionExecutor extends BaseActionExecutor {
       );
 
       if (transaction) {
+        // Deduct money from buyer and add to seller
+        citizen.wallet.balance -= finalPrice;
+        const sellerWorkplace = (this.marketEngine as any).worldEngine.workplaceRepository.findById(sellerId);
+        if (sellerWorkplace && sellerWorkplace.wallet) {
+          sellerWorkplace.wallet.balance += finalPrice;
+        }
+
+        // Deduct from seller inventory
+        this.storeRanker['inventoryManager'].removeItemQuantity(inventory.id, productId, quantity);
+
         // Add purchased items to household inventory (or personal)
         if (citizen.householdId) {
            const household = this.storeRanker['inventoryManager'].getInventoryByOwner(citizen.householdId);

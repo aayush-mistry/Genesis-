@@ -148,6 +148,10 @@ class SupplyService {
           const storageCapacity = wp.capacity * 100;
           wp.storageCapacity = storageCapacity;
           this.inventoryManager.createInventory(wp.inventoryId, wp.id, storageCapacity);
+        } else if (!this.inventoryManager.getInventory(wp.inventoryId)) {
+          const storageCapacity = wp.capacity * 100;
+          wp.storageCapacity = storageCapacity;
+          this.inventoryManager.createInventory(wp.inventoryId, wp.id, storageCapacity);
         }
         
         // Initialize Wallets
@@ -181,7 +185,12 @@ class SupplyService {
 
   public reset(): void {
     // Re-instantiate internal managers and engines
-    this.inventoryManager = new InventoryManager();
+    if (!this.inventoryManager) {
+      this.inventoryManager = new InventoryManager();
+    } else {
+      (this.inventoryManager as any).inventories?.clear();
+    }
+    
     this.productionEngine = new ProductionEngine(
       worldService.engine,
       eventService.scheduler,

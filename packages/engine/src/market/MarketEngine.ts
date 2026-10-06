@@ -14,9 +14,7 @@ export class MarketEngine {
     private worldEngine: WorldEngine,
     private timeEngine: TimeEngine,
     private eventScheduler: EventScheduler,
-    private citizenWalletLookup?: (citizenId: string) => Wallet | undefined,
-    private inventoryManager?: InventoryManager,
-    private citizenInventoryLookup?: (citizenId: string) => string | undefined
+    private citizenWalletLookup?: (citizenId: string) => Wallet | undefined
   ) {}
 
   private regionalAdjustments: Map<string, RegionalPriceAdjustment> = new Map();
@@ -68,24 +66,8 @@ export class MarketEngine {
       sellerWallet.totalIncome += totalPrice;
     }
 
-    // Handle inventory if goods are involved
-    if (productId && quantity && this.inventoryManager) {
-      const sellerInvId = this.getInventoryId(sellerId);
-      const buyerInvId = this.getInventoryId(buyerId);
-
-      if (sellerInvId) {
-        // Decrement seller
-        this.inventoryManager.removeItemQuantity(sellerInvId, productId, quantity);
-      }
-      if (buyerInvId) {
-        // Increment buyer
-        // Need to ensure inventory exists. In Genesis, createInventory might be needed.
-        if (!this.inventoryManager.getInventory(buyerInvId)) {
-          this.inventoryManager.createInventory(buyerInvId, buyerId, 100); // default capacity for citizen/entity
-        }
-        this.inventoryManager.addItemQuantity(buyerInvId, productId, quantity, unit || 'kg');
-      }
-    }
+    // Inventory transfer is now managed by the caller (e.g. PurchaseActionExecutor or SupplyChainEngine)
+    // to prevent double-deduction and teleportation of resources.
 
     const transaction: TransactionRecord = {
       transactionId: randomUUID(),
@@ -125,11 +107,7 @@ export class MarketEngine {
   }
 
   private getInventoryId(entityId: string): string | undefined {
-    // Check citizen
-    if (this.citizenInventoryLookup) {
-      const invId = this.citizenInventoryLookup(entityId);
-      if (invId) return invId;
-    } else if (entityId.startsWith('citizen-')) {
+    if (entityId.startsWith('citizen-')) {
       return `inv-${entityId}`;
     }
 

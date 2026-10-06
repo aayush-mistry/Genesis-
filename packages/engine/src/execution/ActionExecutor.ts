@@ -115,7 +115,7 @@ export class ActionExecutor {
       return;
     }
 
-    if (action.state === ActionState.IN_PROGRESS) {
+    if (action.state === ActionState.IN_PROGRESS || action.state === ActionState.TRAVELING || action.state === ActionState.SHOPPING || action.state === ActionState.PURCHASING || action.state === ActionState.STARTED) {
       const executor = this.getExecutor(action.actionType);
       if (executor) {
         executor.tick({

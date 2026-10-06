@@ -207,6 +207,12 @@ export class CitizenService {
     const citizen = this.getCitizen(citizenId);
     if (!citizen || citizen.status !== CitizenStatus.ACTIVE || !citizen.locationId) return;
 
+    // 0. Check health/death condition
+    if (citizen.vitalState.health <= 0) {
+      this.updateStatus(citizen.id, CitizenStatus.DECEASED);
+      return;
+    }
+
     // 1. Tick existing action
     this.actionExecutor.tick(citizen);
 
@@ -364,6 +370,24 @@ export class CitizenService {
     if (status === CitizenStatus.DECEASED && citizen.status === CitizenStatus.ACTIVE) {
       this.updatePopulationForLocation(citizen.locationId, -1);
       this.worldEngine.worldManager.updatePopulation(-1);
+      
+      // Release employment
+      if (citizen.workplaceId) {
+        const workplace = this.worldEngine.workplaceRepository.findById(citizen.workplaceId);
+        if (workplace) {
+          const position = workplace.positions.find(p => p.occupantId === citizenId);
+          if (position) {
+            position.occupantId = null;
+            workplace.occupiedPositions--;
+            workplace.vacancies++;
+            this.worldEngine.workplaceRepository.update(workplace);
+          }
+        }
+        citizen.employmentStatus = EmploymentStatus.UNEMPLOYED;
+        citizen.workplaceId = null;
+        citizen.jobType = null;
+        citizen.jobSchedule = null;
+      }
     } else if (status === CitizenStatus.ACTIVE && citizen.status === CitizenStatus.DECEASED) {
       this.updatePopulationForLocation(citizen.locationId, 1);
       this.worldEngine.worldManager.updatePopulation(1);
