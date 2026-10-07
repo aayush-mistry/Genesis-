@@ -131,10 +131,52 @@ export const CivilizationSummary: React.FC = () => {
           </div>
         )}
 
-        {/* Supply */}
+        {/* Macroeconomics: Demand & Supply */}
+        {summary.demand && summary.supply && (
+          <div className="space-y-3 mt-2">
+            <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">MACROECONOMICS (FOOD)</h4>
+            
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <span className="text-sm text-slate-400">Demand (Purchased)</span>
+              <span className="text-sm font-mono text-emerald-400">{formatQuantity(summary.demand.food?.purchased, summary.demand.food?.unit)}</span>
+            </div>
+
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <span className="text-sm text-slate-400">Unmet Demand</span>
+              <span className="text-sm font-mono text-red-400">{formatQuantity(summary.demand.food?.unmet, summary.demand.food?.unit)}</span>
+            </div>
+            
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <span className="text-sm text-slate-400">Retail Supply</span>
+              <span className="text-sm font-mono text-blue-400">{formatQuantity(summary.supply.food?.retailSupply, summary.supply.food?.unit)}</span>
+            </div>
+
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <span className="text-sm text-slate-400">Wholesale Supply</span>
+              <span className="text-sm font-mono text-blue-400">{formatQuantity(summary.supply.food?.wholesaleSupply, summary.supply.food?.unit)}</span>
+            </div>
+
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <span className="text-sm text-slate-400">Producer Supply</span>
+              <span className="text-sm font-mono text-blue-400">{formatQuantity(summary.supply.food?.producerSupply, summary.supply.food?.unit)}</span>
+            </div>
+
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <span className="text-sm text-slate-400">Total Supply</span>
+              <span className="text-sm font-mono text-indigo-400">{formatQuantity(summary.supply.food?.totalAvailable, summary.supply.food?.unit)}</span>
+            </div>
+
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <span className="text-sm text-slate-400">Max Production Cap.</span>
+              <span className="text-sm font-mono text-purple-400">{formatQuantity(summary.supply.food?.productionCapacity, summary.supply.food?.unit)}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Supply Chain */}
         {summary.supplyChain && (
           <div className="space-y-3 mt-2">
-            <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">SUPPLY</h4>
+            <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">SUPPLY CHAIN</h4>
             <div className="flex justify-between items-center border-b border-slate-800 pb-2">
               <span className="text-sm text-slate-400">Pending Orders</span>
               <span className="text-sm font-mono text-slate-100">{summary.supplyChain.pendingOrders ?? '0'}</span>

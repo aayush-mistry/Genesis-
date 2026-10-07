@@ -70,6 +70,9 @@ export class CivilizationIntelligenceService {
     const { civilizationDemandService } = await import('./civilizationDemand.service');
     const demandIntelligence = await civilizationDemandService.getDemandIntelligence();
 
+    const { civilizationSupplyService } = await import('./civilizationSupply.service');
+    const supplyIntelligence = await civilizationSupplyService.getSupplyIntelligence();
+
     // 3. Production Intelligence
     const producerTypes = ['FARM', 'MINE', 'FISHING_SITE', 'FOREST_SITE', 'FACTORY'];
     const producers = workplaces.filter(wp => producerTypes.includes(wp.type));
@@ -193,6 +196,10 @@ export class CivilizationIntelligenceService {
       demand: {
         food: demandIntelligence.food,
         water: demandIntelligence.water
+      },
+      supply: {
+        food: supplyIntelligence.food,
+        water: supplyIntelligence.water
       },
       resources: {
         food: {
