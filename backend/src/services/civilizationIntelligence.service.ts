@@ -66,10 +66,9 @@ export class CivilizationIntelligenceService {
     }
     
     // Theoretical consumption based on domain rules
-    // NeedsConfig.HUNGER_RATE_PER_HOUR is 1.5, meaning 36 hunger per day per citizen.
-    // We can expose the raw demand values.
-    const dailyHungerDemand = population * 36;
-    const dailyThirstDemand = population * (NeedsConfig.THIRST_RATE_PER_HOUR * 24);
+    // Replaced by authoritative demand intelligence
+    const { civilizationDemandService } = await import('./civilizationDemand.service');
+    const demandIntelligence = await civilizationDemandService.getDemandIntelligence();
 
     // 3. Production Intelligence
     const producerTypes = ['FARM', 'MINE', 'FISHING_SITE', 'FOREST_SITE', 'FACTORY'];
@@ -177,6 +176,7 @@ export class CivilizationIntelligenceService {
     const idle = await prisma.citizen.count({ where: { movementState: 'IDLE' } });
 
     return {
+      period: demandIntelligence.period,
       population: {
         total: population
       },
@@ -190,18 +190,18 @@ export class CivilizationIntelligenceService {
         vacancies: totalVacancies,
         filledPositions: totalFilledPositions
       },
+      demand: {
+        food: demandIntelligence.food,
+        water: demandIntelligence.water
+      },
       resources: {
         food: {
           quantity: foodQuantity,
-          unit: 'kg',
-          dailyHungerDemand,
-          // If we want to evaluate sufficiency, we can map hunger demand to specific food values, 
-          // but avoiding fake logic is preferred. We expose raw numbers.
+          unit: 'kg'
         },
         water: {
           quantity: waterQuantity,
-          unit: 'L',
-          dailyThirstDemand
+          unit: 'L'
         },
         other: otherResources
       },
