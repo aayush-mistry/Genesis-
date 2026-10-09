@@ -111,7 +111,11 @@ export const useSpatialStore = create<SpatialState>((set, get) => ({
       
       set({ snapshot, isLoading: false, camera });
     } catch (error: any) {
-      set({ error: error.message, isLoading: false });
+      if (error.message === 'World not initialized') {
+        set({ snapshot: null, isLoading: false, error: null });
+      } else {
+        set({ error: error.message, isLoading: false });
+      }
     }
   },
 

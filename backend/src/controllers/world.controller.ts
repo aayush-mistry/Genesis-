@@ -241,13 +241,18 @@ export const WorldController = {
     }
   },
 
-  createWorld: async (request: FastifyRequest, _reply: FastifyReply) => {
+  createWorld: async (request: FastifyRequest, reply: FastifyReply) => {
     const { name, description, seed } = request.body as { name: string; description: string; seed: number };
     
-    // Use the unified populated world generation method
-    const world = await worldService.generatePopulatedWorld(name, description, seed);
-    
-    return world;
+    try {
+      // Use the unified populated world generation method
+      const world = await worldService.generatePopulatedWorld(name, description, seed);
+      return world;
+    } catch (e: any) {
+      console.error('Error generating world:', e);
+      require('fs').writeFileSync('createWorld-error.txt', e.stack);
+      return reply.status(500).send({ error: e.message, stack: e.stack });
+    }
   },
 
   deleteWorld: async (_request: FastifyRequest, _reply: FastifyReply) => {

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSpatialStore } from '../../stores/useSpatialStore';
 
 export const CivilizationSummary: React.FC = () => {

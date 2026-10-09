@@ -42,13 +42,22 @@ export const WorldDashboard: React.FC = () => {
     fetchWorldData();
   }, []);
 
+  const [isInitializing, setIsInitializing] = useState(false);
+
   const handleCreateWorld = async () => {
-    await worldApi.createWorld({
-      name: 'Genesis Prime',
-      description: 'The first simulation world.',
-      seed: Math.floor(Math.random() * 1000000),
-    });
-    fetchWorldData();
+    setIsInitializing(true);
+    try {
+      await worldApi.createWorld({
+        name: 'Genesis Prime',
+        description: 'The first simulation world.',
+        seed: Math.floor(Math.random() * 1000000),
+      });
+      await fetchWorldData();
+    } catch (e) {
+      console.error('Failed to create world:', e);
+    } finally {
+      setIsInitializing(false);
+    }
   };
 
   const handleDestroyWorld = async () => {
@@ -66,9 +75,22 @@ export const WorldDashboard: React.FC = () => {
         <h2 className="text-2xl font-bold tracking-tight text-white">World Engine</h2>
         <div className="flex gap-2">
           {!world ? (
-            <button onClick={handleCreateWorld} className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors font-medium shadow-sm">
-              <PlayCircle className="w-4 h-4" />
-              Initialize World
+            <button 
+              onClick={handleCreateWorld} 
+              disabled={isInitializing}
+              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed transition-colors font-medium shadow-sm"
+            >
+              {isInitializing ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Initializing (this may take up to a minute)...
+                </>
+              ) : (
+                <>
+                  <PlayCircle className="w-4 h-4" />
+                  Initialize World
+                </>
+              )}
             </button>
           ) : (
             <button onClick={handleDestroyWorld} className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition-colors font-medium shadow-sm">
