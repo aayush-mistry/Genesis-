@@ -9,8 +9,23 @@ export class CivilizationIntelligenceService {
     // 1. Population & Employment
     const population = await prisma.citizen.count();
     
-    const employed = await prisma.citizen.count({ where: { employmentStatus: 'EMPLOYED' } });
-    const unemployed = await prisma.citizen.count({ where: { employmentStatus: 'UNEMPLOYED' } });
+    const employed = await prisma.citizen.count({ 
+      where: { 
+        employmentStatus: 'EMPLOYED',
+        jobPosition: { some: {} }
+      } 
+    });
+    
+    // Also include those with status EMPLOYED but missing a job position in unemployed, or just query strictly
+    const unemployed = await prisma.citizen.count({ 
+      where: { 
+        OR: [
+          { employmentStatus: 'UNEMPLOYED' },
+          { employmentStatus: 'EMPLOYED', jobPosition: { none: {} } }
+        ]
+      } 
+    });
+    
     const student = await prisma.citizen.count({ where: { employmentStatus: 'STUDENT' } });
     const retired = await prisma.citizen.count({ where: { employmentStatus: 'RETIRED' } });
     
@@ -20,13 +35,9 @@ export class CivilizationIntelligenceService {
     // Workforce details
     const workplaces = await prisma.workplace.findMany();
     const activeWorkplaces = workplaces.length;
-    let totalVacancies = 0;
-    let totalFilledPositions = 0;
     
-    workplaces.forEach(wp => {
-      totalVacancies += wp.vacancies;
-      totalFilledPositions += wp.occupiedPositions;
-    });
+    const totalFilledPositions = await prisma.jobPosition.count({ where: { occupantId: { not: null } } });
+    const totalVacancies = await prisma.jobPosition.count({ where: { occupantId: null } });
 
     // 2. Resource & Inventory State
     const foodProductIds: string[] = [];
@@ -148,6 +159,13 @@ export class CivilizationIntelligenceService {
     // Transactions
     const transactionCount = await prisma.transactionRecord.count();
     
+    // Wage Income Actually Paid
+    const wageTransactions = await prisma.transactionRecord.aggregate({
+      where: { transactionType: 'WAGE' },
+      _sum: { totalPrice: true }
+    });
+    const totalWageIncomePaid = wageTransactions._sum.totalPrice || 0;
+    
     // 5. Commerce / Supply Chain
     const stores = workplaces.filter(w => ['SHOP', 'WHOLESALE'].includes(w.type)).length;
     const orders = await prisma.order.groupBy({
@@ -222,7 +240,8 @@ export class CivilizationIntelligenceService {
         citizenMoney,
         businessMoney,
         bankMoney,
-        transactionCount
+        transactionCount,
+        totalWageIncomePaid
       },
       commerce: {
         activeStores: stores

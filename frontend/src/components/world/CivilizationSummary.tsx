@@ -83,6 +83,16 @@ export const CivilizationSummary: React.FC = () => {
                 : '0%'}
             </span>
           </div>
+
+          <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+            <span className="text-sm text-slate-400">Filled Positions</span>
+            <span className="text-sm font-mono text-slate-100">{summary.employment?.filledPositions !== undefined ? summary.employment.filledPositions.toLocaleString() : 'Data Unavailable'}</span>
+          </div>
+
+          <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+            <span className="text-sm text-slate-400">Vacancies</span>
+            <span className="text-sm font-mono text-slate-100">{summary.employment?.vacancies !== undefined ? summary.employment.vacancies.toLocaleString() : 'Data Unavailable'}</span>
+          </div>
         </div>
 
         {/* Resources */}
@@ -115,6 +125,26 @@ export const CivilizationSummary: React.FC = () => {
             <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">ECONOMY</h4>
             
             <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <span className="text-sm text-slate-400">Total Money (All Entities)</span>
+              <span className="text-sm font-mono text-yellow-400">{formatMoney(summary.finance.totalMoney)}</span>
+            </div>
+
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <span className="text-sm text-slate-400">Citizen Wallets Total</span>
+              <span className="text-sm font-mono text-emerald-400">{formatMoney(summary.finance.citizenMoney)}</span>
+            </div>
+
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <span className="text-sm text-slate-400">Business Wallets Total</span>
+              <span className="text-sm font-mono text-blue-400">{formatMoney(summary.finance.businessMoney)}</span>
+            </div>
+
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <span className="text-sm text-slate-400">Wage Income (Paid All Time)</span>
+              <span className="text-sm font-mono text-indigo-400">{formatMoney(summary.finance.totalWageIncomePaid)}</span>
+            </div>
+            
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
               <span className="text-sm text-slate-400">Active Producers</span>
               <span className="text-sm font-mono text-slate-100">{summary.production.activeProducers ?? '0'}</span>
             </div>
@@ -122,11 +152,6 @@ export const CivilizationSummary: React.FC = () => {
             <div className="flex justify-between items-center border-b border-slate-800 pb-2">
               <span className="text-sm text-slate-400">Commerce Outlets</span>
               <span className="text-sm font-mono text-slate-100">{summary.commerce?.activeStores ?? '0'}</span>
-            </div>
-            
-            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-              <span className="text-sm text-slate-400">Total Money</span>
-              <span className="text-sm font-mono text-yellow-400">{formatMoney(summary.finance.totalMoney)}</span>
             </div>
           </div>
         )}

@@ -15,12 +15,40 @@ class FinanceService {
       timeService.engine
     );
   }
-
   public initialize() {
     // Note: citizenService is required here for salary calculations
     import('./citizen.service').then(({ citizenService }) => {
       this.engine.productionCostCalculator.citizenProvider = (id) => citizenService.engine.getCitizen(id);
     });
+
+    // Listen to completed transactions to persist them to the database
+    eventService.scheduler.emitter.on('TransactionCompleted', async (tx) => {
+      try {
+        const { prisma } = await import('../repositories/prisma');
+        await prisma.transactionRecord.create({
+          data: {
+            transactionId: tx.transactionId,
+            timestamp: tx.timestamp,
+            buyerId: tx.buyerId,
+            sellerId: tx.sellerId,
+            productId: tx.productId,
+            quantity: tx.quantity,
+            unit: tx.unit,
+            unitPrice: tx.unitPrice,
+            totalPrice: tx.totalPrice,
+            currency: tx.currency,
+            transactionType: tx.transactionType,
+            regionId: tx.regionId,
+            description: tx.description,
+            referenceId: tx.referenceId,
+            referenceType: tx.referenceType
+          }
+        });
+      } catch (error) {
+        console.error('[Finance Service] Failed to persist transaction:', error);
+      }
+    });
+
     console.log('[Finance Service] Initialized');
   }
 }
