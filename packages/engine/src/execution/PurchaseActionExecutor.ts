@@ -5,6 +5,7 @@ import { MarketEngine } from '../market/MarketEngine';
 import { MovementService } from '../citizen/services/MovementService';
 import { StoreRanker, StoreCandidate } from '../decision/scoring/StoreRanker';
 import { SpatialQueryService } from '../spatial/SpatialQueryService';
+import { TimeUtils } from '../utils/TimeUtils';
 
 export class PurchaseActionExecutor extends BaseActionExecutor {
   constructor(
@@ -129,7 +130,7 @@ export class PurchaseActionExecutor extends BaseActionExecutor {
         return;
       }
 
-      const timeSeconds = (context.currentTime as any).getTime ? (context.currentTime as any).getTime() / 1000 : 0;
+      const timeSeconds = TimeUtils.toSeconds(context.currentTime);
       const available = this.storeRanker['inventoryManager'].getUsableQuantity(inventory.id, productId, timeSeconds);
       if (available < quantity) {
         this.lifecycleManager.transition(action, ActionState.FAILED, 'Store out of stock');
@@ -151,30 +152,20 @@ export class PurchaseActionExecutor extends BaseActionExecutor {
       );
 
       if (transaction) {
-        // Deduct money from buyer and add to seller
-        citizen.wallet.balance -= finalPrice;
-        const sellerWorkplace = (this.marketEngine as any).worldEngine.workplaceRepository.findById(sellerId);
-        if (sellerWorkplace && sellerWorkplace.wallet) {
-          sellerWorkplace.wallet.balance += finalPrice;
-        }
-
-        // Deduct from seller inventory
-        this.storeRanker['inventoryManager'].removeItemQuantity(inventory.id, productId, quantity);
-
-        // Add purchased items to household inventory (or personal)
+        // Transfer from store to household inventory (or personal)
         if (citizen.householdId) {
            const household = this.storeRanker['inventoryManager'].getInventoryByOwner(citizen.householdId);
            if (household) {
-             this.storeRanker['inventoryManager'].addItemQuantity(household.id, productId, quantity, 'kg');
+             this.storeRanker['inventoryManager'].transferItemQuantity(inventory.id, household.id, productId, quantity, 'kg');
            }
         } else {
            const citizenInv = this.storeRanker['inventoryManager'].getInventoryByOwner(citizen.id);
            if (citizenInv) {
-             this.storeRanker['inventoryManager'].addItemQuantity(citizenInv.id, productId, quantity, 'kg');
+             this.storeRanker['inventoryManager'].transferItemQuantity(inventory.id, citizenInv.id, productId, quantity, 'kg');
            } else {
              // Create one if it doesn't exist
              const newInv = this.storeRanker['inventoryManager'].createInventory(`inv-${citizen.id}`, citizen.id, 100);
-             this.storeRanker['inventoryManager'].addItemQuantity(newInv.id, productId, quantity, 'kg');
+             this.storeRanker['inventoryManager'].transferItemQuantity(inventory.id, newInv.id, productId, quantity, 'kg');
            }
         }
         this.lifecycleManager.transition(action, ActionState.COMPLETED, 'Purchase successful');

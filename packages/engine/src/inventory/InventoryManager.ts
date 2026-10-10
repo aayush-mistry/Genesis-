@@ -131,6 +131,90 @@ export class InventoryManager {
     return true;
   }
 
+  public transferItemQuantity(sourceInventoryId: string, destInventoryId: string, productId: string, quantity: number, destUnit: string): boolean {
+    const sourceInventory = this.inventories.get(sourceInventoryId);
+    const destInventory = this.inventories.get(destInventoryId);
+    if (!sourceInventory || !destInventory) return false;
+
+    const sourceItem = sourceInventory.items[productId];
+    if (!sourceItem || sourceItem.availableQuantity < quantity) return false;
+
+    // Check dest capacity
+    let currentTotal = 0;
+    for (const item of Object.values(destInventory.items)) {
+      currentTotal += item.totalQuantity;
+    }
+    if (currentTotal + quantity > destInventory.storageCapacity) {
+      return false;
+    }
+
+    // Prepare destination item
+    if (!destInventory.items[productId]) {
+      destInventory.items[productId] = {
+        productId,
+        totalQuantity: 0,
+        reservedQuantity: 0,
+        availableQuantity: 0,
+        unit: destUnit,
+        batches: []
+      };
+    }
+    const destItem = destInventory.items[productId];
+    if (!destItem.batches) {
+      destItem.batches = [];
+    }
+
+    // Transfer from source batches FIFO
+    let remainingToRemove = quantity;
+    if (sourceItem.batches) {
+      sourceItem.batches.sort((a, b) => a.acquiredAt - b.acquiredAt);
+      
+      for (let i = 0; i < sourceItem.batches.length && remainingToRemove > 0; i++) {
+        const batch = sourceItem.batches[i];
+        
+        let transferredQuantity = 0;
+        if (batch.quantity <= remainingToRemove) {
+          transferredQuantity = batch.quantity;
+          remainingToRemove -= batch.quantity;
+          batch.quantity = 0;
+        } else {
+          transferredQuantity = remainingToRemove;
+          batch.quantity -= remainingToRemove;
+          remainingToRemove = 0;
+        }
+
+        if (transferredQuantity > 0) {
+          destItem.batches.push({
+            quantity: transferredQuantity,
+            acquiredAt: batch.acquiredAt,
+            expiryAt: batch.expiryAt,
+            status: batch.status
+          });
+        }
+      }
+      
+      sourceItem.batches = sourceItem.batches.filter(b => b.quantity > 0);
+    } else {
+      // Source had no batches (legacy or non-perishable maybe)
+      destItem.batches.push({
+        quantity,
+        acquiredAt: 0,
+        status: 'FRESH'
+      });
+    }
+
+    sourceItem.totalQuantity -= quantity;
+    this.updateAvailable(sourceItem);
+    if (sourceItem.totalQuantity <= 0) {
+      delete sourceInventory.items[productId];
+    }
+
+    destItem.totalQuantity += quantity;
+    this.updateAvailable(destItem);
+
+    return true;
+  }
+
   public reserveItemQuantity(inventoryId: string, productId: string, quantity: number): boolean {
     const inventory = this.inventories.get(inventoryId);
     if (!inventory) return false;

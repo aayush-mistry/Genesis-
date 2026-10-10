@@ -23,7 +23,7 @@ export class InventoryRepository {
     return prisma.inventory.create({ data });
   }
 
-  async upsertItem(inventoryId: string, productId: string, quantity: number, unit: string) {
+  async upsertItem(inventoryId: string, productId: string, quantity: number, unit: string, batchesJson?: string) {
     return prisma.inventoryItem.upsert({
       where: {
         inventoryId_productId: {
@@ -34,6 +34,7 @@ export class InventoryRepository {
       update: {
         totalQuantity: { increment: quantity },
         availableQuantity: { increment: quantity },
+        ...(batchesJson !== undefined && { batchesJson }),
       },
       create: {
         inventoryId,
@@ -41,11 +42,12 @@ export class InventoryRepository {
         totalQuantity: quantity,
         availableQuantity: quantity,
         unit,
+        batchesJson,
       }
     });
   }
 
-  async setItemExactQuantity(inventoryId: string, productId: string, quantity: number, unit: string) {
+  async setItemExactQuantity(inventoryId: string, productId: string, quantity: number, unit: string, batchesJson?: string) {
     if (quantity <= 0) {
       return prisma.inventoryItem.deleteMany({
         where: { inventoryId, productId }
@@ -62,6 +64,7 @@ export class InventoryRepository {
       update: {
         totalQuantity: quantity,
         availableQuantity: quantity,
+        ...(batchesJson !== undefined && { batchesJson }),
       },
       create: {
         inventoryId,
@@ -69,6 +72,7 @@ export class InventoryRepository {
         totalQuantity: quantity,
         availableQuantity: quantity,
         unit,
+        batchesJson,
       }
     });
   }

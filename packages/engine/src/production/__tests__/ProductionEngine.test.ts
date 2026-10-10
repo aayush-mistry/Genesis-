@@ -80,7 +80,7 @@ describe('ProductionEngine', () => {
       capacity: 10,
       occupiedPositions: 5, // 50% efficiency
       vacancies: 5,
-      positions: [],
+      positions: Array.from({ length: 5 }).map(() => ({ occupantId: 'c1' })) as any[],
       inventoryId: 'inv-farm'
     };
     worldEngine.workplaceRepository.create(farm);
@@ -108,7 +108,7 @@ describe('ProductionEngine', () => {
       capacity: 20,
       occupiedPositions: 20, // 100% efficiency
       vacancies: 0,
-      positions: [],
+      positions: Array.from({ length: 20 }).map(() => ({ occupantId: 'c1' })) as any[],
       inventoryId: 'inv-mine'
     };
     worldEngine.workplaceRepository.create(mine);

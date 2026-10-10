@@ -8,6 +8,7 @@ import { SimulationEvent } from '../events/SimulationEvent';
 import { randomUUID } from 'crypto';
 
 import { EventRegistry } from '../events/EventRegistry';
+import { TimeUtils } from '../utils/TimeUtils';
 
 export class ProductionEngine {
   private isInitialized = false;
@@ -141,8 +142,23 @@ export class ProductionEngine {
       );
 
       if (allocation) {
+        // Compute acquiredAt and expiryAt
+        const currentTime = this.timeEngine.getCurrentTime();
+        const currentTimeSeconds = TimeUtils.toSeconds(currentTime);
+        let expiryAt: number | undefined = undefined;
+        if (commodity.perishable && commodity.perishable.shelfLifeHours) {
+          expiryAt = currentTimeSeconds + (commodity.perishable.shelfLifeHours * 3600);
+        }
+
         // Produce goods
-        const success = this.inventoryManager.addItemQuantity(workplace.inventoryId, producedProductId, actualProduction, commodity.unit);
+        const success = this.inventoryManager.addItemQuantity(
+          workplace.inventoryId, 
+          producedProductId, 
+          actualProduction, 
+          commodity.unit,
+          currentTimeSeconds,
+          expiryAt
+        );
 
         if (success) {
           // Consume resources

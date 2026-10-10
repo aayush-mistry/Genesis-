@@ -1,4 +1,4 @@
-import { InventoryManager, ProductionEngine, SupplyChainEngine, CommerceAutomation, BusinessProcurementEngine, EventRegistry } from '@genesis/engine';
+import { InventoryManager, ProductionEngine, SupplyChainEngine, CommerceAutomation, BusinessProcurementEngine, EventRegistry, TimeUtils } from '@genesis/engine';
 import { worldService } from './world.service';
 import { eventService } from './event.service';
 import { timeService } from './time.service';
@@ -47,7 +47,7 @@ class SupplyService {
     );
     
     EventRegistry.register('SupplyService.removeExpiredItems', async () => {
-      this.inventoryManager.removeExpiredItems(timeService.engine.getUptimeSeconds());
+      this.inventoryManager.removeExpiredItems(TimeUtils.toSeconds(timeService.engine.getCurrentTime()));
     });
   }
 

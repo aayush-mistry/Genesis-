@@ -185,7 +185,7 @@ export class PersistenceService {
                    availableQuantity: item.availableQuantity,
                    unit: item.unit,
                    quality: item.quality,
-                   batches: [{ quantity: item.availableQuantity, acquiredAt: 0, status: 'FRESH' }]
+                   batches: item.batchesJson ? JSON.parse(item.batchesJson) : [{ quantity: item.availableQuantity, acquiredAt: 0, status: 'FRESH' }]
                  };
               });
               // Insert directly into in-memory engine
@@ -219,7 +219,7 @@ export class PersistenceService {
                    availableQuantity: item.availableQuantity,
                    unit: item.unit,
                    quality: item.quality,
-                   batches: [{ quantity: item.availableQuantity, acquiredAt: 0, status: 'FRESH' }]
+                   batches: item.batchesJson ? JSON.parse(item.batchesJson) : [{ quantity: item.availableQuantity, acquiredAt: 0, status: 'FRESH' }]
                  };
               });
               inventoryObj = {
@@ -311,7 +311,13 @@ export class PersistenceService {
         }
 
         for (const item of Object.values(inventory.items) as any[]) {
-          await inventoryRepository.setItemExactQuantity(inventory.id, item.productId, item.totalQuantity, item.unit);
+          await inventoryRepository.setItemExactQuantity(
+            inventory.id, 
+            item.productId, 
+            item.totalQuantity, 
+            item.unit,
+            item.batches ? JSON.stringify(item.batches) : undefined
+          );
         }
         
         const dbInv = await inventoryRepository.getInventory(inventory.id);
