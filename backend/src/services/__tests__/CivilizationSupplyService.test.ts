@@ -198,13 +198,13 @@ describe('CivilizationSupplyService', () => {
     await prisma.workplace.update({ where: { id: 'shop-2' }, data: { walletId: 'wallet-shop-2' } });
     
     // Initialize in-memory repository (since SupplyChainEngine reads from it)
-    worldService.engine.workplaceRepository.workplaces.set(shop.id, {
+    (worldService.engine.workplaceRepository as any).workplaces.set(shop.id, {
       ...shop,
       inventoryConfiguration: { 'wheat': { reorderPoint: 50, targetStock: 200 } },
       wallet: { id: 'wallet-shop-2', ownerId: shop.id, balance: 10000, currency: 'CREDIT', totalIncome: 0, totalExpenses: 0 }
     } as any);
 
-    worldService.engine.workplaceRepository.workplaces.set(wholesale.id, {
+    (worldService.engine.workplaceRepository as any).workplaces.set(wholesale.id, {
       ...wholesale,
       wallet: { id: 'wallet-wholesale-2', ownerId: wholesale.id, balance: 10000, currency: 'CREDIT', totalIncome: 0, totalExpenses: 0 }
     } as any);

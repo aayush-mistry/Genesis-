@@ -39,7 +39,8 @@ export class MarketEngine {
     totalPrice: number,
     currency: string,
     transactionType: TransactionType,
-    regionId: string
+    regionId: string,
+    transactionId?: string
   ): TransactionRecord | null {
     // Basic validation
     if (totalPrice < 0) return null;
@@ -70,7 +71,7 @@ export class MarketEngine {
     // to prevent double-deduction and teleportation of resources.
 
     const transaction: TransactionRecord = {
-      transactionId: randomUUID(),
+      transactionId: transactionId || randomUUID(),
       timestamp: TimeUtils.toSeconds(this.timeEngine.getCurrentTime()),
       buyerId,
       sellerId,

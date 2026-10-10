@@ -46,6 +46,15 @@ class BackendCitizenService {
           storeRanker,
           spatialService.engine.queryService
         );
+
+        this.engine.salaryService!.setTransactionChecker(async (txIds: string[]) => {
+          const { prisma } = await import('../repositories/prisma');
+          const txs = await prisma.transactionRecord.findMany({
+            where: { transactionId: { in: txIds } },
+            select: { transactionId: true }
+          });
+          return new Set(txs.map(t => t.transactionId));
+        });
       });
     });
     

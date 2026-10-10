@@ -250,6 +250,7 @@ export class PersistenceService {
               activeRoute: dbCitizen.activeRouteJson ? JSON.parse(dbCitizen.activeRouteJson) : null,
               skills: dbCitizen.skillsJson ? JSON.parse(dbCitizen.skillsJson) : [],
               jobSchedule: dbCitizen.jobScheduleJson ? JSON.parse(dbCitizen.jobScheduleJson) : null,
+              employmentRecord: dbCitizen.employmentRecJson ? JSON.parse(dbCitizen.employmentRecJson) : undefined,
               
               wallet: dbWallet ? {
                 id: dbWallet.id,
@@ -354,6 +355,7 @@ export class PersistenceService {
               coordY: citizen.coordY || null,
               movementState: citizen.movementState,
               activeRouteJson: citizen.activeRoute ? JSON.stringify(citizen.activeRoute) : null,
+              employmentRecJson: citizen.employmentRecord ? JSON.stringify(citizen.employmentRecord) : null,
             });
     
             const inventory = supplyService.inventoryManager.getInventoryByOwner(citizenId);

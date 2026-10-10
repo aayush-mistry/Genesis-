@@ -59,7 +59,10 @@ export class FinancialEngine {
       };
 
       this.ledger.recordTransaction(mockTx);
-      this.accounting.recordExpense(eventData.producerId, totalCost, mockTx);
+      
+      // Track as a metric instead of a cash expense to avoid duplicating 
+      // actual PURCHASE (materials) and WAGE (labor) cash deductions.
+      this.accounting.recordProductionMetrics(eventData.producerId, costResult);
     });
   }
 }

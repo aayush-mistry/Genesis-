@@ -25,7 +25,7 @@ describe('T7.8.3 - Employment and Income Dynamics', () => {
 
     // Setup basic world services
     timeService.engine.reset();
-    worldService.engine.workplaceRepository.workplaces.clear();
+    (worldService.engine.workplaceRepository as any).workplaces.clear();
     (citizenService.engine as any).repository.citizens.clear();
 
     financeService.initialize();
@@ -102,10 +102,11 @@ describe('T7.8.3 - Employment and Income Dynamics', () => {
     const wpMem = worldService.engine.workplaceRepository.findById(wp.id)!;
     wpMem.positions.push({
       id: pos.id,
-      type: 'FACTORY_WORKER',
+      type: JobType.FACTORY_WORKER,
       workplaceId: wp.id,
       requiredSkills: {},
-      schedule: { startHour: 8, endHour: 16 }
+      occupantId: null,
+      schedule: { startHour: 8, endHour: 16 } as any
     });
 
     // Create citizen
@@ -195,7 +196,7 @@ describe('T7.8.3 - Employment and Income Dynamics', () => {
 
     // Trigger payroll run manually for testing
     // To process salary, citizen must have been employed for 30 days. We bypass wait.
-    citizenService.engine.salaryService!.runPayrollCycle();
+    await citizenService.engine.salaryService!.runPayrollCycle();
 
     // Since we mocked time, it should have paid salary and emitted TransactionCompleted
     // Need to give event loop a tick to process DB persist
@@ -212,5 +213,114 @@ describe('T7.8.3 - Employment and Income Dynamics', () => {
     // The event listener from finance.service.ts should have persisted the transaction!
     const summary = await civilizationIntelligenceService.getCivilizationSummary();
     expect(summary.finance.totalWageIncomePaid).toBeGreaterThan(0);
+  });
+
+  test('5. Insufficient funds creates persistent debt and partial payment', async () => {
+    // Clear transactions and reset wallet balance
+    await prisma.transactionRecord.deleteMany({});
+    const memWp = worldService.engine.workplaceRepository.findById(wpId)!;
+    memWp.wallet!.balance = 500; // Less than the usual 1000 base salary
+    await prisma.wallet.update({ where: { ownerId: wpId }, data: { balance: 500 } });
+
+    // Set days worked so salary is fully earned
+    const memCit = citizenService.engine.getCitizen(citizenId)!;
+    memCit.employmentRecord!.daysWorked = 30;
+    memCit.employmentRecord!.expectedWorkingDays = 30;
+    
+    // Clear previous debt and payment date to allow rerun in same month for testing
+    memCit.employmentRecord!.unpaidWages = 0;
+    memCit.employmentRecord!.lastPaymentDate = null;
+
+    // Run payroll
+    const salarySvc = citizenService.engine.salaryService!;
+    await salarySvc.runPayrollCycle();
+
+    // Workplace should have 0 balance now
+    expect(memWp.wallet!.balance).toBe(0);
+
+    // Citizen should have 500 unpaid wages
+    expect(memCit.employmentRecord!.unpaidWages).toBeGreaterThan(0);
+    const debtRecorded = memCit.employmentRecord!.unpaidWages;
+
+    // Days worked should be reset
+    expect(memCit.employmentRecord!.daysWorked).toBe(0);
+
+    // Wait for event handlers
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Persist to check it survives
+    const { persistenceService } = require('../../services/persistence.service');
+    await persistenceService.persistTickBoundary({ citizens: new Set([citizenId]) });
+    
+    const dbCit = await prisma.citizen.findUnique({ where: { id: citizenId } });
+    const rec = JSON.parse(dbCit!.employmentRecJson!);
+    expect(rec.unpaidWages).toBe(debtRecorded);
+  });
+
+  test('6. Settles outstanding debt on next payroll and does not double-pay', async () => {
+    const memWp = worldService.engine.workplaceRepository.findById(wpId)!;
+    const memCit = citizenService.engine.getCitizen(citizenId)!;
+    
+    const initialDebt = memCit.employmentRecord!.unpaidWages!;
+    expect(initialDebt).toBeGreaterThan(0);
+
+    // Add funds to business
+    memWp.wallet!.balance = 10000;
+    
+    // Citizen works 0 days, so new salary is 0
+    memCit.employmentRecord!.daysWorked = 0;
+    memCit.employmentRecord!.lastPaymentDate = null;
+
+    // Run payroll
+    await citizenService.engine.salaryService!.runPayrollCycle();
+
+    // Debt should be settled
+    expect(memCit.employmentRecord!.unpaidWages).toBe(0);
+
+    // The business wallet should have deducted the debt amount
+    expect(memWp.wallet!.balance).toBe(10000 - initialDebt);
+  });
+
+  test('7. Repeated dispatch within same session is ignored', async () => {
+    const memCit = citizenService.engine.getCitizen(citizenId)!;
+    const initialBalance = memCit.wallet!.balance;
+    const initialIncome = memCit.wallet!.totalIncome;
+
+    // Trigger payroll run again for the exact same month/year
+    // (We haven't advanced time)
+    await citizenService.engine.salaryService!.runPayrollCycle();
+
+    // Verify wallet didn't change
+    expect(memCit.wallet!.balance).toBe(initialBalance);
+    expect(memCit.wallet!.totalIncome).toBe(initialIncome);
+  });
+
+  test('8. Duplicate transaction references from a previous run are ignored', async () => {
+    // Simulate a crash scenario where Citizen memory lost its lastPaymentDate,
+    // but the transaction was already created in DB.
+    const memCit = citizenService.engine.getCitizen(citizenId)!;
+    memCit.employmentRecord!.lastPaymentDate = null;
+    memCit.employmentRecord!.daysWorked = 30; // Rolled back state
+
+    // Setup transaction checker like in citizen.service.ts
+    citizenService.engine.salaryService!.setTransactionChecker(async (txIds: string[]) => {
+      const txs = await prisma.transactionRecord.findMany({
+        where: { transactionId: { in: txIds } },
+        select: { transactionId: true }
+      });
+      return new Set(txs.map(t => t.transactionId));
+    });
+
+    // We expect runPayrollCycle to check the DB and NOT pay again
+    const initialBalance = memCit.wallet!.balance;
+
+    await citizenService.engine.salaryService!.runPayrollCycle();
+
+    // Verify wallet didn't change (no double payment)
+    expect(memCit.wallet!.balance).toBe(initialBalance);
+
+    // Verify that the citizen state was recovered (days worked reset)
+    expect(memCit.employmentRecord!.daysWorked).toBe(0);
+    expect(memCit.employmentRecord!.lastPaymentDate).not.toBeNull();
   });
 });

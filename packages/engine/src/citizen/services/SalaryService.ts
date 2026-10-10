@@ -13,6 +13,8 @@ import { EventRegistry } from '../../events/EventRegistry';
 export class SalaryService {
   private eventId = 'PAYROLL_CYCLE_EVENT';
 
+  private transactionChecker?: (txIds: string[]) => Promise<Set<string>>;
+
   constructor(
     private citizenService: CitizenService,
     private worldEngine: WorldEngine,
@@ -21,8 +23,12 @@ export class SalaryService {
     private timeEngine: TimeEngine
   ) {
     EventRegistry.register('SalaryService.runPayrollCycle', async () => {
-      this.runPayrollCycle();
+      await this.runPayrollCycle();
     });
+  }
+
+  public setTransactionChecker(checker: (txIds: string[]) => Promise<Set<string>>) {
+    this.transactionChecker = checker;
   }
 
   public initialize(): void {
@@ -55,13 +61,33 @@ export class SalaryService {
     this.eventScheduler.scheduleEvent(payrollEvent);
   }
 
-  public runPayrollCycle(): void {
+  public async runPayrollCycle(): Promise<void> {
     const citizens = this.citizenService.listCitizens();
+    const currentYear = this.timeEngine.getCurrentTime().year;
+    const currentMonth = this.timeEngine.getCurrentTime().month;
     
-    for (const citizen of citizens) {
-      if (citizen.employmentStatus === EmploymentStatus.EMPLOYED && citizen.workplaceId && citizen.jobType) {
-        this.processCitizenSalary(citizen);
+    const candidates = citizens.filter(c => c.employmentStatus === EmploymentStatus.EMPLOYED && c.workplaceId && c.jobType);
+    if (candidates.length === 0) return;
+
+    let processedTxIds = new Set<string>();
+    if (this.transactionChecker) {
+      const txIds = candidates.map(c => `PAYROLL-${c.id}-${currentYear}-${currentMonth}`);
+      processedTxIds = await this.transactionChecker(txIds);
+    }
+    
+    for (const citizen of candidates) {
+      const txId = `PAYROLL-${citizen.id}-${currentYear}-${currentMonth}`;
+      if (processedTxIds.has(txId)) {
+        // Recover state: if it was processed in DB but not saved to citizen memory
+        if (citizen.employmentRecord && citizen.employmentRecord.daysWorked > 0) {
+          citizen.employmentRecord.daysWorked = 0;
+          citizen.employmentRecord.performanceScore = 1.0;
+          citizen.employmentRecord.lastPaymentDate = TimeUtils.clone(this.timeEngine.getCurrentTime());
+          // NOTE: We don't reconcile the wallet here; assuming outbox or periodic wallet reconciliation handles it.
+        }
+        continue;
       }
+      this.processCitizenSalary(citizen);
     }
   }
 
@@ -110,13 +136,49 @@ export class SalaryService {
         performanceScore: 1.0,
         startDate: TimeUtils.clone(this.timeEngine.getCurrentTime()),
         endDate: null,
-        lastPaymentDate: null
+        lastPaymentDate: null,
+        unpaidWages: 0
       };
     }
 
-    const finalSalary = SalaryService.calculateExpectedMonthlySalary(citizen, workplace);
+    const currentYear = this.timeEngine.getCurrentTime().year;
+    const currentMonth = this.timeEngine.getCurrentTime().month;
 
-    if (workplace.wallet.balance >= finalSalary) {
+    // Check memory-level idempotency to prevent double-processing within the same session
+    if (citizen.employmentRecord.lastPaymentDate) {
+      const lp = citizen.employmentRecord.lastPaymentDate;
+      if (lp.year === currentYear && lp.month === currentMonth) {
+        return; // Already processed this month
+      }
+    }
+
+    const currentSalary = SalaryService.calculateExpectedMonthlySalary(citizen, workplace);
+    
+    // Total owed is current period's salary plus any previously unpaid wages
+    const previousUnpaid = citizen.employmentRecord!.unpaidWages || 0;
+    const totalOwed = currentSalary + previousUnpaid;
+
+    if (totalOwed <= 0) {
+      // Nothing to pay
+      citizen.employmentRecord!.daysWorked = 0;
+      citizen.employmentRecord!.performanceScore = 1.0;
+      return;
+    }
+
+    // Determine how much we can actually pay
+    let paymentAmount = 0;
+    let debtRemaining = 0;
+
+    if (workplace.wallet.balance >= totalOwed) {
+      paymentAmount = totalOwed;
+      debtRemaining = 0;
+    } else {
+      // Partial payment
+      paymentAmount = workplace.wallet.balance;
+      debtRemaining = totalOwed - paymentAmount;
+    }
+
+    if (paymentAmount > 0) {
       // Execute payment
       const tx = this.marketEngine.processTransaction(
         workplace.id, // buyer (payer)
@@ -125,26 +187,31 @@ export class SalaryService {
         null,
         null,
         null,
-        finalSalary,
+        paymentAmount,
         workplace.wallet.currency,
         TransactionType.WAGE,
-        workplace.regionId
+        workplace.regionId,
+        `PAYROLL-${citizen.id}-${currentYear}-${currentMonth}`
       );
 
       if (tx) {
-        citizen.employmentRecord.lastPaymentDate = TimeUtils.clone(this.timeEngine.getCurrentTime());
-        // Reset counters for next month
-        citizen.employmentRecord.daysWorked = 0;
-        citizen.employmentRecord.performanceScore = 1.0; // Reset or decay
+        citizen.employmentRecord!.lastPaymentDate = TimeUtils.clone(this.timeEngine.getCurrentTime());
       }
-    } else {
-      // Not enough money to pay salary
-      // Business financial status reflects the problem; obligation remains traceable
-      // We don't reset daysWorked, so they get paid later or accrue debt
+    }
+
+    // Update debt
+    citizen.employmentRecord!.unpaidWages = debtRemaining;
+    
+    // Reset counters for next month
+    citizen.employmentRecord!.daysWorked = 0;
+    citizen.employmentRecord!.performanceScore = 1.0; // Reset or decay
+
+    if (debtRemaining > 0) {
+      // Emit event for insufficient funds (whether partial payment or no payment)
       this.eventScheduler.emitter.emit('SalaryPaymentFailed', {
         citizenId: citizen.id,
         workplaceId: workplace.id,
-        amount: finalSalary,
+        amount: debtRemaining,
         timestamp: TimeUtils.toSeconds(this.timeEngine.getCurrentTime())
       });
     }

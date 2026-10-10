@@ -28,6 +28,22 @@ export class BusinessAccounting {
     workplace.profit = revenue - expenses;
   }
 
+  public recordProductionMetrics(workplaceId: string, costResult: import('./ProductionCostCalculator').ProductionCostResult): void {
+    const workplace = this.worldEngine.workplaceRepository.findById(workplaceId);
+    if (!workplace) return;
+
+    if (!workplace.accounting) {
+      workplace.accounting = { history: [] };
+    }
+    
+    // We can store the current period's accumulated metrics on the workplace object itself
+    // so they can be captured in closeAccountingPeriod.
+    if (!(workplace as any).currentPeriodProductionCosts) {
+      (workplace as any).currentPeriodProductionCosts = 0;
+    }
+    (workplace as any).currentPeriodProductionCosts += costResult.totalCost;
+  }
+
   public closeAccountingPeriod(workplaceId: string, periodStart: number, periodEnd: number): void {
     const workplace = this.worldEngine.workplaceRepository.findById(workplaceId);
     if (!workplace) return;
@@ -45,7 +61,7 @@ export class BusinessAccounting {
       salaryExpenses: 0, // In full implementation, these would be tracked properly
       procurementExpenses: 0,
       transportExpenses: 0,
-      productionCosts: 0,
+      productionCosts: (workplace as any).currentPeriodProductionCosts || 0,
       operatingCosts: 0
     });
 
@@ -53,5 +69,6 @@ export class BusinessAccounting {
     workplace.revenue = 0;
     workplace.expenses = 0;
     workplace.profit = 0;
+    (workplace as any).currentPeriodProductionCosts = 0;
   }
 }

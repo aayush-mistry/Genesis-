@@ -1,0 +1,15 @@
+PrismaClientKnownRequestError: 
+Invalid `prisma.citizen.createMany()` invocation in
+D:\Total Gaming\genesis\backend\src\repositories\CitizenRepository.ts:23:27
+
+  20 }
+  21 
+  22 async createManyCitizens(data: any[]) {
+→ 23   return prisma.citizen.createMany(
+Unique constraint failed on the fields: (`id`)
+    at $n.handleRequestError (D:\Total Gaming\genesis\node_modules\@prisma\client\runtime\library.js:121:7315)
+    at $n.handleAndLogRequestError (D:\Total Gaming\genesis\node_modules\@prisma\client\runtime\library.js:121:6623)
+    at $n.request (D:\Total Gaming\genesis\node_modules\@prisma\client\runtime\library.js:121:6307)
+    at l (D:\Total Gaming\genesis\node_modules\@prisma\client\runtime\library.js:130:9633)
+    at WorldService.generatePopulatedWorld (D:\Total Gaming\genesis\backend\src\services\world.service.ts:301:7)
+    at Object.createWorld (D:\Total Gaming\genesis\backend\src\controllers\world.controller.ts:249:21)

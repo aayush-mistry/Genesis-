@@ -44,8 +44,12 @@ class FinanceService {
             referenceType: tx.referenceType
           }
         });
-      } catch (error) {
-        console.error('[Finance Service] Failed to persist transaction:', error);
+      } catch (error: any) {
+        if (error.code === 'P2002') {
+          console.log(`[Finance Service] Transaction ${tx.transactionId} already exists (idempotency caught).`);
+        } else {
+          console.error('[Finance Service] Failed to persist transaction:', error);
+        }
       }
     });
 

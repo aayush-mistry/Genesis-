@@ -85,5 +85,6 @@ export interface Citizen {
     startDate: import('./time').SimulationTime;
     endDate: import('./time').SimulationTime | null;
     lastPaymentDate: import('./time').SimulationTime | null;
+    unpaidWages?: number;
   };
 }
