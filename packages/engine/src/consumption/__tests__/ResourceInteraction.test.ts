@@ -71,7 +71,7 @@ describe('T5.2 ResourceInteractionExecutor and ConsumptionEngine', () => {
     };
 
     citizenRepository.create(citizen);
-    inventoryManager.createInventory('INV1', 'C001', 100);
+    inventoryManager.createInventory('INV1', 'H001', 100);
   });
 
   function createAction(type: ActionType): ActionInstance {
@@ -161,5 +161,22 @@ describe('T5.2 ResourceInteractionExecutor and ConsumptionEngine', () => {
     expect(citizen.vitalState.hunger).toBe(40);
     const inv = inventoryManager.getInventory('INV1')!;
     expect(inv.items['bread']).toBeUndefined(); // Cannot be negative
+  });
+
+  test('Repeated tick does not consume inventory twice', () => {
+    inventoryManager.addItemQuantity('INV1', 'bread', 3, 'kg');
+    const action = createAction(ActionType.CONSUME_FOOD);
+    
+    simulateTick(action);
+    expect(action.state).toBe(ActionState.COMPLETED);
+    
+    // Simulate another tick after completion
+    const tickContext = { citizen, action, currentTime: { year: 1, month: 1, day: 1, hour: 9, minute: 1, second: 0 } };
+    executor.tick(tickContext);
+    
+    // Should still only have consumed the exact amount (3 units)
+    expect(citizen.vitalState.hunger).toBe(20);
+    const inv = inventoryManager.getInventory('INV1')!;
+    expect(inv.items['bread']).toBeUndefined();
   });
 });

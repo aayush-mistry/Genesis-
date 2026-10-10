@@ -16,7 +16,8 @@ export class ConsumptionEngine {
   }
 
   public getUsableConsumable(citizen: Citizen, currentTime: number, needType: ConsumableNeedType) {
-    const inventory = this.inventoryManager.getInventoryByOwner(citizen.id);
+    if (!citizen.householdId) return null;
+    const inventory = this.inventoryManager.getInventoryByOwner(citizen.householdId);
     if (!inventory) return null;
 
     for (const [productId, item] of Object.entries(inventory.items)) {
@@ -37,7 +38,8 @@ export class ConsumptionEngine {
   }
 
   public consume(citizen: Citizen, needType: ConsumableNeedType, currentTime: number, targetValue?: number): boolean {
-    const inventory = this.inventoryManager.getInventoryByOwner(citizen.id);
+    if (!citizen.householdId) return false;
+    const inventory = this.inventoryManager.getInventoryByOwner(citizen.householdId);
     if (!inventory) return false;
 
     const consumable = this.getUsableConsumable(citizen, currentTime, needType);

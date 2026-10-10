@@ -81,16 +81,17 @@ describe('ConsumptionEngine', () => {
         socialEngagement: 50,
         riskTolerance: 50,
         savingTendency: 50
-      }
+      },
+      householdId: 'house-1'
     };
 
     repo.create(citizen);
-    inventoryManager.createInventory(citizen.id, citizen.id, 100);
+    inventoryManager.createInventory('inv-house-1', 'house-1', 100);
   });
 
   it('should successfully consume food and reduce hunger', () => {
     // Add 5 units of food
-    inventoryManager.addItemQuantity(citizen.id, 'food_item', 5, 'kg', 0, 1000);
+    inventoryManager.addItemQuantity('inv-house-1', 'food_item', 5, 'kg', 0, 1000);
     
     expect(citizen.vitalState.hunger).toBe(80);
     
@@ -100,12 +101,12 @@ describe('ConsumptionEngine', () => {
     expect(success).toBe(true);
     expect(citizen.vitalState.hunger).toBe(20);
     
-    const inv = inventoryManager.getInventory(citizen.id);
+    const inv = inventoryManager.getInventory('inv-house-1');
     expect(inv?.items['food_item'].totalQuantity).toBe(2);
   });
 
   it('should successfully consume water and reduce thirst', () => {
-    inventoryManager.addItemQuantity(citizen.id, 'water_item', 3, 'L', 0, 1000);
+    inventoryManager.addItemQuantity('inv-house-1', 'water_item', 3, 'L', 0, 1000);
     
     expect(citizen.vitalState.thirst).toBe(70);
     
@@ -115,7 +116,7 @@ describe('ConsumptionEngine', () => {
     expect(success).toBe(true);
     expect(citizen.vitalState.thirst).toBe(20);
     
-    const inv = inventoryManager.getInventory(citizen.id);
+    const inv = inventoryManager.getInventory('inv-house-1');
     expect(inv?.items['water_item'].totalQuantity).toBe(1);
   });
 
@@ -128,7 +129,7 @@ describe('ConsumptionEngine', () => {
 
   it('should only consume available amount if less than required', () => {
     // Add 1 unit of food
-    inventoryManager.addItemQuantity(citizen.id, 'food_item', 1, 'kg', 0, 1000);
+    inventoryManager.addItemQuantity('inv-house-1', 'food_item', 1, 'kg', 0, 1000);
     
     // Required: 3 units. Available: 1 unit.
     const success = consumptionEngine.consume(citizen, 'HUNGER', 0, 20);
@@ -136,19 +137,33 @@ describe('ConsumptionEngine', () => {
     expect(success).toBe(true);
     expect(citizen.vitalState.hunger).toBe(60); // 80 - 20*1
     
-    const inv = inventoryManager.getInventory(citizen.id);
+    const inv = inventoryManager.getInventory('inv-house-1');
     expect(inv?.items['food_item']).toBeUndefined(); // All consumed
   });
 
   it('should fail if food is expired', () => {
     // Add food that expired at time 100
-    inventoryManager.addItemQuantity(citizen.id, 'food_item', 5, 'kg', 0, 100);
+    inventoryManager.addItemQuantity('inv-house-1', 'food_item', 5, 'kg', 0, 100);
     
     // Current time is 200
     inventoryManager.removeExpiredItems(200);
     
     const success = consumptionEngine.consume(citizen, 'HUNGER', 200, 20);
     
+    expect(success).toBe(false);
+    expect(citizen.vitalState.hunger).toBe(80);
+  });
+
+  it('should fail gracefully if citizen has no householdId', () => {
+    citizen.householdId = undefined;
+    const success = consumptionEngine.consume(citizen, 'HUNGER', 0, 20);
+    expect(success).toBe(false);
+    expect(citizen.vitalState.hunger).toBe(80);
+  });
+
+  it('should fail gracefully if household inventory is missing', () => {
+    citizen.householdId = 'non-existent-house';
+    const success = consumptionEngine.consume(citizen, 'HUNGER', 0, 20);
     expect(success).toBe(false);
     expect(citizen.vitalState.hunger).toBe(80);
   });
