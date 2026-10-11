@@ -8,6 +8,7 @@ export interface CommodityPriceCalculation {
   referencePrice: number;
   retailPrice: number;
   wholesaleUnitPrice: number;
+  producerReservationPrice?: number;
   scarcitySurplusFactor: number;
   regionalFactor: number;
   inventoryAvailable: number;
@@ -20,25 +21,34 @@ export interface DynamicPricingConfig {
   maxPriceMultiplier: number; // e.g. 2.5 (scarcity ceiling)
   dampingFactor: number; // smoothing factor (0.1 to 0.3) to avoid tick-to-tick noise
   wholesaleDiscountPercent: number; // e.g. 0.15 (15% wholesale discount)
+  producerTargetMarginPercent: number; // e.g. 0.10 (10% target margin over unit production cost)
 }
 
 export const DEFAULT_DYNAMIC_PRICING_CONFIG: DynamicPricingConfig = {
   minPriceMultiplier: 0.5,
   maxPriceMultiplier: 2.5,
   dampingFactor: 0.2,
-  wholesaleDiscountPercent: 0.15
+  wholesaleDiscountPercent: 0.15,
+  producerTargetMarginPercent: 0.10
 };
 
 export class PriceFormationService {
   private config: DynamicPricingConfig;
+  private productionCostCalculator?: import('../finance/ProductionCostCalculator').ProductionCostCalculator;
 
   constructor(
     private worldEngine: WorldEngine,
     private inventoryManager: InventoryManager,
     private getCommodityFn: (productId: string) => Commodity | undefined,
-    config?: Partial<DynamicPricingConfig>
+    config?: Partial<DynamicPricingConfig>,
+    productionCostCalculator?: import('../finance/ProductionCostCalculator').ProductionCostCalculator
   ) {
     this.config = { ...DEFAULT_DYNAMIC_PRICING_CONFIG, ...config };
+    this.productionCostCalculator = productionCostCalculator;
+  }
+
+  public setProductionCostCalculator(calc: import('../finance/ProductionCostCalculator').ProductionCostCalculator): void {
+    this.productionCostCalculator = calc;
   }
 
   /**
@@ -113,18 +123,73 @@ export class PriceFormationService {
       wholesaleUnitPrice = Math.max(0.5, parseFloat(wholesaleUnitPrice.toFixed(2)));
     }
 
+    // 6. Producer reservation price based on real production cost
+    let producerReservationPrice: number | undefined = undefined;
+    let productionCostReference: number | undefined = undefined;
+
+    const unitProductionCost = this.estimateProducerUnitCost(productId, regionId);
+    if (unitProductionCost !== undefined && unitProductionCost > 0) {
+      productionCostReference = unitProductionCost;
+      // Producer reservation price = unitCost * (1 + targetMargin)
+      producerReservationPrice = parseFloat((unitProductionCost * (1 + this.config.producerTargetMarginPercent)).toFixed(2));
+
+      // Wholesale price cannot sell below producer reservation floor
+      // without explicit business subsidy/rule
+      if (wholesaleUnitPrice < producerReservationPrice) {
+        wholesaleUnitPrice = producerReservationPrice;
+      }
+    }
+
     return {
       productId,
       regionId,
       referencePrice,
       retailPrice: calculatedRetail,
       wholesaleUnitPrice,
+      producerReservationPrice,
+      productionCostReference,
       scarcitySurplusFactor: parseFloat(scarcitySurplusFactor.toFixed(3)),
       regionalFactor: parseFloat(regionalFactor.toFixed(3)),
       inventoryAvailable: totalAvailable,
       targetDemand: totalWorkplaceCapacity > 0 ? totalWorkplaceCapacity * 20 : 0
     };
   }
+
+  /**
+   * Estimates unit production cost for producers producing this commodity in the region.
+   * Pulls real labor and input costs via ProductionCostCalculator.
+   */
+  public estimateProducerUnitCost(productId: string, regionId: string): number | undefined {
+    if (!this.productionCostCalculator) return undefined;
+
+    const workplaces = this.worldEngine.workplaceRepository.findAll();
+    const producerTypes = ['FARM', 'MINE', 'FISHING_SITE', 'FOREST_SITE', 'FACTORY'];
+    const producers = workplaces.filter(w => {
+      const isProducer = producerTypes.includes(w.type);
+      const matchesRegion = !regionId || regionId === 'DEFAULT' || w.regionId === regionId;
+      return isProducer && matchesRegion;
+    });
+
+    if (producers.length === 0) return undefined;
+
+    let totalLaborAndInputCost = 0;
+    let sampleCount = 0;
+
+    for (const producer of producers) {
+      // Calculate daily cost with current worker occupancy
+      const costResult = this.productionCostCalculator.calculateCost(producer.id, {});
+      if (costResult && costResult.laborCost > 0) {
+        // Daily yield estimation based on capacity
+        const estimatedDailyYield = Math.max(10, producer.capacity * 10);
+        totalLaborAndInputCost += costResult.totalCost / estimatedDailyYield;
+        sampleCount++;
+      }
+    }
+
+    if (sampleCount === 0) return undefined;
+    return parseFloat((totalLaborAndInputCost / sampleCount).toFixed(2));
+  }
+
 
   /**
    * Evaluates transportation landed cost given base unit price, quantity, and route distance.

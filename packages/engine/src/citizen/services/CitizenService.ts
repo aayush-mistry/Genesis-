@@ -266,6 +266,7 @@ export class CitizenService {
           householdId: citizen.householdId,
           homeId,
           personality: citizen.personality,
+          walletBalance: citizen.wallet?.balance ?? 0,
           stockLevels,
           currentRoutineActivity: citizen.currentRoutineActivity // Make sure this is in context!
         };

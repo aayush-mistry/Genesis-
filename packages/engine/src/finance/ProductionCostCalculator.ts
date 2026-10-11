@@ -24,9 +24,10 @@ export class ProductionCostCalculator {
     }
 
     let laborCost = 0;
-    for (const pos of workplace.positions) {
-      if (pos.occupantId) {
-        let monthlyCost = 0;
+    if (workplace.positions && Array.isArray(workplace.positions)) {
+      for (const pos of workplace.positions) {
+        if (pos.occupantId) {
+          let monthlyCost = 0;
         if (this.citizenProvider) {
           const citizen = this.citizenProvider(pos.occupantId);
           if (citizen) {
@@ -44,6 +45,7 @@ export class ProductionCostCalculator {
         laborCost += monthlyCost / 30;
       }
     }
+  }
 
     let inputCost = 0;
     for (const [resId, qty] of Object.entries(resourcesConsumed)) {

@@ -25,6 +25,11 @@ class MarketService {
     );
     this.engine.setPriceFormationService(priceFormationService);
 
+    // Wire productionCostCalculator for real producer reservation pricing
+    import('./finance.service').then(({ financeService }) => {
+      priceFormationService.setProductionCostCalculator(financeService.engine.productionCostCalculator);
+    });
+
     // Also connect marketEngine to supplyService.businessProcurementEngine if not already wired
     if (supplyService.businessProcurementEngine && !(supplyService.businessProcurementEngine as any).marketEngine) {
       (supplyService.businessProcurementEngine as any).marketEngine = this.engine;

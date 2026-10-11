@@ -16,8 +16,10 @@ export class HardConstraintFilter {
 
     // 2. Resource Availability for Consumption
     if (action.type === ActionType.CONSUME_FOOD) {
-      const foodStock = context.stockLevels?.['wheat'] || 0;
-      if (foodStock <= 0) {
+      const wheatStock = context.stockLevels?.['wheat'] || 0;
+      const fishStock = context.stockLevels?.['raw_fish'] || 0;
+      const totalFoodStock = wheatStock + fishStock;
+      if (totalFoodStock <= 0) {
         return false;
       }
     }

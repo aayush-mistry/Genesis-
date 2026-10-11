@@ -35,13 +35,14 @@ export class CandidateGenerator {
   }
 
   private generateHungerCandidates(need: NeedState, context: DecisionContext, candidates: CandidateAction[]) {
-    const perception = context.perception;
-    const foodStock = context.stockLevels?.['wheat'] || 0; // assuming wheat is basic food
+    const wheatStock = context.stockLevels?.['wheat'] || 0;
+    const fishStock = context.stockLevels?.['raw_fish'] || 0;
+    const totalFoodStock = wheatStock + fishStock;
 
     if (need.level === NeedUrgencyLevel.VERY_LOW) return;
 
-    // Always can CONSUME_FOOD if they have food
-    if (foodStock > 0) {
+    // Always can CONSUME_FOOD if they have either food
+    if (totalFoodStock > 0) {
       candidates.push({
         type: ActionType.CONSUME_FOOD,
         source: need.needType,
@@ -54,36 +55,51 @@ export class CandidateGenerator {
     let purchaseReason = '';
     
     // Emergency: Critical need and no food
-    if (need.urgency >= 80 && foodStock <= 0) {
+    if (need.urgency >= 80 && totalFoodStock <= 0) {
       shouldPurchase = true;
       purchaseReason = `EMERGENCY: Hunger is ${need.level} and no food in stock`;
     }
     // Reactive: Moderate need and low food stock
-    else if (need.urgency >= 40 && foodStock < 5) {
+    else if (need.urgency >= 40 && totalFoodStock < 5) {
       shouldPurchase = true;
-      purchaseReason = `REACTIVE: Hunger is ${need.level} and food stock is running low (${foodStock})`;
+      purchaseReason = `REACTIVE: Hunger is ${need.level} and food stock is running low (${totalFoodStock})`;
     }
     // Planned: Low need but food stock is getting very low
-    else if (foodStock < 2) {
+    else if (totalFoodStock < 2) {
       shouldPurchase = true;
-      purchaseReason = `PLANNED: Food stock is very low (${foodStock}), planning procurement`;
+      purchaseReason = `PLANNED: Food stock is very low (${totalFoodStock}), planning procurement`;
     }
 
     if (shouldPurchase) {
+      // 1. Primary candidate (Wheat)
       candidates.push({
         type: ActionType.PURCHASE,
         source: need.needType,
         reason: purchaseReason,
         metadata: {
           productId: 'wheat',
-          targetQuantity: 10 // Example standard purchase quantity
+          targetQuantity: 10,
+          expectedPrice: 10
+        }
+      });
+
+      // 2. Substitute candidate (Raw Fish)
+      candidates.push({
+        type: ActionType.PURCHASE,
+        source: need.needType,
+        reason: `${purchaseReason} (Substitute)`,
+        metadata: {
+          productId: 'raw_fish',
+          targetQuantity: 7, // equivalent restoration ~210 vs ~200
+          expectedPrice: 15
         }
       });
     }
 
     // Optional: SEEK_FOOD for immediate scavenging if purchase isn't the only option
-    if (need.urgency > 40 && foodStock <= 0) {
-      const foodResource = perception.nearbyResources.find(r => r.type === 'FISH' || r.type === 'WILDLIFE');
+    if (need.urgency > 40 && totalFoodStock <= 0) {
+      const perception = context.perception;
+      const foodResource = perception?.nearbyResources?.find((r: any) => r.type === 'FISH' || r.type === 'WILDLIFE');
       if (foodResource) {
         candidates.push({
           type: ActionType.GO_TO_FOOD_SOURCE,
