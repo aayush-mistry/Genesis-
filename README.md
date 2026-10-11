@@ -94,14 +94,19 @@ npm run build:backend
 npm run build:frontend
 ```
 
-## Current Phase Status (Phase 8.x)
+## Current Phase Status (Phase 7.8.x & Phase 8.x)
 - **Completed:** Phase 1 (Core Engine) including Time Engine, Event Scheduler, and Foundation.
 - **Completed:** Phase 2 (World Engine) including Environment, Resource, and Spatial engines.
 - **Completed:** Phase 3 (Citizen Engine) including Needs, Movement, and Occupation systems.
 - **Completed:** Phase 4 (AI Decision Engine) up to Phase 4.5 (Action Execution System).
 - **Completed:** Phase 5 (Economy Engine) including Production, Inventory, Supply Chain, and Market.
 - **Completed:** Phase 6 (Financial Engine) up to Banking & Loans.
-- **Completed:** Phase 7 (Runtime Lifecycle & Persistence).
+- **Completed:** Phase 7 (Runtime Lifecycle, Persistence, and Economic Intelligence T7.8.1–T7.8.5).
+  - T7.8.1: Authoritative Demand Intelligence (`CivilizationDemandService`).
+  - T7.8.2: Multi-Stage Supply Intelligence (`CivilizationSupplyService`).
+  - T7.8.3: Employment & Income Dynamics (`SalaryService` & Payroll reconciliation).
+  - T7.8.4: Market & Price Dynamics (`PriceFormationService` & bounded scarcity/surplus).
+  - T7.8.5: Economic Equilibrium & Feedback Integration (production-cost-aware producer reservation pricing & citizen commodity substitution).
 - **Completed:** Phase 8 (Visualization & UI) including spatial renderers, movement visualization, and an authoritative civilization overview dashboard.
 
 ## Genesis Roadmap
@@ -147,10 +152,15 @@ Phase 6 ✅ Financial Engine & Advanced Economy
 ├── 6.4 Banking & Loans
 └── 6.5 Macro Economics & Taxes (Planned)
 
-Phase 7 ✅ Runtime Lifecycle & Persistence
+Phase 7 ✅ Runtime Lifecycle, Persistence & Economic Dynamics
 ├── 7.1 Database Bootstrap
 ├── 7.2 Backend Data Hydration
-└── 7.3 Runtime Lifecycle & Safe Shutdown
+├── 7.3 Runtime Lifecycle & Safe Shutdown
+├── 7.8.1 Authoritative Demand Intelligence
+├── 7.8.2 Multi-Stage Supply Intelligence
+├── 7.8.3 Employment & Income Dynamics
+├── 7.8.4 Market & Price Dynamics
+└── 7.8.5 Economic Equilibrium & Closed Feedback Loop
 
 Phase 8 ✅ Visualization & UI
 ├── 8.1 Spatial Foundation & World Renderer
@@ -171,25 +181,28 @@ Phase 10 🔜 Optimization & Scale
 | Time Engine | ✅ Implemented | Drives global simulation clock |
 | World Engine | ✅ Implemented | Authoritative spatial and regional data |
 | Citizen Engine | ✅ Implemented | Needs, movement, and occupations |
-| Decision Engine | ✅ Implemented | Analyzes needs and generates candidates |
+| Decision Engine | ✅ Implemented | Analyzes needs, generates candidates, and evaluates substitutes |
 | Production | ✅ Implemented | Data-driven production cycles and resource consumption |
 | Inventory | ✅ Implemented | Producers/Businesses store and manage goods |
-| Procurement | ✅ Implemented | Automated business procurement thresholds |
-| Wholesale | ✅ Implemented | Wholesale ordering and supplier ranking |
-| Retail | ✅ Implemented | Consumer-facing stock and sales |
+| Procurement | ✅ Implemented | Automated business procurement thresholds and bulk pricing |
+| Wholesale | ✅ Implemented | Wholesale ordering, supplier ranking, and producer cost floors |
+| Retail | ✅ Implemented | Consumer-facing stock and dynamic scarcity/surplus pricing |
 | Shipments | ✅ Implemented | Physical/spatial transfer of ordered goods |
-| Citizen Purchases | ✅ Implemented | Consumers buy goods to fulfill needs |
-| Market | ✅ Implemented | Facilitates transactions and discovery |
+| Citizen Purchases | ✅ Implemented | Consumers buy goods to fulfill needs with price sensitivity |
+| Commodity Substitution | ✅ Implemented | Affordability-aware substitution across equivalent commodities |
+| Market & Pricing | ✅ Implemented | Bounded supply-demand pricing (`PriceFormationService`) |
 | Financial Engine | ✅ Implemented | Core financial rules, cost, and transactions |
-| Salary | ✅ Implemented | Payroll with skill, risk, and performance modifiers |
+| Salary & Payroll | ✅ Implemented | Payroll with skill, risk, performance modifiers, and debt recovery |
 | Business Accounting | ✅ Implemented | Tracks business revenue, expenses, and P/L |
 | Production Costing | ✅ Implemented | Dynamic labor and resource input costs |
+| Producer Reservation Pricing | ✅ Implemented | Production-cost-aware wholesale pricing floor |
 | Supplier Quality | ✅ Implemented | Dynamic quality tracking and ranking |
 | Banking & Loans | ✅ Implemented | Core banking, credit scores, and EMI processing |
+| Civilization Intelligence | ✅ Implemented | Authoritative live demand, supply, employment, and market metrics |
 | Taxes | 🔴 Not implemented | Slated for future phase |
 | Spatial Renderer | ✅ Implemented | Canvas-based rendering of the world |
 | Live Simulation UI | ✅ Implemented | Real-time visualization of citizens and environment |
-| Civilization Overview | ✅ Implemented | Aggregated dashboard for Phase 2-4 systems |
+| Civilization Overview | ✅ Implemented | Aggregated dashboard for economy, supply, demand, and prices |
 
 ## Phase 2 – World Engine
 
@@ -798,73 +811,125 @@ The Banking & Loans system introduces credit markets and money creation to the G
 - **Automated EMI Processing:** The `BankingEngine` schedules automated monthly EMI processing via the `EventScheduler`. It calculates principal and interest portions, automatically deducts payments from wallets, updates credit scores, and manages loan states (e.g., ACTIVE, PAST_DUE, DEFAULTED, PAID_OFF) upon missed payments.
 - **Money Creation:** When loans are approved, the bank credits the borrower's wallet, dynamically creating money in the broader economy while maintaining strict double-entry balance sheets tracking the loan asset against deposit liabilities.
 
-## End-to-End Economic Flows
+## Phase 7 — Runtime Lifecycle, Persistence & Macroeconomic Dynamics
 
-### Goods Flow
+Phase 7 bridges the discrete packages of Project Genesis into a persistent, orchestrated simulation runtime driven by live data, authoritative macroeconomic intelligence, and equilibrium feedback loops.
+
+### Runtime Lifecycle & Persistence (7.1 – 7.3)
+- **Database Schema & ORM:** Uses Prisma ORM with SQLite for persistent local simulation states across worlds, regions, entities, businesses, bank accounts, loans, citizens, and inventories.
+- **Backend Hydration & Repositories:** Repository pattern wrappers (`CitizenRepository`, `BusinessRepository`, `WorldRepository`, `MarketRepository`) hydrate in-memory engine objects with database integrity checks.
+- **Engine Lifecycle Orchestrator:** Manages non-blocking simulation loops, event queue synchronization, speed throttling, and safe database checkpoints upon suspension or shutdown.
+
+### Authoritative Demand Intelligence (7.8.1)
+The `CivilizationDemandService` calculates authoritative societal consumption and needs without synthetic or randomized injection:
+- **Vital Need Translation:** Translates living citizens' unmet physiological states (e.g., Hunger > 40 $\to$ `wheat`, `raw_fish`) directly into daily calorie demand.
+- **Real Historical Consumption:** Derives active transaction velocity from the `TransactionLedger` to measure actual cleared consumption.
+- **Unmet Deficit Tracking:** Quantifies unsatisfied demand across food, raw materials, and manufactured goods to surface regional scarcity.
+
+### Multi-Stage Supply Intelligence (7.8.2)
+The `CivilizationSupplyService` inspects the multi-tier production and distribution pipeline across the world:
+- **Raw Resource Reserves:** Tracks unextracted regional deposits (forests, mineral veins, water, agricultural fertility).
+- **Producer Capacity Yield:** Measures daily throughput capabilities of active production facilities (farms, mines, lumber mills) based on workforce staffing.
+- **Finished Inventory:** Aggregates ready-to-sell stock in retail shelves and wholesale warehouses via `InventoryManager`.
+- **Transit Volume:** Audits physical `Shipment` objects currently moving across road networks.
+
+### Employment & Income Dynamics (7.8.3)
+The `SalaryService` and employment pipelines calculate realistic income distribution:
+- **Wage Determination:** Computes individual compensation based on base occupation scales, skill suitability ratings, workplace hazard/risk multipliers, attendance ratios, and performance evaluations.
+- **Payroll Solvency & Reconciliation:** Scheduled pay cycles debit business treasury wallets to credit citizen wallets, respecting employer liquidity and banking reserve constraints.
+- **Bank Debt Recovery Priority:** Automated monthly EMI deduction intercepts payroll income to service outstanding bank loans, dynamically adjusting credit scores.
+
+### Market & Price Dynamics (7.8.4)
+The `PriceFormationService` replaces static prices with a supply-demand formation model:
+- **Scarcity / Surplus Curve:** Modulates baseline reference prices using bounded market pressures:
+  $$\text{Multiplier} = \text{clamp}\left(1 + \alpha \cdot \frac{\text{Demand} - \text{Supply}}{\max(\text{Demand}, \text{Supply}, 1)}, 0.5, 2.5\right)$$
+  ensuring prices fluctuate smoothly between 50% (severe glut) and 250% (extreme scarcity) without hyperinflationary runaways.
+- **Regional & Landed Modifiers:** Applies spatial friction, terrain modifiers, and transportation distance costs to calculate accurate landed purchase prices.
+- **Wholesale Bulk Discounts:** Incorporates volume tiers where wholesale procurement receives lower unit pricing compared to retail consumer counters.
+
+### Closed Economic Equilibrium & Feedback Integration (7.8.5)
+Connects all economic subsystems into an autonomous, closed feedback loop:
+- **Producer Reservation Pricing Floor:** Producers refuse to sell below dynamic production costs:
+  $$P_{\text{reservation}} = \text{Unit Cost} \times (1 + \text{Target Margin})$$
+  Live labor expenses from `SalaryService` and material resource costs from `ProductionCostCalculator` dynamically set the wholesale price floor.
+- **Affordability-Aware Commodity Substitution:** The AI decision system (`CandidateGenerator`, `HardConstraintFilter`, `PersonalityUtilityEvaluator`) identifies interchangeable consumable commodities (e.g., `wheat` vs `raw_fish`). When a preferred staple becomes scarce or expensive, budget-constrained citizens automatically substitute more affordable alternatives.
+
+---
+
+## Phase 8 — Visualization & UI Architecture
+
+Genesis features an integrated, real-time visualization layer designed to inspect macroeconomic and spatial states without polluting engine purity.
+
+### Spatial Engine & World Canvas (8.1 – 8.3)
+- **High-Performance Canvas Renderer:** Renders terrain grids, elevation contours, moisture maps, and natural resource clusters using hardware-accelerated 2D canvas drawing.
+- **Interactive Viewport:** Smooth zooming, panning, tile coordinate inspection, and layer toggle filters (Resource Density, Biomes, Settlement Boundaries).
+- **Settlement & Infrastructure Rendering:** Displays architectural blueprints, building footprints, storage warehouses, and connecting transit corridors.
+
+### Citizen & Logistics Tracking (8.4 – 8.5)
+- **Agent Movement Interpolation:** Visualizes real-time citizen movement, active path trajectories, commuting routes, and vital state indicators (Hunger, Health, Energy).
+- **Logistics & Shipment Visualization:** Depicts freight shipments in transit between extraction sites, wholesale distribution hubs, and retail stores.
+- **Simulation Control Panel:** Full control over `TimeEngine` with real-time speed controls (1x, 5x, 10x, 60x), play/pause toggles, and tick-synchronized event monitors.
+
+### Civilization Overview Dashboard (8.6)
+- **Macroeconomic Telemetry:** Surfaces authoritative macro indicators via `/api/v1/world/summary` and `/api/v1/market/prices`.
+- **Live Commodity Pricing:** Renders real-time retail and wholesale price tables in Indian Rupees (₹ / INR), highlighting daily price shifts, inflation, and scarcity indexes.
+- **Supply & Demand Balances:** Visual comparison between production yields, citizen consumption rates, and wholesale inventory buffers.
+
+---
+
+## End-to-End Economic Feedback Architecture
+
 ```mermaid
 flowchart TD
-    Nature[Natural Resources] --> Production[Production Event]
-    Production --> ProdInv[Producer Inventory]
-    ProdInv --> Procurement[Business Procurement]
-    Procurement --> Wholesale[Wholesale Order]
-    Wholesale --> Shipment[Shipment Transit]
-    Shipment --> Retail[Retail Inventory]
-    Retail --> CitPurchase[Citizen Purchase]
-    CitPurchase --> CitConsume[Citizen Consumption]
+    subgraph Citizens [Citizen Agents]
+        Needs[Vital Needs: Hunger / Health] --> SubCheck{Check Budget & Substitutes}
+        SubCheck -->|Wheat vs Fish| Decision[Utility Evaluation]
+        Decision --> Purchase[Retail Purchase]
+    end
+
+    subgraph Retail [Retail Commerce]
+        Purchase --> StockDec[Deplete Retail Stock]
+        StockDec --> Reorder{Inventory < Reorder Point?}
+        Reorder -->|Yes| Procurement[Business Procurement Engine]
+    end
+
+    subgraph Wholesale [Wholesale & Production]
+        Procurement --> Ranking[Supplier Ranking: Price, Quality, Distance]
+        Ranking --> PO[Wholesale Order]
+        PO --> ProdCalc[Production Cost Calculator]
+        ProdCalc --> Reservation[Producer Cost Floor: Labor + Inputs]
+        Reservation --> ProdRun[Execute Production Run]
+        ProdRun --> Ship[Physical Transit / Shipment]
+        Ship --> StockDec
+    end
+
+    subgraph Ledgers [Monetary & Pricing Loop]
+        Purchase --> RetRev[Retail Revenue]
+        PO --> WholesRev[Wholesale Revenue]
+        WholesRev --> Payroll[Business Payroll Disbursal]
+        Payroll --> Salary[SalaryService: Wages to Citizen Wallets]
+        Salary --> SubCheck
+        StockDec & Needs --> PriceFormation[PriceFormationService: Scarcity vs Surplus]
+        PriceFormation --> Purchase
+    end
 ```
 
-### Money Flow
-```mermaid
-flowchart TD
-    Business[Business Wallet] --> Salary[Salary Processing]
-    Salary --> Citizen[Citizen Income]
-    Citizen --> Purchase[Citizen Purchase]
-    Purchase --> Revenue[Business Revenue]
-    Revenue --> Accounting[Business Accounting]
-    Accounting --> Business
-```
+---
 
-### Production Costing Flow
-```mermaid
-flowchart TD
-    ProductionEvent[Production Completed Event] --> Calculator[Production Cost Calculator]
-    Calculator --> Labor[Fetch Actual Labor Data]
-    Calculator --> Inputs[Calculate Resource Values]
-    Labor --> TotalCost[Total Cost & Cost/Unit]
-    Inputs --> TotalCost
-    TotalCost --> Ledger[Transaction Ledger]
-    Ledger --> BusinessAcc[Business Accounting]
-```
+## Current Limitations & Roadmap
 
-### Supplier Selection Flow
-```mermaid
-flowchart TD
-    Supplier[Supplier Inventory] --> Discovery[Procurement Discovery]
-    Discovery --> Stock[Stock Availability]
-    Discovery --> Price[Unit Price]
-    Discovery --> Quality[Actual Item Quality]
-    Discovery --> Distance[Spatial Distance]
-    Stock --> Ranking[Supplier Ranking Score]
-    Price --> Ranking
-    Quality --> Ranking
-    Distance --> Ranking
-    Ranking --> Order[Purchase Order Creation]
-```
+While the closed economic feedback loop and authoritative intelligence are fully functional, planned extensions include:
+- **Central Taxation & Public Treasury:** Central government tax policies (income tax, import tariffs, and municipal subsidies) slated for Phase 6.5 / Phase 9.
+- **Social Networks & Interpersonal Relationships:** Citizen family units, friendship networks, and social status hierarchies slated for Phase 9.
+- **Multi-Year Macroeconomic Stress Tests:** Long-horizon, multi-decadal stability simulations under catastrophic climate and harvest failure scenarios.
 
-## Current Limitations & Future Work
-
-While the core economy flows accurately, several systems remain pending integration or development:
-- **Salary Payment Timing:** Currently, salaries trigger dynamically rather than adhering to a strict "first 7 days of the following month" cadence.
-- **Accounting Periods:** Fiscal period scheduling and hard closures for business accounting are not yet finalized.
-- **Financial & Supply Chain UI:** The frontend `World Inspector` currently lacks deep introspection components specifically for wallets, transaction logs, and visual shipment tracking.
-- **Macroeconomics & Taxes:** Central taxation and macroeconomic models are planned for future sub-phase 6.5.
-- **Long-Running Economy Tests:** Extreme scale and multi-year economic stability tests are pending.
+---
 
 ## Test & Build Status
 
 The repository maintains strict continuous integration standards to guarantee determinism and simulation health.
 
-- **Test Suite Status:** 29 Test Suites passing successfully.
-- **Total Verified Tests:** 161 Tests passing (0 failures).
-- **Typecheck:** Clean 0-error `tsc` validation across `shared`, `engine`, `backend`, and `frontend` workspaces.
-- **Build Status:** `npm run build` succeeds completely, assembling the minified production assets using Vite and TypeScript compilers.
+- **Engine Test Suite (`@genesis/engine`):** 32 passing test suites with 185+ verified tests (Time, Events, Decision, Spatial, Inventory, Banking, Production, Market Pricing, and Economic Equilibrium).
+- **Backend Test Suite (`@genesis/backend`):** Authoritative integration and unit test suites verifying demand intelligence, supply aggregation, employment payroll, price dynamics, and closed equilibrium loops.
+- **Typecheck:** Clean 0-error `tsc` validation across `shared`, `packages/engine`, `backend`, and `frontend` workspaces.
+- **Production Build:** `npm run build` succeeds completely, compiling all TypeScript packages and bundling minified frontend production assets with Vite.
