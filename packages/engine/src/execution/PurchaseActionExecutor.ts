@@ -106,7 +106,16 @@ export class PurchaseActionExecutor extends BaseActionExecutor {
       const productId = action.metadata?.productId || 'wheat';
       
       // Check if store is in a region to get regional pricing
-      const regionId = 'DEFAULT';
+      let regionId = 'DEFAULT';
+      try {
+        const workplaceRepo = (this.spatialQueryService as any)?.worldEngine?.workplaceRepository;
+        if (workplaceRepo) {
+          const sellerWp = workplaceRepo.findById(sellerId);
+          if (sellerWp?.regionId) {
+            regionId = sellerWp.regionId;
+          }
+        }
+      } catch (e) {}
       
       // Get expected price and quantity
       const quantity = action.metadata?.targetQuantity || 1;

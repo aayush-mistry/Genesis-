@@ -63,7 +63,15 @@ export class StoreRanker {
       const availableQuantity = this.inventoryManager.getUsableQuantity(inventory.id, productId, currentTime);
       if (availableQuantity <= 0) continue; // Skip empty stores
 
-      const price = this.marketEngine.calculateEffectivePrice(productId, 'DEFAULT', 10); // Simplified
+      let regionId = 'DEFAULT';
+      if (this.workplaceRepository) {
+        const wp = this.workplaceRepository.findById(sellerId);
+        if (wp?.regionId) {
+          regionId = wp.regionId;
+        }
+      }
+
+      const price = this.marketEngine.calculateEffectivePrice(productId, regionId, 10);
 
       if (price < minPrice) minPrice = price;
       if (price > maxPrice) maxPrice = price;

@@ -182,7 +182,7 @@ export class BusinessProcurementEngine {
       // Verify Wallet
       if (buyer.wallet) {
         // Calculate cost for this specific portion
-        const portionBulkPrice = this.calculateBulkPrice(req.productId, orderQuantity);
+        const portionBulkPrice = this.calculateBulkPrice(req.productId, orderQuantity, seller.regionId);
         const portionTransportCost = orderQuantity * rank.distance * 0.1; // Simple calculation
         const totalLandedCost = (portionBulkPrice * orderQuantity) + portionTransportCost;
 
@@ -251,7 +251,25 @@ export class BusinessProcurementEngine {
     });
   }
 
-  private calculateBulkPrice(productId: string, quantity: number): number {
+  public calculateBulkPrice(productId: string, quantity: number, regionId: string = 'DEFAULT'): number {
+    if (this.marketEngine) {
+      const priceService = this.marketEngine.getPriceFormationService();
+      if (priceService) {
+        const regionalAdj = this.marketEngine.getRegionalAdjustment(regionId, productId);
+        const regionalMultiplier = regionalAdj ? regionalAdj.adjustmentMultiplier : 1.0;
+        const regionalOffset = regionalAdj ? regionalAdj.adjustmentOffset : 0.0;
+        const breakdown = priceService.calculatePrice(
+          productId,
+          regionId,
+          regionalMultiplier,
+          regionalOffset,
+          quantity,
+          this.bulkPricing[productId]
+        );
+        return breakdown.wholesaleUnitPrice;
+      }
+    }
+
     const tiers = this.bulkPricing[productId];
     if (!tiers) return 10; // Default fallback
 
@@ -276,7 +294,7 @@ export class BusinessProcurementEngine {
       const inventory = this.inventoryManager.getInventory(seller.inventoryId!)!;
       const available = inventory.items[productId].totalQuantity - (inventory.items[productId].reservedQuantity || 0);
 
-      const bulkPrice = this.calculateBulkPrice(productId, Math.min(requestedQuantity, available));
+      const bulkPrice = this.calculateBulkPrice(productId, Math.min(requestedQuantity, available), seller.regionId);
       
       let distance = 10;
       try {

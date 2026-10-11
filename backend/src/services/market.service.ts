@@ -1,4 +1,4 @@
-import { MarketEngine } from '@genesis/engine';
+import { MarketEngine, PriceFormationService } from '@genesis/engine';
 import { worldService } from './world.service';
 import { timeService } from './time.service';
 import { eventService } from './event.service';
@@ -18,7 +18,19 @@ class MarketService {
   }
 
   public initialize() {
-    console.log('[Market Engine] Initialized');
+    const priceFormationService = new PriceFormationService(
+      worldService.engine,
+      supplyService.inventoryManager,
+      (productId: string) => supplyService.productionEngine.commodities.get(productId)
+    );
+    this.engine.setPriceFormationService(priceFormationService);
+
+    // Also connect marketEngine to supplyService.businessProcurementEngine if not already wired
+    if (supplyService.businessProcurementEngine && !(supplyService.businessProcurementEngine as any).marketEngine) {
+      (supplyService.businessProcurementEngine as any).marketEngine = this.engine;
+    }
+
+    console.log('[Market Engine] Initialized with PriceFormationService');
   }
 }
 

@@ -65,5 +65,13 @@ export const supplyController = {
   getProcurementHistory: async (request: FastifyRequest, reply: FastifyReply) => {
     const history = supplyService.businessProcurementEngine.getHistory();
     return reply.send(history);
+  },
+
+  getMarketPrices: async (request: FastifyRequest<{ Querystring: { regionId?: string } }>, reply: FastifyReply) => {
+    const { marketService } = await import('../services/market.service');
+    const regionId = request.query?.regionId || 'DEFAULT';
+    const commodities = ['wheat', 'water', 'raw_fish', 'iron_ore', 'timber'];
+    const prices = commodities.map(p => marketService.engine.getPriceBreakdown(p, regionId));
+    return reply.send(prices);
   }
 };

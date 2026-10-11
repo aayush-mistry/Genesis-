@@ -9,22 +9,33 @@ export class CivilizationIntelligenceService {
     // 1. Population & Employment
     const population = await prisma.citizen.count();
     
-    const employed = await prisma.citizen.count({ 
-      where: { 
-        employmentStatus: 'EMPLOYED',
-        jobPosition: { some: {} }
-      } 
-    });
-    
-    // Also include those with status EMPLOYED but missing a job position in unemployed, or just query strictly
-    const unemployed = await prisma.citizen.count({ 
-      where: { 
-        OR: [
-          { employmentStatus: 'UNEMPLOYED' },
-          { employmentStatus: 'EMPLOYED', jobPosition: { none: {} } }
-        ]
-      } 
-    });
+    const totalPositions = await prisma.jobPosition.count();
+    let employed = 0;
+    let unemployed = 0;
+
+    if (totalPositions > 0) {
+      employed = await prisma.citizen.count({ 
+        where: { 
+          employmentStatus: 'EMPLOYED',
+          OR: [
+            { jobPosition: { some: {} } },
+            { workplaceId: { not: null } }
+          ]
+        } 
+      });
+      unemployed = await prisma.citizen.count({ 
+        where: { 
+          OR: [
+            { employmentStatus: 'UNEMPLOYED' },
+            { employmentStatus: 'EMPLOYED', jobPosition: { none: {} }, workplaceId: null }
+          ]
+        } 
+      });
+    } else {
+      employed = await prisma.citizen.count({ where: { employmentStatus: 'EMPLOYED' } });
+      unemployed = await prisma.citizen.count({ where: { employmentStatus: 'UNEMPLOYED' } });
+    }
+
     
     const student = await prisma.citizen.count({ where: { employmentStatus: 'STUDENT' } });
     const retired = await prisma.citizen.count({ where: { employmentStatus: 'RETIRED' } });
@@ -245,6 +256,11 @@ export class CivilizationIntelligenceService {
       },
       commerce: {
         activeStores: stores
+      },
+      market: {
+        wheat: (await import('./market.service')).marketService.engine.getPriceBreakdown('wheat'),
+        water: (await import('./market.service')).marketService.engine.getPriceBreakdown('water'),
+        raw_fish: (await import('./market.service')).marketService.engine.getPriceBreakdown('raw_fish')
       },
       supplyChain: {
         pendingOrders,

@@ -153,6 +153,26 @@ export const CivilizationSummary: React.FC = () => {
               <span className="text-sm text-slate-400">Commerce Outlets</span>
               <span className="text-sm font-mono text-slate-100">{summary.commerce?.activeStores ?? '0'}</span>
             </div>
+
+            {summary.market && (
+              <div className="mt-3 pt-2 border-t border-slate-800/80">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2">COMMODITY PRICES (RETAIL / WHOLESALE)</span>
+                {['wheat', 'water', 'raw_fish'].map(itemKey => {
+                  const item = (summary.market as any)[itemKey];
+                  if (!item) return null;
+                  const label = itemKey === 'wheat' ? 'Wheat' : itemKey === 'water' ? 'Water' : 'Raw Fish';
+                  return (
+                    <div key={itemKey} className="flex justify-between items-center py-1 text-xs">
+                      <span className="text-slate-400">{label} ({item.unit})</span>
+                      <span className="font-mono text-slate-200">
+                        ₹{item.retailPrice?.toFixed(2) ?? '—'}{' '}
+                        <span className="text-slate-500 text-[10px]">/ ₹{item.wholesaleUnitPrice?.toFixed(2) ?? '—'} (ws)</span>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 

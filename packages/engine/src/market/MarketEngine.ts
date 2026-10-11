@@ -18,15 +18,95 @@ export class MarketEngine {
   ) {}
 
   private regionalAdjustments: Map<string, RegionalPriceAdjustment> = new Map();
+  private priceFormationService?: import('./PriceFormationService').PriceFormationService;
+
+  public setPriceFormationService(service: import('./PriceFormationService').PriceFormationService): void {
+    this.priceFormationService = service;
+  }
+
+  public getPriceFormationService(): import('./PriceFormationService').PriceFormationService | undefined {
+    return this.priceFormationService;
+  }
 
   public setRegionalAdjustment(adjustment: RegionalPriceAdjustment): void {
     this.regionalAdjustments.set(`${adjustment.regionId}-${adjustment.productId}`, adjustment);
   }
 
+  public getRegionalAdjustment(regionId: string, productId: string): RegionalPriceAdjustment | undefined {
+    return this.regionalAdjustments.get(`${regionId}-${productId}`);
+  }
+
   public calculateEffectivePrice(productId: string, regionId: string, basePrice: number): number {
     const adjustment = this.regionalAdjustments.get(`${regionId}-${productId}`);
+    const regionalMultiplier = adjustment ? adjustment.adjustmentMultiplier : 1.0;
+    const regionalOffset = adjustment ? adjustment.adjustmentOffset : 0.0;
+
+    if (this.priceFormationService) {
+      const breakdown = this.priceFormationService.calculatePrice(
+        productId,
+        regionId,
+        regionalMultiplier,
+        regionalOffset
+      );
+      return breakdown.retailPrice;
+    }
+
     if (!adjustment) return basePrice;
     return Math.max(0, (basePrice * adjustment.adjustmentMultiplier) + adjustment.adjustmentOffset);
+  }
+
+  public getPriceBreakdown(
+    productId: string,
+    regionId: string = 'DEFAULT',
+    requestedQuantity: number = 1
+  ): {
+    productId: string;
+    regionId: string;
+    referencePrice: number;
+    retailPrice: number;
+    wholesaleUnitPrice: number;
+    scarcitySurplusFactor: number;
+    regionalFactor: number;
+    unit: string;
+    currency: string;
+  } {
+    const adjustment = this.regionalAdjustments.get(`${regionId}-${productId}`);
+    const regionalMultiplier = adjustment ? adjustment.adjustmentMultiplier : 1.0;
+    const regionalOffset = adjustment ? adjustment.adjustmentOffset : 0.0;
+
+    if (this.priceFormationService) {
+      const breakdown = this.priceFormationService.calculatePrice(
+        productId,
+        regionId,
+        regionalMultiplier,
+        regionalOffset,
+        requestedQuantity
+      );
+      return {
+        productId,
+        regionId,
+        referencePrice: breakdown.referencePrice,
+        retailPrice: breakdown.retailPrice,
+        wholesaleUnitPrice: breakdown.wholesaleUnitPrice,
+        scarcitySurplusFactor: breakdown.scarcitySurplusFactor,
+        regionalFactor: breakdown.regionalFactor,
+        unit: productId === 'water' ? 'L' : 'kg',
+        currency: 'INR'
+      };
+    }
+
+    const effective = this.calculateEffectivePrice(productId, regionId, 10);
+    return {
+      productId,
+      regionId,
+      referencePrice: 10,
+      retailPrice: effective,
+      wholesaleUnitPrice: parseFloat((effective * 0.85).toFixed(2)),
+      scarcitySurplusFactor: 1.0,
+      regionalFactor: regionalMultiplier,
+      unit: productId === 'water' ? 'L' : 'kg',
+      currency: 'INR'
+    };
   }
 
   public processTransaction(
