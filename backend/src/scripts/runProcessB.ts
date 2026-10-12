@@ -11,6 +11,8 @@ export async function runProcessB() {
   // 1. Hydrate state
   await persistenceService.bootstrap();
   await import('../services/world.service').then(m => m.worldService.initialize());
+  await import('../services/perception.service').then(m => m.perceptionService.initialize());
+  await import('../services/decision.service').then(m => m.decisionService.initialize());
   await import('../services/citizen.service').then(m => m.citizenService.initialize());
   await import('../services/market.service').then(m => m.marketService.initialize());
   await import('../services/supply.service').then(m => m.supplyService.initialize());

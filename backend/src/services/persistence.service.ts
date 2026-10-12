@@ -7,6 +7,7 @@ import {
   workplaceRepository,
   resourceRepository
 } from '../repositories';
+import { prisma } from '../repositories/prisma';
 import { citizenService } from './citizen.service';
 import { supplyService } from './supply.service';
 
@@ -249,6 +250,8 @@ export class PersistenceService {
               gender: dbCitizen.gender,
               status: dbCitizen.status,
               locationId: dbCitizen.locationId,
+              coordX: dbCitizen.coordX ?? null,
+              coordY: dbCitizen.coordY ?? null,
               movementState: dbCitizen.movementState,
               employmentStatus: dbCitizen.employmentStatus,
               workplaceId: dbCitizen.workplaceId,
@@ -362,22 +365,63 @@ export class PersistenceService {
         for (const citizenId of dirtyCollections.citizens) {
           const citizen = citizenService.engine.getCitizen(citizenId);
           if (citizen) {
-            await citizenRepository.updateCitizen(citizenId, {
-              status: citizen.status,
-              employmentStatus: citizen.employmentStatus,
-              workplaceId: citizen.workplaceId,
-              jobType: citizen.jobType,
-              vitalStateJson: JSON.stringify(citizen.vitalState),
-              locationId: citizen.locationId || null,
-              coordX: citizen.coordX || null,
-              coordY: citizen.coordY || null,
-              movementState: citizen.movementState,
-              activeRouteJson: citizen.activeRoute ? JSON.stringify(citizen.activeRoute) : null,
-              employmentRecJson: citizen.employmentRecord ? JSON.stringify(citizen.employmentRecord) : null,
-            });
+            const dbCit = await citizenRepository.getCitizen(citizenId);
+            // Verify household exists in DB if specified to avoid FK violation
+            let validHouseholdId = citizen.householdId || null;
+            if (validHouseholdId) {
+              const hhCheck = await prisma.household.findUnique({ where: { id: validHouseholdId } });
+              if (!hhCheck) validHouseholdId = null;
+            }
+
+            if (dbCit) {
+              await citizenRepository.updateCitizen(citizenId, {
+                status: citizen.status,
+                employmentStatus: citizen.employmentStatus,
+                workplaceId: citizen.workplaceId,
+                jobType: citizen.jobType,
+                vitalStateJson: JSON.stringify(citizen.vitalState),
+                locationId: citizen.locationId || null,
+                householdId: validHouseholdId,
+                coordX: citizen.coordX ?? null,
+                coordY: citizen.coordY ?? null,
+                movementState: citizen.movementState,
+                activeRouteJson: citizen.activeRoute ? JSON.stringify(citizen.activeRoute) : null,
+                employmentRecJson: citizen.employmentRecord ? JSON.stringify(citizen.employmentRecord) : null,
+              });
+            } else {
+              // Verify household exists in DB if specified to avoid FK violation
+              let validHouseholdId = citizen.householdId || null;
+              if (validHouseholdId) {
+                const hhCheck = await prisma.household.findUnique({ where: { id: validHouseholdId } });
+                if (!hhCheck) validHouseholdId = null;
+              }
+
+              // Newly born or immigrated citizen
+              await citizenRepository.createCitizen({
+                id: citizen.id,
+                name: citizen.name,
+                gender: citizen.gender,
+                status: citizen.status,
+                locationId: citizen.locationId || null,
+                coordX: citizen.coordX ?? null,
+                coordY: citizen.coordY ?? null,
+                birthDateJson: JSON.stringify(citizen.birthDate),
+                createdAtSimJson: JSON.stringify(citizen.createdAt),
+                vitalStateJson: JSON.stringify(citizen.vitalState),
+                personalityJson: JSON.stringify(citizen.personality),
+                movementState: citizen.movementState,
+                employmentStatus: citizen.employmentStatus,
+                workplaceId: citizen.workplaceId,
+                jobType: citizen.jobType,
+                householdId: validHouseholdId,
+                walletId: citizen.wallet?.id || null,
+                activeRouteJson: citizen.activeRoute ? JSON.stringify(citizen.activeRoute) : null,
+                skillsJson: JSON.stringify(citizen.skills || []),
+                jobScheduleJson: citizen.jobSchedule ? JSON.stringify(citizen.jobSchedule) : null,
+              });
+            }
     
             const inventory = supplyService.inventoryManager.getInventoryByOwner(citizenId);
-            console.log(`persistTickBoundary retrieved inventory for ${citizenId}:`, !!inventory);
             await syncInventory(inventory);
             await syncWallet(citizen.wallet);
           }

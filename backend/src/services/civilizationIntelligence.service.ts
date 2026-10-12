@@ -6,8 +6,10 @@ import { NeedsConfig } from '@genesis/engine';
 export class CivilizationIntelligenceService {
   
   public async getCivilizationSummary() {
-    // 1. Population & Employment
-    const population = await prisma.citizen.count();
+    // 1. Population & Employment (Only living/ACTIVE citizens)
+    // 1. Population & Employment (Only living/non-deceased citizens)
+    const activeCondition = { status: { in: ['ACTIVE', 'ALIVE'] } };
+    const population = await prisma.citizen.count({ where: activeCondition });
     
     const totalPositions = await prisma.jobPosition.count();
     let employed = 0;
@@ -16,6 +18,7 @@ export class CivilizationIntelligenceService {
     if (totalPositions > 0) {
       employed = await prisma.citizen.count({ 
         where: { 
+          ...activeCondition,
           employmentStatus: 'EMPLOYED',
           OR: [
             { jobPosition: { some: {} } },
@@ -25,6 +28,7 @@ export class CivilizationIntelligenceService {
       });
       unemployed = await prisma.citizen.count({ 
         where: { 
+          ...activeCondition,
           OR: [
             { employmentStatus: 'UNEMPLOYED' },
             { employmentStatus: 'EMPLOYED', jobPosition: { none: {} }, workplaceId: null }
@@ -32,13 +36,13 @@ export class CivilizationIntelligenceService {
         } 
       });
     } else {
-      employed = await prisma.citizen.count({ where: { employmentStatus: 'EMPLOYED' } });
-      unemployed = await prisma.citizen.count({ where: { employmentStatus: 'UNEMPLOYED' } });
+      employed = await prisma.citizen.count({ where: { ...activeCondition, employmentStatus: 'EMPLOYED' } });
+      unemployed = await prisma.citizen.count({ where: { ...activeCondition, employmentStatus: 'UNEMPLOYED' } });
     }
 
     
-    const student = await prisma.citizen.count({ where: { employmentStatus: 'STUDENT' } });
-    const retired = await prisma.citizen.count({ where: { employmentStatus: 'RETIRED' } });
+    const student = await prisma.citizen.count({ where: { ...activeCondition, employmentStatus: 'STUDENT' } });
+    const retired = await prisma.citizen.count({ where: { ...activeCondition, employmentStatus: 'RETIRED' } });
     
     const workforce = employed + unemployed;
     const inactive = student + retired;
