@@ -326,6 +326,11 @@ export class EventScheduler {
       return;
     }
 
+    let nextScheduledTime = this.calculateNextRecurrenceTime(event.scheduledTime, event.recurrence.interval);
+    if (TimeUtils.compare(nextScheduledTime, currentTime) <= 0) {
+      nextScheduledTime = this.calculateNextRecurrenceTime(currentTime, event.recurrence.interval);
+    }
+
     const nextEvent: SimulationEvent = {
       ...event,
       id: `${event.id.split('-rec-')[0]}-rec-${event.recurrenceCount}`,
@@ -336,7 +341,7 @@ export class EventScheduler {
       executionResult: undefined,
       stateTransitions: [],
       executionDurationMs: undefined,
-      scheduledTime: this.calculateNextRecurrenceTime(event.scheduledTime, event.recurrence.interval)
+      scheduledTime: nextScheduledTime
     };
 
     this.scheduleEvent(nextEvent);

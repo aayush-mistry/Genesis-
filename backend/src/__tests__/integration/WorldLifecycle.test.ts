@@ -39,15 +39,19 @@ describe('World Lifecycle API', () => {
 
   let createdWorldId: string;
 
-  it('TEST 1 - Check Active World', async () => {
+  it('TEST 1 - Check Active World (Uninitialized)', async () => {
+    const statusRes = await app.inject({
+      method: 'GET',
+      url: '/api/v1/world/status'
+    });
+    expect(statusRes.statusCode).toBe(200);
+    expect(statusRes.json()).toEqual({ initialized: false });
+
     const res = await app.inject({
       method: 'GET',
       url: '/api/v1/world'
     });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body).not.toBeNull();
-    expect(body).toHaveProperty('id');
+    expect(res.statusCode).toBe(404);
   });
 
   it('TEST 2 - Create World', async () => {

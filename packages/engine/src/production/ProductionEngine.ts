@@ -118,7 +118,7 @@ export class ProductionEngine {
     const baseCapacity = (workplace.capacity / definition.workersRequiredPerUnitArea) * definition.baseYieldPerArea;
 
     // 2. Adjust based on workers actually present (authoritative JobPosition counting)
-    const occupiedCount = workplace.positions.filter(p => p.occupantId !== null).length;
+    const occupiedCount = workplace.positions ? workplace.positions.filter(p => p.occupantId !== null).length : (workplace.occupiedPositions ?? 0);
     const workerEfficiency = workplace.capacity > 0 ? (occupiedCount / workplace.capacity) : 0;
     let actualProduction = baseCapacity * workerEfficiency;
 

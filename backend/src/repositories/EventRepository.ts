@@ -98,10 +98,18 @@ export class EventRepository {
     if (cancelFlag !== undefined) data.cancelFlag = cancelFlag;
     if (executionDurationMs !== undefined) data.executionDurationMs = executionDurationMs;
     
-    await prisma.simulationEvent.update({
-      where: { id },
-      data
-    });
+    try {
+      await prisma.simulationEvent.update({
+        where: { id },
+        data
+      });
+    } catch (e: any) {
+      if (e?.code === 'P2025') {
+        // Record was not persisted to DB (e.g. in-memory only event), safe to ignore
+        return;
+      }
+      throw e;
+    }
   }
 
   async getPendingEvents(): Promise<SimulationEvent[]> {

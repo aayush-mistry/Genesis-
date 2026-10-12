@@ -7,6 +7,7 @@ export class TimeEngine {
   private time: SimulationTime;
   private state: TimeEngineState;
   private speedMultiplier: number;
+  private secondsPerTick: number;
   private subscribers: Set<TimeSubscriber>;
   private intervalId: NodeJS.Timeout | null;
   private readonly TICK_RATE_MS = 1000; // Real-world tick interval (1 second by default)
@@ -18,10 +19,11 @@ export class TimeEngine {
   public startTime = 0;
   public currentTick = 0;
 
-  constructor() {
+  constructor(secondsPerTick: number = 1) {
     this.time = this.getDefaultTime();
     this.state = 'Stopped';
     this.speedMultiplier = 1; // 1 real second = 1 sim second by default
+    this.secondsPerTick = secondsPerTick;
     this.subscribers = new Set();
     this.intervalId = null;
     this.startTime = Date.now();
@@ -93,13 +95,15 @@ export class TimeEngine {
   /**
    * Advances the simulation time manually or via the internal loop.
    */
-  public tick(): void {
+  public tick(secondsToAdvance?: number): void {
     if (this.state !== 'Running') return;
     
     const start = performance.now();
 
-    // 1x speed = 1 game minute (60 seconds) per real second tick
-    this.advanceTime(this.speedMultiplier * 60);
+    const advanceSeconds = secondsToAdvance !== undefined 
+      ? secondsToAdvance 
+      : this.speedMultiplier * this.secondsPerTick;
+    this.advanceTime(advanceSeconds);
     this.notifySubscribers();
     
     this.lastTickDurationMs = performance.now() - start;
@@ -111,6 +115,16 @@ export class TimeEngine {
       this.ticksPerSecond = this.tickCount;
       this.tickCount = 0;
       this.lastTpsCalculateTime = now;
+    }
+  }
+
+  public getSecondsPerTick(): number {
+    return this.secondsPerTick;
+  }
+
+  public setSecondsPerTick(seconds: number): void {
+    if (seconds > 0) {
+      this.secondsPerTick = seconds;
     }
   }
 
@@ -128,6 +142,13 @@ export class TimeEngine {
    */
   public getCurrentTime(): SimulationTime {
     return { ...this.time };
+  }
+
+  /**
+   * Sets the current simulation time (for hydration and recovery).
+   */
+  public setCurrentTime(time: SimulationTime): void {
+    this.time = { ...time };
   }
 
   /**

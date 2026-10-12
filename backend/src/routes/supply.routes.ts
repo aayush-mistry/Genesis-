@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { supplyController } from '../controllers/supply.controller';
 
+
 export async function supplyRoutes(fastify: FastifyInstance) {
   fastify.get('/businesses/:businessId/inventory', supplyController.getInventory);
   fastify.get('/businesses/:businessId/orders', supplyController.getOrders);
@@ -11,3 +12,4 @@ export async function supplyRoutes(fastify: FastifyInstance) {
   fastify.get('/procurement/history', supplyController.getProcurementHistory);
   fastify.get('/market/prices', supplyController.getMarketPrices);
 }
+  

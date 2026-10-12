@@ -19,6 +19,12 @@ export class PersistenceService {
     if (simState) {
       console.log(`[PersistenceService] Found Simulation State: Year ${simState.time.year}, Speed: ${simState.speed}`);
       
+      const { timeService } = await import('./time.service');
+      timeService.engine.setCurrentTime(simState.time);
+      if (simState.speed) {
+        timeService.engine.setSpeed(simState.speed);
+      }
+      
       // 2. Load World if active
       if (simState.activeWorldId) {
         const worldData = await worldRepository.getWorld(simState.activeWorldId);
@@ -147,7 +153,13 @@ export class PersistenceService {
             revenue: wp.revenue,
             expenses: wp.expenses,
             profit: wp.profit,
-            wallet: undefined
+            wallet: undefined,
+            positions: [],
+            inventoryConfiguration: ['SHOP', 'BUSINESS', 'WHOLESALE'].includes(wp.type) ? {
+              'wheat': { reorderPoint: 50, targetStock: 200 },
+              'iron_ore': { reorderPoint: 20, targetStock: 100 },
+              'water': { reorderPoint: 100, targetStock: 500 }
+            } : undefined
           };
           if (wp.walletId) {
             const wWallet = walletMap.get(wp.id);

@@ -118,6 +118,18 @@ export class WorldEngine {
       if (parentCity) return parentCity.coordinates;
     }
 
+    const workplace = this.workplaceRepository.findById(entityId);
+    if (workplace) {
+      if (workplace.locationId) {
+        const locCoords = this.getEntityCoordinates(workplace.locationId);
+        if (locCoords) return locCoords;
+      }
+      if (workplace.regionId) {
+        const regCoords = this.getEntityCoordinates(workplace.regionId);
+        if (regCoords) return regCoords;
+      }
+    }
+
     return undefined;
   }
   public resolveLocationHierarchy(locationId: string | null): { regionId?: string, cityId?: string, districtId?: string, buildingId?: string } {

@@ -5,7 +5,7 @@ class TimeService {
   public engine: TimeEngine;
 
   private constructor() {
-    this.engine = new TimeEngine();
+    this.engine = new TimeEngine(60);
   }
 
   public static getInstance(): TimeService {
