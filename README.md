@@ -101,12 +101,14 @@ npm run build:frontend
 - **Completed:** Phase 4 (AI Decision Engine) up to Phase 4.5 (Action Execution System).
 - **Completed:** Phase 5 (Economy Engine) including Production, Inventory, Supply Chain, and Market.
 - **Completed:** Phase 6 (Financial Engine) up to Banking & Loans.
-- **Completed:** Phase 7 (Runtime Lifecycle, Persistence, and Economic Intelligence T7.8.1–T7.8.5).
+- **Completed:** Phase 7 (Runtime Lifecycle, Persistence, and Economic Intelligence T7.8.1–T7.8.6 & T7.9).
   - T7.8.1: Authoritative Demand Intelligence (`CivilizationDemandService`).
   - T7.8.2: Multi-Stage Supply Intelligence (`CivilizationSupplyService`).
   - T7.8.3: Employment & Income Dynamics (`SalaryService` & Payroll reconciliation).
   - T7.8.4: Market & Price Dynamics (`PriceFormationService` & bounded scarcity/surplus).
   - T7.8.5: Economic Equilibrium & Feedback Integration (production-cost-aware producer reservation pricing & citizen commodity substitution).
+  - T7.8.6: Deterministic Long-Run Economic Stability & Final Integration (multi-day cycles, zero money/inventory duplication, Process A → Process B cold restart verification).
+  - T7.9: Civilization Simulation Integrity & Roadmap Audit (citizen death and vacancy liberation, spatial coordinate persistence, and living population intelligence aggregation).
 - **Completed:** Phase 8 (Visualization & UI) including spatial renderers, movement visualization, and an authoritative civilization overview dashboard.
 
 ## Genesis Roadmap
@@ -160,7 +162,9 @@ Phase 7 ✅ Runtime Lifecycle, Persistence & Economic Dynamics
 ├── 7.8.2 Multi-Stage Supply Intelligence
 ├── 7.8.3 Employment & Income Dynamics
 ├── 7.8.4 Market & Price Dynamics
-└── 7.8.5 Economic Equilibrium & Closed Feedback Loop
+├── 7.8.5 Economic Equilibrium & Closed Feedback Loop
+├── 7.8.6 Long-Run Economic Stability & Final Integration
+└── 7.9 Civilization Simulation Integrity & Roadmap Audit
 
 Phase 8 ✅ Visualization & UI
 ├── 8.1 Spatial Foundation & World Renderer
@@ -929,7 +933,8 @@ While the closed economic feedback loop and authoritative intelligence are fully
 
 The repository maintains strict continuous integration standards to guarantee determinism and simulation health.
 
-- **Engine Test Suite (`@genesis/engine`):** 32 passing test suites with 185+ verified tests (Time, Events, Decision, Spatial, Inventory, Banking, Production, Market Pricing, and Economic Equilibrium).
-- **Backend Test Suite (`@genesis/backend`):** Authoritative integration and unit test suites verifying demand intelligence, supply aggregation, employment payroll, price dynamics, and closed equilibrium loops.
+- **Engine Test Suite (`@genesis/engine`):** 34 passing test suites with 192 verified tests (Time, Events, Decision, Spatial, Inventory, Banking, Production, Market Pricing, Economic Equilibrium, and Population Simulation).
+- **Backend Test Suite (`@genesis/backend`):** 9 authoritative integration suites (34 verified tests) executing against Prisma and SQLite, verifying demand intelligence, multi-stage supply aggregation, employment and payroll, market price dynamics, closed equilibrium loops, economic shortages/failures, long-run economic stability, and population lifecycle & spatial integrity.
+- **Process Restart Recovery:** Deterministic cold-restart test (`Process A` → `Process B`) confirming complete hydration of world state, workplace wallets, inventory configurations, and simulation time without drift or memory leaks.
 - **Typecheck:** Clean 0-error `tsc` validation across `shared`, `packages/engine`, `backend`, and `frontend` workspaces.
 - **Production Build:** `npm run build` succeeds completely, compiling all TypeScript packages and bundling minified frontend production assets with Vite.
