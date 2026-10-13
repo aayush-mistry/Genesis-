@@ -204,15 +204,15 @@ describe('T8.1 — Dynamic Household Formation and Residential Placement', () =>
   let parentCitizenId: string;
   let parentHouseholdId: string;
 
-  test('TEST 1: Newborn joins its existing household when capacity permits', async () => {
-    // 1. Create parent in an existing household with available capacity (1 member < 5)
+  test('TEST 1: Real demographic lifecycle invocation places and persists a newborn', async () => {
+    // 1. Create a parent citizen in the apartment building with an initial household
     const parentHh = citizenService.engine.householdService.createHousehold(apartmentBuildingId);
     parentHouseholdId = parentHh.id;
 
     const parent = citizenService.engine.createCitizen(
       CitizenGender.FEMALE,
       apartmentBuildingId,
-      { year: 0, month: 1, day: 1, hour: 0, minute: 0, second: 0 },
+      { year: -25, month: 1, day: 1, hour: 0, minute: 0, second: 0 },
       101,
       {
         householdId: parentHh.id,
@@ -222,201 +222,146 @@ describe('T8.1 — Dynamic Household Formation and Residential Placement', () =>
     );
     parentCitizenId = parent.id;
 
-    expect(parent.householdId).toBe(parentHh.id);
-    expect(parent.coordX).toBe(1155);
-    expect(parent.coordY).toBe(1158);
+    // Persist parent and initial household so DB has referential integrity
+    await persistenceService.persistTickBoundary({
+      citizens: [parent.id],
+      households: [parentHh.id]
+    });
 
-    const initialHh = citizenService.engine.householdService.getHousehold(parentHh.id);
-    expect(initialHh?.members.length).toBe(1);
+    // Clear dirty collections before lifecycle invocation
+    citizenService.getAndClearDirtyCollections();
 
-    // 2. Birth of newborn
-    const newborn = citizenService.engine.createCitizenForNewborn(
-      CitizenGender.MALE,
-      parent,
-      { year: 1, month: 2, day: 1, hour: 10, minute: 0, second: 0 }
-    );
-    newbornCitizenId = newborn.id;
+    // 2. Trigger real demographic monthly tick through PopulationSimulator
+    // Control Math.random so that for the parent, birth rate check passes
+    const origRandom = Math.random;
+    try {
+      let callIndex = 0;
+      Math.random = () => {
+        callIndex++;
+        // First random call in births loop: parent's birth check (< MONTHLY_BIRTH_RATE = 0.02/12)
+        if (callIndex === 1) return 0.0001;
+        // Subsequent calls: gender (> 0.5 = female), coordinate jitter, death check (> 0.1), migration (> 0.1)
+        if (callIndex === 2) return 0.2; // Male newborn
+        return 0.8; // No deaths, no migration
+      };
 
-    // 3. Assertions
-    expect(newborn.householdId).toBe(parentHh.id);
-    expect(newborn.locationId).toBe(apartmentBuildingId);
-    expect(newborn.coordX).toBe(parent.coordX);
-    expect(newborn.coordY).toBe(parent.coordY);
-
-    const updatedHh = citizenService.engine.householdService.getHousehold(parentHh.id);
-    expect(updatedHh?.members).toContain(newborn.id);
-    expect(updatedHh?.members.length).toBe(2);
-  });
-
-  test('TEST 2: Immigrant receives suitable residential placement with intentional coordinates', async () => {
-    const immigrant = citizenService.engine.createCitizenForImmigrant(
-      CitizenGender.FEMALE,
-      { year: -25, month: 5, day: 10, hour: 0, minute: 0, second: 0 },
-      cityId
-    );
-    immigrantCitizenId = immigrant.id;
-    immigrantHouseholdId = immigrant.householdId!;
-
-    expect(immigrant.householdId).toBeDefined();
-    expect(immigrant.householdId).not.toBe(parentHouseholdId);
-    expect(immigrant.locationId).toBe(apartmentBuildingId);
-
-    // Immigrant coordinates must be strictly inside the apartment building bounding box
-    // Center is (1150, 1150), width = 40, height = 40 -> [1130, 1170]
-    expect(immigrant.coordX).toBeGreaterThanOrEqual(1130);
-    expect(immigrant.coordX).toBeLessThanOrEqual(1170);
-    expect(immigrant.coordY).toBeGreaterThanOrEqual(1130);
-    expect(immigrant.coordY).toBeLessThanOrEqual(1170);
-
-    // Never default to 0,0
-    expect(immigrant.coordX).not.toBe(0);
-    expect(immigrant.coordY).not.toBe(0);
-
-    const immHh = citizenService.engine.householdService.getHousehold(immigrantHouseholdId);
-    expect(immHh).toBeDefined();
-    expect(immHh?.members).toEqual([immigrant.id]);
-  });
-
-  test('TEST 3: A full household causes another suitable placement to be considered', async () => {
-    // 1. Create a parent whose household is completely full (5 members)
-    const fullHh = citizenService.engine.householdService.createHousehold(apartmentBuildingId);
-    for (let i = 1; i <= SettlementGenerator.HOUSEHOLD_CAPACITY - 1; i++) {
-      citizenService.engine.householdService.addMember(fullHh.id, `full-member-${i}`);
+      citizenService.simulator.processDemographics({
+        year: 1,
+        month: 2,
+        day: 1,
+        hour: 0,
+        minute: 0,
+        second: 0
+      });
+    } finally {
+      Math.random = origRandom;
     }
 
-    const fullParent = citizenService.engine.createCitizen(
-      CitizenGender.FEMALE,
-      apartmentBuildingId,
-      { year: -30, month: 1, day: 1, hour: 0, minute: 0, second: 0 },
-      202,
-      {
-        householdId: fullHh.id,
-        coordX: 1145,
-        coordY: 1145
-      }
-    );
-    expect(fullHh.members.length).toBe(5);
+    // 3. Demographic event tracking verification
+    const dirty = citizenService.getAndClearDirtyCollections();
+    expect(dirty.citizens.length).toBeGreaterThan(0);
+    const bornCitizenId = dirty.citizens.find(id => id !== parentCitizenId) || dirty.citizens[0];
+    newbornCitizenId = bornCitizenId;
 
-    // 2. Birth of newborn from this full household
-    const overflowNewborn = citizenService.engine.createCitizenForNewborn(
-      CitizenGender.FEMALE,
-      fullParent,
-      { year: 1, month: 3, day: 1, hour: 8, minute: 0, second: 0 }
-    );
+    const inMemNewborn = citizenService.engine.getCitizen(bornCitizenId);
+    expect(inMemNewborn).toBeDefined();
+    expect(inMemNewborn?.householdId).toBe(parentHouseholdId);
+    expect(inMemNewborn?.locationId).toBe(apartmentBuildingId);
+    expect(inMemNewborn?.coordX).toBe(1155);
+    expect(inMemNewborn?.coordY).toBe(1158);
 
-    // 3. Assertions
-    // Newborn must NOT join the full household
-    expect(overflowNewborn.householdId).not.toBe(fullHh.id);
-    expect(overflowNewborn.householdId).toBeDefined();
-    expect(overflowNewborn.locationId).toBe(apartmentBuildingId);
+    // 4. Persistence to SQLite
+    await persistenceService.persistTickBoundary(dirty);
 
-    // Full household remains with exactly 5 members
-    expect(fullHh.members.length).toBe(5);
-
-    // Newborn's new household has only this newborn
-    const newHh = citizenService.engine.householdService.getHousehold(overflowNewborn.householdId!);
-    expect(newHh?.members).toEqual([overflowNewborn.id]);
-  });
-
-  test('TEST 4: No available residential capacity produces an explicit, safe outcome without creating unlimited housing', async () => {
-    // 1. Create an isolated city with a single small house of capacity 1
-    const isolatedHouse = worldService.engine.buildingManager.createBuilding({
-      name: 'Full House',
-      districtId: districtId,
-      type: BuildingType.HOUSE,
-      capacity: 1,
-      coordinates: { x: 3000, y: 3000 },
-      width: 10,
-      height: 10,
-      status: 'ACTIVE'
-    });
-
-    // Fill this house
-    const houseHh = citizenService.engine.householdService.createHousehold(isolatedHouse.id);
-    citizenService.engine.householdService.addMember(houseHh.id, 'occupant-solo');
-
-    // Create a temporary placement service that only knows about this full house
-    const mockPlacementService = new (require('@genesis/engine').HouseholdPlacementService)(
-      {
-        buildingManager: {
-          getAllBuildings: () => [isolatedHouse],
-          getBuilding: (id: string) => (id === isolatedHouse.id ? isolatedHouse : undefined)
-        },
-        districtManager: worldService.engine.districtManager,
-        cityManager: worldService.engine.cityManager
-      },
-      citizenService.engine.householdService
-    );
-
-    const unhousedCitizen = {
-      id: `unhoused-${Date.now()}`,
-      name: 'No Housing Citizen',
-      gender: CitizenGender.MALE,
-      status: CitizenStatus.ACTIVE,
-      birthDate: { year: 0, month: 1, day: 1, hour: 0, minute: 0, second: 0 },
-      createdAt: { year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0 },
-      locationId: null,
-      vitalState: {} as any,
-      personality: {} as any,
-      movementState: 'IDLE' as any,
-      activeRoute: null,
-      skills: [],
-      employmentStatus: 'UNEMPLOYED' as any,
-      workplaceId: null,
-      jobType: null,
-      jobSchedule: null,
-      wallet: {} as any
-    };
-
-    const placementResult = mockPlacementService.assignImmigrant(unhousedCitizen as any);
-
-    expect(placementResult.success).toBe(false);
-    expect(placementResult.reason).toBe('NO_RESIDENTIAL_CAPACITY');
-    expect(unhousedCitizen.householdId).toBeUndefined();
-    expect(unhousedCitizen.locationId).toBeNull();
-    expect((unhousedCitizen as any).coordX).toBeUndefined();
-    expect((unhousedCitizen as any).coordY).toBeUndefined();
-  });
-
-  test('TEST 5: New household and citizen relationships persist correctly to SQLite', async () => {
-    // Call persistTickBoundary with newborn and immigrant
-    await persistenceService.persistTickBoundary({
-      citizens: [immigrantCitizenId, newbornCitizenId]
-    });
-
-    // 1. Verify immigrant household was created in SQLite DB
-    const dbImmHh = await prisma.household.findUnique({
-      where: { id: immigrantHouseholdId }
-    });
-    expect(dbImmHh).toBeDefined();
-    expect(dbImmHh?.locationId).toBe(apartmentBuildingId);
-
-    // 2. Verify immigrant citizen in SQLite DB
-    const dbImm = await prisma.citizen.findUnique({
-      where: { id: immigrantCitizenId }
-    });
-    expect(dbImm).toBeDefined();
-    expect(dbImm?.householdId).toBe(immigrantHouseholdId);
-    expect(dbImm?.locationId).toBe(apartmentBuildingId);
-    expect(dbImm?.coordX).toBeDefined();
-    expect(dbImm?.coordX).not.toBe(0);
-    expect(dbImm?.coordY).toBeDefined();
-    expect(dbImm?.coordY).not.toBe(0);
-
-    // 3. Verify newborn citizen in SQLite DB
     const dbNewborn = await prisma.citizen.findUnique({
-      where: { id: newbornCitizenId }
+      where: { id: bornCitizenId }
     });
     expect(dbNewborn).toBeDefined();
     expect(dbNewborn?.householdId).toBe(parentHouseholdId);
     expect(dbNewborn?.locationId).toBe(apartmentBuildingId);
+    expect(dbNewborn?.coordX).toBe(1155);
+    expect(dbNewborn?.coordY).toBe(1158);
+
+    const updatedHh = citizenService.engine.householdService.getHousehold(parentHouseholdId);
+    expect(updatedHh?.members).toContain(bornCitizenId);
+    expect(updatedHh?.members.length).toBe(2);
   });
 
-  test('TEST 6: Reprocessing the same lifecycle event does not create duplicate households or assignments', async () => {
+  test('TEST 2: Real immigration lifecycle invocation places and persists an immigrant', async () => {
+    // Clear dirty collections before invocation
+    citizenService.getAndClearDirtyCollections();
+
+    // Trigger real demographic lifecycle tick through PopulationSimulator with controlled migration
+    const origRandom = Math.random;
+    try {
+      let callIndex = 0;
+      Math.random = () => {
+        callIndex++;
+        // We have 2 citizens currently (parent and newborn)
+        // Birth loop calls 1 & 2: return 0.99 (no births)
+        if (callIndex === 1 || callIndex === 2) return 0.99;
+        // Death loop calls 3 & 4: return 0.99 (no deaths)
+        if (callIndex === 3 || callIndex === 4) return 0.99;
+        // Migration loop call 5: return 0.0001 (< MONTHLY_MIGRATION_RATE = 0.005/12 -> triggers immigration!)
+        if (callIndex === 5) return 0.0001;
+        // Subsequent calls: gender, age, coordinate jitter
+        return 0.5;
+      };
+
+      citizenService.simulator.processDemographics({
+        year: 1,
+        month: 3,
+        day: 1,
+        hour: 0,
+        minute: 0,
+        second: 0
+      });
+    } finally {
+      Math.random = origRandom;
+    }
+
+    const dirty = citizenService.getAndClearDirtyCollections();
+    expect(dirty.citizens.length).toBeGreaterThan(0);
+    expect(dirty.households.length).toBeGreaterThan(0);
+
+    const immId = dirty.citizens[0];
+    immigrantCitizenId = immId;
+    const immHhId = dirty.households[0];
+    immigrantHouseholdId = immHhId;
+
+    const inMemImm = citizenService.engine.getCitizen(immId);
+    expect(inMemImm).toBeDefined();
+    expect(inMemImm?.householdId).toBe(immHhId);
+    expect(inMemImm?.locationId).toBe(apartmentBuildingId);
+    // Inside building bounds [1130, 1170]
+    expect(inMemImm?.coordX).toBeGreaterThanOrEqual(1130);
+    expect(inMemImm?.coordX).toBeLessThanOrEqual(1170);
+    expect(inMemImm?.coordY).toBeGreaterThanOrEqual(1130);
+    expect(inMemImm?.coordY).toBeLessThanOrEqual(1170);
+
+    // Persist to SQLite
+    await persistenceService.persistTickBoundary(dirty);
+
+    const dbImm = await prisma.citizen.findUnique({
+      where: { id: immId }
+    });
+    expect(dbImm).toBeDefined();
+    expect(dbImm?.householdId).toBe(immHhId);
+    expect(dbImm?.locationId).toBe(apartmentBuildingId);
+
+    const dbHh = await prisma.household.findUnique({
+      where: { id: immHhId }
+    });
+    expect(dbHh).toBeDefined();
+    expect(dbHh?.locationId).toBe(apartmentBuildingId);
+  });
+
+  test('TEST 3: Reprocessing the same lifecycle event does not duplicate citizens or households', async () => {
     const immCitizen = citizenService.engine.getCitizen(immigrantCitizenId);
     expect(immCitizen).toBeDefined();
 
     const hhCountBefore = citizenService.engine.householdService.getAllHouseholds().length;
+    const citCountBefore = citizenService.engine.listCitizens().length;
 
     // Reprocess assignment on the already placed immigrant
     const reprocessResult = citizenService.engine.placementService.assignImmigrant(immCitizen!, cityId);
@@ -424,16 +369,17 @@ describe('T8.1 — Dynamic Household Formation and Residential Placement', () =>
     expect(reprocessResult.householdId).toBe(immigrantHouseholdId);
     expect(reprocessResult.isNewHousehold).toBe(false);
 
-    // Total in-memory households must not increase
-    const hhCountAfter = citizenService.engine.householdService.getAllHouseholds().length;
-    expect(hhCountAfter).toBe(hhCountBefore);
+    // Total in-memory households and citizens must not increase
+    expect(citizenService.engine.householdService.getAllHouseholds().length).toBe(hhCountBefore);
+    expect(citizenService.engine.listCitizens().length).toBe(citCountBefore);
 
     // Persist again
     await persistenceService.persistTickBoundary({
-      citizens: [immigrantCitizenId]
+      citizens: [immigrantCitizenId],
+      households: [immigrantHouseholdId]
     });
 
-    // Verify DB count
+    // Verify DB counts remain strictly 1
     const dbHouseholds = await prisma.household.findMany({
       where: { id: immigrantHouseholdId }
     });
@@ -445,33 +391,242 @@ describe('T8.1 — Dynamic Household Formation and Residential Placement', () =>
     expect(dbCitizens.length).toBe(1);
   });
 
-  test('TEST 7: A cold restart preserves household relationships and spatial placement without relocation', async () => {
-    // Record expected state prior to shutdown
-    const preCit = citizenService.engine.getCitizen(immigrantCitizenId)!;
-    const preCoordX = preCit.coordX;
-    const preCoordY = preCit.coordY;
-    const preHhId = preCit.householdId;
+  test('TEST 4: An unhoused citizen is assigned housing when suitable capacity later becomes available', async () => {
+    // 1. Create an isolated settlement where residential capacity is strictly 1
+    const isolatedHouse = worldService.engine.buildingManager.createBuilding({
+      name: 'Solo Cottage',
+      districtId: districtId,
+      type: BuildingType.HOUSE,
+      capacity: 1,
+      coordinates: { x: 5000, y: 5000 },
+      width: 20,
+      height: 20,
+      status: 'ACTIVE'
+    });
 
-    // Simulate Cold Restart: Clear in-memory engines
+    await prisma.building.create({
+      data: {
+        id: isolatedHouse.id,
+        districtId: districtId,
+        name: isolatedHouse.name,
+        type: 'HOUSE',
+        capacity: 1,
+        status: 'ACTIVE',
+        coordX: 5000,
+        coordY: 5000,
+        width: 20,
+        height: 20
+      }
+    });
+
+    // 2. Fill the house with an occupant
+    const cottageHh = citizenService.engine.householdService.createHousehold(isolatedHouse.id);
+    const soloOccupant = citizenService.engine.createCitizen(
+      CitizenGender.MALE,
+      isolatedHouse.id,
+      { year: -40, month: 1, day: 1, hour: 0, minute: 0, second: 0 },
+      501,
+      { householdId: cottageHh.id, coordX: 5000, coordY: 5000 }
+    );
+    expect(cottageHh.members.length).toBe(1);
+
+    await persistenceService.persistTickBoundary({
+      citizens: [soloOccupant.id],
+      households: [cottageHh.id]
+    });
+
+    // 3. An immigrant arrives preferring this house, but capacity is full in this house
+    // Verify building occupancy
+    const occBefore = citizenService.engine.placementService.getBuildingOccupancy(isolatedHouse.id);
+    expect(occBefore.hasHouseholdCapacity).toBe(false);
+    expect(occBefore.hasCitizenCapacity).toBe(false);
+
+    // Create a new citizen with no placement
+    const unhousedCitizen = citizenService.engine.createCitizen(
+      CitizenGender.FEMALE,
+      null,
+      { year: -20, month: 1, day: 1, hour: 0, minute: 0, second: 0 },
+      502,
+      { skipHouseholdCreation: true }
+    );
+    unhousedCitizen.locationId = isolatedHouse.id;
+
+    // Isolate placement service specifically to this isolated house to test lack of capacity
+    const isolatedPlacementService = new (require('@genesis/engine').HouseholdPlacementService)(
+      {
+        buildingManager: {
+          getAllBuildings: () => [isolatedHouse],
+          getBuilding: (id: string) => (id === isolatedHouse.id ? isolatedHouse : undefined)
+        },
+        districtManager: worldService.engine.districtManager,
+        cityManager: worldService.engine.cityManager
+      },
+      citizenService.engine.householdService
+    );
+
+    const failedResult = isolatedPlacementService.assignImmigrant(unhousedCitizen, isolatedHouse.id);
+    expect(failedResult.success).toBe(false);
+    expect(failedResult.reason).toBe('NO_RESIDENTIAL_CAPACITY');
+    expect(unhousedCitizen.householdId).toBeUndefined();
+
+    // Register into main placement service unhoused queue
+    citizenService.engine.placementService.trackUnhoused(unhousedCitizen.id);
+    expect(citizenService.engine.placementService.getUnhousedCitizenIds()).toContain(unhousedCitizen.id);
+
+    // Persist unhoused citizen to SQLite
+    await persistenceService.persistTickBoundary({
+      citizens: [unhousedCitizen.id]
+    });
+    const dbUnhoused = await prisma.citizen.findUnique({ where: { id: unhousedCitizen.id } });
+    expect(dbUnhoused?.householdId).toBeNull();
+
+    // 4. Capacity becomes available: The solo occupant passes away (DECEASED)
+    citizenService.engine.updateStatus(soloOccupant.id, CitizenStatus.DECEASED);
+
+    // Verification: deceased citizen was removed, empty household was pruned
+    expect(cottageHh.members.length).toBe(0);
+    expect(citizenService.engine.householdService.getHousehold(cottageHh.id)).toBeUndefined();
+
+    const occAfter = citizenService.engine.placementService.getBuildingOccupancy(isolatedHouse.id);
+    expect(occAfter.hasHouseholdCapacity).toBe(true);
+
+    // 5. Retry unhoused placements
+    const placedCitizens = citizenService.engine.retryUnhousedPlacements();
+    expect(placedCitizens.length).toBe(1);
+    expect(placedCitizens[0].id).toBe(unhousedCitizen.id);
+    expect(unhousedCitizen.householdId).toBeDefined();
+    expect(unhousedCitizen.locationId).toBeDefined();
+    expect(citizenService.engine.placementService.getUnhousedCitizenIds()).not.toContain(unhousedCitizen.id);
+
+    // 6. Persist newly placed citizen and their new household
+    const placedHh = citizenService.engine.householdService.getHousehold(unhousedCitizen.householdId!);
+    expect(placedHh).toBeDefined();
+    await persistenceService.persistTickBoundary({
+      citizens: [unhousedCitizen.id],
+      households: [placedHh!.id]
+    });
+
+    const dbPlaced = await prisma.citizen.findUnique({ where: { id: unhousedCitizen.id } });
+    expect(dbPlaced?.householdId).toBe(placedHh!.id);
+  });
+
+  test('TEST 5: A citizen who already has valid housing is not relocated by a retry', async () => {
+    const parent = citizenService.engine.getCitizen(parentCitizenId)!;
+    expect(parent.householdId).toBe(parentHouseholdId);
+    const origCoordX = parent.coordX;
+    const origCoordY = parent.coordY;
+
+    // Run retryUnhousedPlacements
+    const retryPlaced = citizenService.engine.retryUnhousedPlacements();
+
+    // Parent was already housed, so was not in unhoused queue and is not returned
+    expect(retryPlaced.some(c => c.id === parentCitizenId)).toBe(false);
+
+    // Verification: housing, location, and coordinates remain strictly unchanged
+    expect(parent.householdId).toBe(parentHouseholdId);
+    expect(parent.locationId).toBe(apartmentBuildingId);
+    expect(parent.coordX).toBe(origCoordX);
+    expect(parent.coordY).toBe(origCoordY);
+  });
+
+  test('TEST 6: Household and building capacity limits are strictly respected', async () => {
+    // 1. Household member capacity limit: strictly <= 5 members
+    const testHh = citizenService.engine.householdService.createHousehold(apartmentBuildingId);
+    for (let i = 1; i <= 4; i++) {
+      citizenService.engine.householdService.addMember(testHh.id, `member-${i}`);
+    }
+
+    const testParent = citizenService.engine.createCitizen(
+      CitizenGender.FEMALE,
+      apartmentBuildingId,
+      { year: -30, month: 1, day: 1, hour: 0, minute: 0, second: 0 },
+      701,
+      { householdId: testHh.id, coordX: 1150, coordY: 1150 }
+    );
+    expect(testHh.members.length).toBe(5);
+
+    // Newborn cannot join full household (5 members)
+    const testNewborn = citizenService.engine.createCitizen(
+      CitizenGender.FEMALE,
+      null,
+      { year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0 },
+      702,
+      { skipHouseholdCreation: true }
+    );
+
+    const res = citizenService.engine.placementService.assignNewborn(testNewborn, testParent);
+    // Newborn cannot join the full testHh
+    expect(res.householdId).not.toBe(testHh.id);
+    expect(testHh.members.length).toBe(5);
+
+    // 2. House building capacity limits
+    const smallHouse = worldService.engine.buildingManager.createBuilding({
+      name: 'Small House',
+      districtId: districtId,
+      type: BuildingType.HOUSE,
+      capacity: 3,
+      coordinates: { x: 1200, y: 1200 },
+      width: 10,
+      height: 10,
+      status: 'ACTIVE'
+    });
+    const limits = citizenService.engine.placementService.getBuildingCapacityLimits(smallHouse);
+    expect(limits.householdCapacity).toBe(1);
+    expect(limits.citizenCapacity).toBe(3);
+
+    // 3. Apartment building capacity limits
+    const aptLimits = citizenService.engine.placementService.getBuildingCapacityLimits(apartmentBuilding);
+    expect(aptLimits.householdCapacity).toBe(SettlementGenerator.APARTMENT_HOUSEHOLD_CAPACITY); // 100
+    expect(aptLimits.citizenCapacity).toBe(500);
+  });
+
+  test('TEST 7: A cold restart preserves both housed citizens and legitimately unhoused citizens', async () => {
+    // 1. Create and persist a legitimately unhoused citizen
+    const legitimatelyUnhoused = citizenService.engine.createCitizen(
+      CitizenGender.MALE,
+      null,
+      { year: -22, month: 6, day: 1, hour: 0, minute: 0, second: 0 },
+      801,
+      { skipHouseholdCreation: true }
+    );
+    expect(legitimatelyUnhoused.householdId).toBeUndefined();
+    citizenService.engine.placementService.trackUnhoused(legitimatelyUnhoused.id);
+
+    await persistenceService.persistTickBoundary({
+      citizens: [immigrantCitizenId, legitimatelyUnhoused.id]
+    });
+
+    const preImm = citizenService.engine.getCitizen(immigrantCitizenId)!;
+    const preHhId = preImm.householdId;
+    const preCoordX = preImm.coordX;
+    const preCoordY = preImm.coordY;
+
+    // 2. Simulate Cold Restart: Clear in-memory engines
     citizenService.engine.clear();
     expect(citizenService.engine.listCitizens().length).toBe(0);
     expect(citizenService.engine.householdService.getAllHouseholds().length).toBe(0);
+    expect(citizenService.engine.placementService.getUnhousedCitizenIds().length).toBe(0);
 
-    // Bootstrap engines from database
+    // 3. Bootstrap engines from database
     await persistenceService.bootstrap();
 
-    // Verify immigrant citizen hydrated accurately
-    const postCit = citizenService.engine.getCitizen(immigrantCitizenId);
-    expect(postCit).toBeDefined();
-    expect(postCit?.householdId).toBe(preHhId);
-    expect(postCit?.locationId).toBe(apartmentBuildingId);
-    expect(postCit?.coordX).toBeCloseTo(preCoordX!, 4);
-    expect(postCit?.coordY).toBeCloseTo(preCoordY!, 4);
+    // 4. Verify housed citizen hydrated accurately without relocation
+    const postImm = citizenService.engine.getCitizen(immigrantCitizenId);
+    expect(postImm).toBeDefined();
+    expect(postImm?.householdId).toBe(preHhId);
+    expect(postImm?.locationId).toBe(apartmentBuildingId);
+    expect(postImm?.coordX).toBeCloseTo(preCoordX!, 4);
+    expect(postImm?.coordY).toBeCloseTo(preCoordY!, 4);
 
-    // Verify household hydrated in HouseholdService
     const postHh = citizenService.engine.householdService.getHousehold(preHhId!);
     expect(postHh).toBeDefined();
-    expect(postHh?.locationId).toBe(apartmentBuildingId);
     expect(postHh?.members).toContain(immigrantCitizenId);
+
+    // 5. Verify legitimately unhoused citizen is preserved, active, and tracked in unhoused queue
+    const postUnhoused = citizenService.engine.getCitizen(legitimatelyUnhoused.id);
+    expect(postUnhoused).toBeDefined();
+    expect(postUnhoused?.householdId).toBeUndefined();
+    expect(postUnhoused?.status).toBe(CitizenStatus.ACTIVE);
+    expect(citizenService.engine.placementService.getUnhousedCitizenIds()).toContain(legitimatelyUnhoused.id);
   });
 });

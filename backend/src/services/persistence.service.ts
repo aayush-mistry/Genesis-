@@ -292,7 +292,7 @@ export class PersistenceService {
               employmentStatus: dbCitizen.employmentStatus,
               workplaceId: dbCitizen.workplaceId,
               jobType: dbCitizen.jobType,
-              householdId: dbCitizen.householdId,
+              householdId: dbCitizen.householdId || undefined,
               
               birthDate: dbCitizen.birthDateJson ? JSON.parse(dbCitizen.birthDateJson) : {},
               createdAt: dbCitizen.createdAtSimJson ? JSON.parse(dbCitizen.createdAtSimJson) : {},
@@ -318,6 +318,8 @@ export class PersistenceService {
             (citizenService.engine as any).repository.create(memCitizen);
             if (dbCitizen.householdId) {
               citizenService.engine.householdService.addMember(dbCitizen.householdId, dbCitizen.id);
+            } else if (dbCitizen.status === 'ACTIVE') {
+              citizenService.engine.placementService.trackUnhoused(dbCitizen.id);
             }
             hydratedCount++;
           } catch (err) {
@@ -325,6 +327,15 @@ export class PersistenceService {
           }
         }
         console.log(`[PersistenceService] Hydrated ${hydratedCount} citizens into in-memory engine.`);
+
+        // Clean up empty households that have no members to prevent ghost occupancy
+        const allHouseholds = citizenService.engine.householdService.getAllHouseholds();
+        for (const hh of allHouseholds) {
+          if (hh.members.length === 0) {
+            citizenService.engine.householdService.removeHousehold(hh.id);
+            await prisma.household.deleteMany({ where: { id: hh.id } });
+          }
+        }
         
         // 5. Load Pending Events
         const { eventService } = await import('./event.service');
@@ -432,7 +443,12 @@ export class PersistenceService {
       if (dirtyCollections && dirtyCollections.households) {
         const hhList = Array.from(dirtyCollections.households) as string[];
         for (const hhId of hhList) {
-          await syncHousehold(hhId);
+          const inMemHh = citizenService.engine.householdService.getHousehold(hhId);
+          if (inMemHh) {
+            await syncHousehold(hhId);
+          } else {
+            await prisma.household.deleteMany({ where: { id: hhId } });
+          }
         }
       }
 

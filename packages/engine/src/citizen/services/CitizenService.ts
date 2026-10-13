@@ -377,9 +377,16 @@ export class CitizenService {
     }
   }
 
+  public retryUnhousedPlacements(): Citizen[] {
+    return this.placementService.retryUnhousedPlacements(
+      (id) => this.getCitizen(id)
+    );
+  }
+
   public clear(): void {
     this.repository.clear();
     this.householdService.clear();
+    this.placementService.clear();
     citizenIdCounter = 1;
   }
 
@@ -474,6 +481,17 @@ export class CitizenService {
         citizen.jobType = null;
         citizen.jobSchedule = null;
       }
+
+      // Release household membership & unhoused tracking
+      if (citizen.householdId) {
+        this.householdService.removeMember(citizen.householdId, citizen.id);
+        const hh = this.householdService.getHousehold(citizen.householdId);
+        if (hh && hh.members.length === 0) {
+          this.householdService.removeHousehold(citizen.householdId);
+        }
+        citizen.householdId = undefined;
+      }
+      this.placementService.untrackUnhoused(citizen.id);
     } else if (status === CitizenStatus.ACTIVE && citizen.status === CitizenStatus.DECEASED) {
       this.updatePopulationForLocation(citizen.locationId, 1);
       this.worldEngine.worldManager.updatePopulation(1);

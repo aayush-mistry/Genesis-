@@ -5,7 +5,7 @@ import { OccupationService } from './OccupationService';
 import { WorkplaceGenerator } from '../../world/services/WorkplaceGenerator';
 
 export interface DemographicEvent {
-  type: 'BIRTH' | 'DEATH' | 'IMMIGRATION';
+  type: 'BIRTH' | 'DEATH' | 'IMMIGRATION' | 'HOUSING_ASSIGNED';
   citizen: Citizen;
   parent?: Citizen;
 }
@@ -108,7 +108,7 @@ export class PopulationSimulator {
     }
   }
 
-  private processDemographics(currentTime: SimulationTime): void {
+  public processDemographics(currentTime: SimulationTime): void {
     const citizens = this.citizenService.listCitizens().filter(c => c.status === CitizenStatus.ACTIVE);
     const populationSize = citizens.length;
 
@@ -165,6 +165,14 @@ export class PopulationSimulator {
               this.onDemographicEvent({ type: 'IMMIGRATION', citizen: immigrant });
             }
         }
+    }
+
+    // 4. Retry unhoused placements if capacity has become available
+    const newlyPlaced = this.citizenService.retryUnhousedPlacements();
+    for (const citizen of newlyPlaced) {
+      if (this.onDemographicEvent) {
+        this.onDemographicEvent({ type: 'HOUSING_ASSIGNED', citizen });
+      }
     }
   }
 }

@@ -14,10 +14,32 @@ export interface PlacementResult {
 }
 
 export class HouseholdPlacementService {
+  private unhousedCitizenIds: Set<string> = new Set();
+
   constructor(
     private worldEngine: WorldEngine,
     private householdService: HouseholdService
   ) {}
+
+  public trackUnhoused(citizenId: string): void {
+    this.unhousedCitizenIds.add(citizenId);
+  }
+
+  public untrackUnhoused(citizenId: string): void {
+    this.unhousedCitizenIds.delete(citizenId);
+  }
+
+  public getUnhousedCitizenIds(): string[] {
+    return Array.from(this.unhousedCitizenIds);
+  }
+
+  public hasUnhousedCitizens(): boolean {
+    return this.unhousedCitizenIds.size > 0;
+  }
+
+  public clear(): void {
+    this.unhousedCitizenIds.clear();
+  }
 
   /**
    * Retrieves all residential buildings (Apartments and Houses) in the world,
@@ -137,6 +159,7 @@ export class HouseholdPlacementService {
     if (newborn.householdId) {
       const currentHh = this.householdService.getHousehold(newborn.householdId);
       if (currentHh && currentHh.members.includes(newborn.id)) {
+        this.untrackUnhoused(newborn.id);
         return {
           success: true,
           householdId: currentHh.id,
@@ -171,6 +194,7 @@ export class HouseholdPlacementService {
             newborn.coordY = b.coordinates.y - b.height / 2 + rng() * b.height;
           }
 
+          this.untrackUnhoused(newborn.id);
           return {
             success: true,
             householdId: parentHh.id,
@@ -208,6 +232,7 @@ export class HouseholdPlacementService {
       newborn.coordX = availableBuilding.coordinates.x - w / 2 + rng() * w;
       newborn.coordY = availableBuilding.coordinates.y - h / 2 + rng() * h;
 
+      this.untrackUnhoused(newborn.id);
       return {
         success: true,
         householdId: household.id,
@@ -225,6 +250,7 @@ export class HouseholdPlacementService {
     newborn.coordX = parent?.coordX ?? undefined;
     newborn.coordY = parent?.coordY ?? undefined;
 
+    this.trackUnhoused(newborn.id);
     return {
       success: false,
       reason: 'NO_RESIDENTIAL_CAPACITY'
@@ -246,6 +272,7 @@ export class HouseholdPlacementService {
     if (immigrant.householdId) {
       const currentHh = this.householdService.getHousehold(immigrant.householdId);
       if (currentHh && currentHh.members.includes(immigrant.id)) {
+        this.untrackUnhoused(immigrant.id);
         return {
           success: true,
           householdId: currentHh.id,
@@ -292,6 +319,7 @@ export class HouseholdPlacementService {
       immigrant.coordX = building.coordinates.x - w / 2 + rng() * w;
       immigrant.coordY = building.coordinates.y - h / 2 + rng() * h;
 
+      this.untrackUnhoused(immigrant.id);
       return {
         success: true,
         householdId: household.id,
@@ -308,9 +336,50 @@ export class HouseholdPlacementService {
     immigrant.coordX = undefined;
     immigrant.coordY = undefined;
 
+    this.trackUnhoused(immigrant.id);
     return {
       success: false,
       reason: 'NO_RESIDENTIAL_CAPACITY'
     };
+  }
+
+  /**
+   * Retries placement for tracked unhoused citizens when capacity becomes available.
+   * Only iterates citizens known to be unhoused, avoiding expensive O(N) full-population scans.
+   */
+  public retryUnhousedPlacements(
+    getCitizen: (id: string) => Citizen | undefined,
+    rng: () => number = Math.random
+  ): Citizen[] {
+    if (this.unhousedCitizenIds.size === 0) return [];
+
+    const successfullyPlaced: Citizen[] = [];
+    const pendingIds = Array.from(this.unhousedCitizenIds);
+
+    for (const citizenId of pendingIds) {
+      const citizen = getCitizen(citizenId);
+      if (!citizen || citizen.status !== 'ACTIVE') {
+        this.untrackUnhoused(citizenId);
+        continue;
+      }
+
+      // If citizen already has a valid household, preserve it and untrack
+      if (citizen.householdId) {
+        const hh = this.householdService.getHousehold(citizen.householdId);
+        if (hh && hh.members.includes(citizen.id)) {
+          this.untrackUnhoused(citizenId);
+          continue;
+        }
+      }
+
+      // Attempt placement
+      const result = this.assignImmigrant(citizen, citizen.locationId, rng);
+      if (result.success) {
+        this.untrackUnhoused(citizenId);
+        successfullyPlaced.push(citizen);
+      }
+    }
+
+    return successfullyPlaced;
   }
 }

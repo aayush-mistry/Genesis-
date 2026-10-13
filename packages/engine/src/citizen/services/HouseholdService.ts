@@ -74,6 +74,10 @@ export class HouseholdService {
     this.inventoryManager.addItemQuantity(household.inventoryId, 'water', 50, 'l');
   }
 
+  public removeHousehold(householdId: string): boolean {
+    return this.households.delete(householdId);
+  }
+
   public clear(): void {
     this.households.clear();
   }
