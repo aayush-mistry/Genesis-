@@ -8,6 +8,8 @@ import { supplyService } from './supply.service';
 class BackendCitizenService {
   public engine: CitizenService;
   public simulator: PopulationSimulator;
+  public dirtyCitizenIds: Set<string> = new Set();
+  public dirtyHouseholdIds: Set<string> = new Set();
 
   constructor() {
     const repository = new InMemoryCitizenRepository();
@@ -26,10 +28,37 @@ class BackendCitizenService {
       undefined,
       undefined,
       () => {
+        const cities = worldService.engine.cityManager.getAllCities();
+        if (cities.length > 0) return cities[0].id;
         const regions = worldService.engine.regionManager.getAllRegions();
         return regions.length > 0 ? regions[0].id : null;
       }
     );
+
+    this.simulator.onDemographicEvent = (evt) => {
+      this.dirtyCitizenIds.add(evt.citizen.id);
+      if (evt.citizen.householdId) {
+        this.dirtyHouseholdIds.add(evt.citizen.householdId);
+      }
+    };
+  }
+
+  public markDirtyCitizen(id: string): void {
+    this.dirtyCitizenIds.add(id);
+  }
+
+  public markDirtyHousehold(id: string): void {
+    this.dirtyHouseholdIds.add(id);
+  }
+
+  public getAndClearDirtyCollections(): { citizens: string[]; households: string[] } {
+    const result = {
+      citizens: Array.from(this.dirtyCitizenIds),
+      households: Array.from(this.dirtyHouseholdIds)
+    };
+    this.dirtyCitizenIds.clear();
+    this.dirtyHouseholdIds.clear();
+    return result;
   }
 
   public initialize() {

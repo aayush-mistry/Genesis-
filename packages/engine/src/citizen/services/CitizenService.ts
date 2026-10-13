@@ -17,6 +17,8 @@ import { DecisionTriggerType, DecisionContext } from '@genesis/shared';
 import { PerceptionService } from '../../perception/PerceptionService';
 import { MarketEngine } from '../../market/MarketEngine';
 import { SalaryService } from './SalaryService';
+import { HouseholdPlacementService } from './HouseholdPlacementService';
+import { BuildingType } from '@genesis/shared';
 
 let citizenIdCounter = 1;
 
@@ -35,6 +37,7 @@ export class CitizenService {
   private perceptionService?: PerceptionService;
   public salaryService?: SalaryService;
   public householdService: HouseholdService;
+  public placementService: HouseholdPlacementService;
 
   constructor(
     repository: CitizenRepository, 
@@ -42,7 +45,8 @@ export class CitizenService {
     timeEngine: TimeEngine,
     eventScheduler: EventScheduler,
     spatialQueryService: SpatialQueryService,
-    householdService: HouseholdService
+    householdService: HouseholdService,
+    placementService?: HouseholdPlacementService
   ) {
     this.repository = repository;
     this.worldEngine = worldEngine;
@@ -50,6 +54,7 @@ export class CitizenService {
     this.eventScheduler = eventScheduler;
     this.needsService = new NeedsService(this.repository);
     this.householdService = householdService;
+    this.placementService = placementService || new HouseholdPlacementService(worldEngine, householdService);
     this.movementService = new MovementService(
       this.repository,
       spatialQueryService,
@@ -84,20 +89,13 @@ export class CitizenService {
   }
 
   /**
-   * Creates a new citizen.
-   * Ensures the location is valid and deterministically assigns identity if seed is provided.
+   * Helper to instantiate a base Citizen entity without placement or repository commit.
    */
-  public createCitizen(
+  private createBaseCitizen(
     gender: CitizenGender,
-    locationId: string | null = null,
     birthDate?: SimulationTime,
     seed?: number
   ): Citizen {
-    // Validate Location
-    if (locationId) {
-      this.validateLocation(locationId);
-    }
-
     const currentTime = this.timeEngine.getCurrentTime();
     const actualBirthDate = birthDate || currentTime;
     
@@ -113,10 +111,6 @@ export class CitizenService {
     const vitalState = this.needsService.initializeVitalState(actualSeed, currentTime);
 
     // Generate Personality
-    // Pseudo-random generation normalized 0-100 based on seed
-    const hash = (actualSeed * 9301 + 49297) % 233280;
-    const rnd = () => ((actualSeed * 9301 + 49297) % 233280) / 233280.0;
-    
     const basePersonality = {
       priceSensitivity: 30 + Math.floor(Math.random() * 60),
       qualityPreference: 30 + Math.floor(Math.random() * 60),
@@ -127,12 +121,6 @@ export class CitizenService {
       savingTendency: 30 + Math.floor(Math.random() * 60)
     };
 
-    // For now, each new citizen gets their own household as default
-    // We can later cluster them.
-    const household = this.householdService.createHousehold(locationId || '');
-    this.householdService.addMember(household.id, id);
-    this.householdService.provisionStarterResources(household.id);
-
     const citizen: Citizen = {
       id,
       name,
@@ -140,7 +128,7 @@ export class CitizenService {
       gender,
       status: CitizenStatus.ACTIVE,
       createdAt: currentTime,
-      locationId,
+      locationId: null,
       vitalState,
       movementState: MovementState.IDLE,
       activeRoute: null,
@@ -151,28 +139,125 @@ export class CitizenService {
       jobSchedule: null,
       currentAction: undefined,
       currentRoutine: undefined,
-      householdId: household.id,
       personality: basePersonality,
       wallet: {
         id: `wallet-${id}`,
         ownerId: id,
-        balance: 1000, // Individual starter pocket money
+        balance: 1000,
         totalIncome: 0,
         totalExpenses: 0,
         currency: 'GEN'
       },
     };
 
-    const age = new Date().getFullYear() - actualBirthDate.year; // Simple fallback age
+    const age = new Date().getFullYear() - actualBirthDate.year;
     citizen.currentRoutine = this.routineEngine.generateRoutineWithAge(citizen, age);
 
+    return citizen;
+  }
+
+  /**
+   * Finalizes citizen registration and updates world population counts.
+   */
+  private finalizeCitizen(citizen: Citizen): Citizen {
     this.repository.create(citizen);
     
-    // Update population
-    this.updatePopulationForLocation(locationId, 1);
+    if (citizen.locationId) {
+      this.updatePopulationForLocation(citizen.locationId, 1);
+    }
     this.worldEngine.worldManager.updatePopulation(1);
 
     return citizen;
+  }
+
+  /**
+   * Creates and places a newborn citizen with dynamic household placement rules.
+   */
+  public createCitizenForNewborn(
+    gender: CitizenGender,
+    parent: Citizen,
+    birthDate?: SimulationTime,
+    seed?: number
+  ): Citizen {
+    const newborn = this.createBaseCitizen(gender, birthDate, seed);
+    this.placementService.assignNewborn(newborn, parent);
+    return this.finalizeCitizen(newborn);
+  }
+
+  /**
+   * Creates and places an immigrant citizen with dynamic household placement rules.
+   */
+  public createCitizenForImmigrant(
+    gender: CitizenGender,
+    birthDate?: SimulationTime,
+    preferredLocationId?: string | null,
+    seed?: number
+  ): Citizen {
+    const immigrant = this.createBaseCitizen(gender, birthDate, seed);
+    this.placementService.assignImmigrant(immigrant, preferredLocationId);
+    return this.finalizeCitizen(immigrant);
+  }
+
+  /**
+   * Creates a new citizen.
+   * Ensures the location is valid and deterministically assigns identity if seed is provided.
+   */
+  public createCitizen(
+    gender: CitizenGender,
+    locationId: string | null = null,
+    birthDate?: SimulationTime,
+    seed?: number,
+    options?: {
+      householdId?: string | null;
+      coordX?: number | null;
+      coordY?: number | null;
+      skipHouseholdCreation?: boolean;
+    }
+  ): Citizen {
+    // Validate Location
+    if (locationId) {
+      this.validateLocation(locationId);
+    }
+
+    const citizen = this.createBaseCitizen(gender, birthDate, seed);
+
+    if (options) {
+      if (options.householdId) {
+        citizen.householdId = options.householdId;
+        citizen.locationId = locationId;
+        if (options.coordX !== undefined && options.coordX !== null) citizen.coordX = options.coordX;
+        if (options.coordY !== undefined && options.coordY !== null) citizen.coordY = options.coordY;
+        this.householdService.addMember(options.householdId, citizen.id);
+      } else if (options.skipHouseholdCreation) {
+        citizen.householdId = undefined;
+        citizen.locationId = locationId;
+        if (options.coordX !== undefined && options.coordX !== null) citizen.coordX = options.coordX;
+        if (options.coordY !== undefined && options.coordY !== null) citizen.coordY = options.coordY;
+      } else {
+        citizen.locationId = locationId;
+      }
+    } else if (locationId) {
+      const building = this.worldEngine.buildingManager.getBuilding(locationId);
+      if (building && (building.type === BuildingType.APARTMENT || building.type === BuildingType.HOUSE)) {
+        this.placementService.assignImmigrant(citizen, locationId);
+      } else {
+        // Fallback for non-residential location IDs (e.g. unit tests testing regions)
+        const household = this.householdService.createHousehold(locationId || '');
+        this.householdService.addMember(household.id, citizen.id);
+        this.householdService.provisionStarterResources(household.id);
+        citizen.householdId = household.id;
+        citizen.locationId = locationId;
+      }
+    } else {
+      // Legacy fallback when no location is specified
+      const household = this.householdService.createHousehold('');
+      this.householdService.addMember(household.id, citizen.id);
+      this.householdService.provisionStarterResources(household.id);
+      citizen.householdId = household.id;
+      citizen.locationId = null;
+    }
+
+    return this.finalizeCitizen(citizen);
   }
 
   public getCitizen(id: string): Citizen | undefined {

@@ -1,8 +1,14 @@
-import { CitizenGender, CitizenStatus, SimulationTime } from '@genesis/shared';
+import { Citizen, CitizenGender, CitizenStatus, SimulationTime } from '@genesis/shared';
 import { CitizenService } from './CitizenService';
 import { TimeEngine } from '../../time/TimeEngine';
 import { OccupationService } from './OccupationService';
 import { WorkplaceGenerator } from '../../world/services/WorkplaceGenerator';
+
+export interface DemographicEvent {
+  type: 'BIRTH' | 'DEATH' | 'IMMIGRATION';
+  citizen: Citizen;
+  parent?: Citizen;
+}
 
 export class PopulationSimulator {
   private citizenService: CitizenService;
@@ -12,6 +18,7 @@ export class PopulationSimulator {
   private lastProcessedYear: number = 0;
   private lastProcessedMonth: number = 0;
   private isSubscribed: boolean = false;
+  public onDemographicEvent?: (event: DemographicEvent) => void;
 
   // Monthly Demographic Rates (assuming 12 months/year)
   private readonly MONTHLY_BIRTH_RATE = 0.02 / 12; // 2% annual birth rate
@@ -116,8 +123,11 @@ export class PopulationSimulator {
       if (Math.random() < this.MONTHLY_BIRTH_RATE) {
         newBirths++;
         const gender = Math.random() > 0.5 ? CitizenGender.FEMALE : CitizenGender.MALE;
-        const locationId = this.defaultLocationIdProvider ? this.defaultLocationIdProvider() : null;
-        this.citizenService.createCitizen(gender, locationId, { ...currentTime });
+        const parent = citizens[i];
+        const newborn = this.citizenService.createCitizenForNewborn(gender, parent, { ...currentTime });
+        if (this.onDemographicEvent) {
+          this.onDemographicEvent({ type: 'BIRTH', citizen: newborn, parent });
+        }
       }
     }
 
@@ -134,6 +144,9 @@ export class PopulationSimulator {
       if (Math.random() < individualDeathRate) {
         newDeaths++;
         this.citizenService.updateStatus(citizen.id, CitizenStatus.DECEASED);
+        if (this.onDemographicEvent) {
+          this.onDemographicEvent({ type: 'DEATH', citizen });
+        }
       }
     }
 
@@ -147,7 +160,10 @@ export class PopulationSimulator {
             const birthDate = { ...currentTime };
             birthDate.year -= ageYears;
             const locationId = this.defaultLocationIdProvider ? this.defaultLocationIdProvider() : null;
-            this.citizenService.createCitizen(gender, locationId, birthDate);
+            const immigrant = this.citizenService.createCitizenForImmigrant(gender, birthDate, locationId);
+            if (this.onDemographicEvent) {
+              this.onDemographicEvent({ type: 'IMMIGRATION', citizen: immigrant });
+            }
         }
     }
   }

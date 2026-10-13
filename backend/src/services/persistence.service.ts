@@ -211,6 +211,42 @@ export class PersistenceService {
         }
       }
 
+      // 3.5 Load Households
+      const dbHouseholds = await prisma.household.findMany();
+      console.log(`[PersistenceService] Loaded ${dbHouseholds.length} households from persistence.`);
+      for (const dbHh of dbHouseholds) {
+        citizenService.engine.householdService.registerHousehold({
+          id: dbHh.id,
+          locationId: dbHh.locationId,
+          inventoryId: dbHh.inventoryId,
+          walletId: dbHh.walletId,
+          members: []
+        });
+
+        // Hydrate household inventory
+        const dbHhInv = await inventoryRepository.getInventory(dbHh.inventoryId);
+        if (dbHhInv) {
+          const itemsMap: Record<string, any> = {};
+          dbHhInv.items.forEach(item => {
+            itemsMap[item.productId] = {
+              productId: item.productId,
+              totalQuantity: item.totalQuantity,
+              reservedQuantity: item.reservedQuantity,
+              availableQuantity: item.availableQuantity,
+              unit: item.unit,
+              quality: item.quality,
+              batches: item.batchesJson ? JSON.parse(item.batchesJson) : [{ quantity: item.availableQuantity, acquiredAt: 0, status: 'FRESH' }]
+            };
+          });
+          (supplyService.inventoryManager as any).inventories.set(dbHhInv.id, {
+            id: dbHhInv.id,
+            ownerId: dbHhInv.ownerId,
+            storageCapacity: dbHhInv.storageCapacity,
+            items: itemsMap
+          });
+        }
+      }
+
       // 4. Load Citizens
       const citizens = await citizenRepository.listCitizens();
       console.log(`[PersistenceService] Loaded ${citizens.length} citizens from persistence.`);
@@ -280,6 +316,9 @@ export class PersistenceService {
             };
             
             (citizenService.engine as any).repository.create(memCitizen);
+            if (dbCitizen.householdId) {
+              citizenService.engine.householdService.addMember(dbCitizen.householdId, dbCitizen.id);
+            }
             hydratedCount++;
           } catch (err) {
             console.error(`[PersistenceService] Error hydrating citizen ${dbCitizen.id}:`, err);
@@ -349,28 +388,65 @@ export class PersistenceService {
       const syncWallet = async (wallet: any) => {
         if (!wallet) return;
         try {
-          await financialRepository.updateWallet(wallet.ownerId, wallet.balance, wallet.totalIncome, wallet.totalExpenses);
-        } catch (err) {
-          // It might not exist in DB yet, try to create and update
-          try {
+          const existing = await financialRepository.getWalletByOwner(wallet.ownerId);
+          if (existing) {
+            await financialRepository.updateWallet(wallet.ownerId, wallet.balance, wallet.totalIncome, wallet.totalExpenses);
+          } else {
             await financialRepository.createWallet(wallet.ownerId, wallet.currency);
             await financialRepository.updateWallet(wallet.ownerId, wallet.balance, wallet.totalIncome, wallet.totalExpenses);
-          } catch (createErr) {
-            console.error(`[PersistenceService] Error syncing wallet for ${wallet.ownerId}:`, createErr);
           }
+        } catch (err) {
+          console.error(`[PersistenceService] Error syncing wallet for ${wallet.ownerId}:`, err);
         }
       };
 
+      // Helper for household persistence
+      const syncHousehold = async (hhId: string): Promise<boolean> => {
+        let dbHh = await prisma.household.findUnique({ where: { id: hhId } });
+        if (!dbHh) {
+          const inMemHh = citizenService.engine.householdService.getHousehold(hhId);
+          if (inMemHh) {
+            dbHh = await prisma.household.upsert({
+              where: { id: inMemHh.id },
+              create: {
+                id: inMemHh.id,
+                locationId: inMemHh.locationId,
+                inventoryId: inMemHh.inventoryId,
+                walletId: inMemHh.walletId
+              },
+              update: {
+                locationId: inMemHh.locationId,
+                inventoryId: inMemHh.inventoryId,
+                walletId: inMemHh.walletId
+              }
+            });
+            const hhInv = supplyService.inventoryManager.getInventory(inMemHh.inventoryId);
+            if (hhInv) {
+              await syncInventory(hhInv);
+            }
+          }
+        }
+        return !!dbHh;
+      };
+
+      if (dirtyCollections && dirtyCollections.households) {
+        const hhList = Array.from(dirtyCollections.households) as string[];
+        for (const hhId of hhList) {
+          await syncHousehold(hhId);
+        }
+      }
+
       if (dirtyCollections && dirtyCollections.citizens) {
-        for (const citizenId of dirtyCollections.citizens) {
+        const citizenList = Array.from(dirtyCollections.citizens) as string[];
+        for (const citizenId of citizenList) {
           const citizen = citizenService.engine.getCitizen(citizenId);
           if (citizen) {
             const dbCit = await citizenRepository.getCitizen(citizenId);
-            // Verify household exists in DB if specified to avoid FK violation
+            // Verify and persist household before citizen to guarantee valid FK
             let validHouseholdId = citizen.householdId || null;
             if (validHouseholdId) {
-              const hhCheck = await prisma.household.findUnique({ where: { id: validHouseholdId } });
-              if (!hhCheck) validHouseholdId = null;
+              const exists = await syncHousehold(validHouseholdId);
+              if (!exists) validHouseholdId = null;
             }
 
             if (dbCit) {
@@ -389,13 +465,6 @@ export class PersistenceService {
                 employmentRecJson: citizen.employmentRecord ? JSON.stringify(citizen.employmentRecord) : null,
               });
             } else {
-              // Verify household exists in DB if specified to avoid FK violation
-              let validHouseholdId = citizen.householdId || null;
-              if (validHouseholdId) {
-                const hhCheck = await prisma.household.findUnique({ where: { id: validHouseholdId } });
-                if (!hhCheck) validHouseholdId = null;
-              }
-
               // Newly born or immigrated citizen
               await citizenRepository.createCitizen({
                 id: citizen.id,

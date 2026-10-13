@@ -131,6 +131,17 @@ export const WorldController = {
         return { ...wp, coordinates: { x: 0, y: 0 } };
       });
 
+      const mappedHouseholds = dbHouseholds.map(hh => {
+        const building = dbBuildings.find(b => b.id === hh.locationId);
+        return {
+          ...hh,
+          coordinates: {
+            x: building ? building.coordX : 0,
+            y: building ? building.coordY : 0
+          }
+        };
+      });
+
       return reply.send({
         world,
         regions,
@@ -141,7 +152,7 @@ export const WorldController = {
         resources,
         terrain: dbTerrains.map(mapCoordinates),
         citizens: mappedCitizens,
-        households: dbHouseholds.map(mapCoordinates),
+        households: mappedHouseholds,
         populationClusters: Array.from(clusterMap.values())
       });
     } catch (error) {
