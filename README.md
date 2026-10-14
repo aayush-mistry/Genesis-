@@ -109,7 +109,10 @@ npm run build:frontend
   - T7.8.5: Economic Equilibrium & Feedback Integration (production-cost-aware producer reservation pricing & citizen commodity substitution).
   - T7.8.6: Deterministic Long-Run Economic Stability & Final Integration (multi-day cycles, zero money/inventory duplication, Process A → Process B cold restart verification).
   - T7.9: Civilization Simulation Integrity & Roadmap Audit (citizen death and vacancy liberation, spatial coordinate persistence, and living population intelligence aggregation).
-- **Completed:** Phase 8 (Visualization & UI) including spatial renderers, movement visualization, and an authoritative civilization overview dashboard.
+- **Completed:** Phase 8 (Visualization & Advanced Economic Dynamics).
+  - 8.1–8.6: Spatial Foundation, Canvas Rendering, Live Simulation Synchronization, and Civilization Overview.
+  - T8.2: Consumption History & Supply Forecasting (`ConsumptionEngine` persistent ledger, historical demand velocity, and proactive business procurement replenishment).
+  - T8.3: Seasonal Agricultural Yield Variation (`AgriculturalYieldCalculator`, deterministic season/weather/temperature curves, zero-yield dormancy, and end-to-end supply-to-market feedback).
 
 ## Genesis Roadmap
 
@@ -166,13 +169,15 @@ Phase 7 ✅ Runtime Lifecycle, Persistence & Economic Dynamics
 ├── 7.8.6 Long-Run Economic Stability & Final Integration
 └── 7.9 Civilization Simulation Integrity & Roadmap Audit
 
-Phase 8 ✅ Visualization & UI
+Phase 8 ✅ Visualization & Advanced Economic Dynamics
 ├── 8.1 Spatial Foundation & World Renderer
 ├── 8.2 Settlement & City Visualization
 ├── 8.3 Natural World & Resource Visualization
 ├── 8.4 Citizen Movement & Action Visualization
 ├── 8.5 Live Simulation Synchronization
-└── 8.6 Civilization Overview & Metrics Exposure
+├── 8.6 Civilization Overview & Metrics Exposure
+├── T8.2 Consumption History & Supply Forecasting
+└── T8.3 Seasonal Agricultural Yield Variation
 
 Phase 9 🔜 Social Framework & Relationships
 Phase 10 🔜 Optimization & Scale
@@ -186,7 +191,9 @@ Phase 10 🔜 Optimization & Scale
 | World Engine | ✅ Implemented | Authoritative spatial and regional data |
 | Citizen Engine | ✅ Implemented | Needs, movement, and occupations |
 | Decision Engine | ✅ Implemented | Analyzes needs, generates candidates, and evaluates substitutes |
-| Production | ✅ Implemented | Data-driven production cycles and resource consumption |
+| Production | ✅ Implemented | Data-driven production cycles, dynamic costing, and worker efficiency |
+| Seasonal Agriculture | ✅ Implemented | Deterministic climate, season, weather, soil, and water crop yield calculation |
+| Consumption History & Forecasting | ✅ Implemented | Persistent consumption ledger, demand forecasting, and proactive procurement |
 | Inventory | ✅ Implemented | Producers/Businesses store and manage goods |
 | Procurement | ✅ Implemented | Automated business procurement thresholds and bulk pricing |
 | Wholesale | ✅ Implemented | Wholesale ordering, supplier ranking, and producer cost floors |
@@ -881,29 +888,68 @@ Genesis features an integrated, real-time visualization layer designed to inspec
 
 ---
 
+## Phase 8.2 & 8.3 — Consumption Forecasting & Seasonal Agricultural Yield
+
+Genesis connects environmental state directly to economic supply, and citizen consumption history to business procurement.
+
+### T8.2: Consumption History & Supply Forecasting
+- **Persistent Consumption Ledger:** Citizen food and water consumption events are recorded immutably into `ConsumptionRecord` via `ConsumptionEngine`.
+- **Historical Demand Velocity:** Forecasts calculate average daily consumption rates over sliding time windows (e.g. 7 days) without population multipliers or synthetic demand.
+- **Stockout Prevention & Procurement:** `BusinessProcurementEngine` evaluates projected days of inventory remaining ($\text{Stock} / \text{Daily Demand}$) and proactively triggers purchase orders when stock will exhaust before the lead-time window.
+
+### T8.3: Seasonal Agricultural Yield Variation
+Connects environment directly to agricultural output:
+- **Authoritative Environmental State:** Integrates regional seasons (`SPRING`, `SUMMER`, `AUTUMN`, `WINTER`) from `TimeEngine` and localized weather (`CLEAR`, `RAIN`, `STORM`, `DROUGHT`, `SNOW`) and temperatures from `EnvironmentEngine`.
+- **Crop Metadata:** Crops (`wheat`, `corn`, `potato`) declare suitable seasons, preferred and tolerable temperature ranges, water requirements per unit, and weather sensitivity modifiers.
+- **Deterministic Yield Calculation:**
+  $$\text{YieldFactor} = \text{SeasonFactor} \times \text{TempFactor} \times \text{WeatherFactor} \times \text{SoilFactor} \times \text{WaterFactor}$$
+  $$\text{ActualYield} = \min\left(\text{workplace.capacity}, \text{baseOutput} \times \text{YieldFactor} \times \text{workerEfficiency}\right)$$
+- **Zero-Yield Dormancy & Integrity:** When conditions are unsuitable (e.g. winter dormancy or extreme drought), actual yield cleanly drops to zero without phantom inventory creation or false production completion events.
+- **End-to-End Economic Continuity:** A harvest shortage naturally reduces workplace inventory, starving downstream wholesale replenishment, causing retail stock depletion, driving price formation higher, and prompting budget-conscious citizens to seek cheaper substitutes.
+- **Agricultural Status Telemetry:** Exposed via `GET /api/v1/production/agriculture/status` and visualized in the frontend Supply Dashboard with live seasonal yield factor breakdowns.
+
+---
+
 ## End-to-End Economic Feedback Architecture
 
 ```mermaid
 flowchart TD
+    subgraph Environment [Environmental Simulation]
+        Time[TimeEngine: Season Cycle] --> EnvEngine[EnvironmentEngine]
+        EnvEngine --> Weather[Weather & Temperature]
+    end
+
+    subgraph Agriculture [Agricultural Yield & Production]
+        Time & Weather --> YieldCalc[AgriculturalYieldCalculator]
+        CropMeta[Crop Definitions: Wheat, Corn, Potato] --> YieldCalc
+        YieldCalc --> ProdRun[ProductionEngine: Run Production Cycle]
+        ProdRun --> ResDeduct[Deduct Input Resources]
+        ResDeduct --> FarmStock[Farm Inventory]
+    end
+
     subgraph Citizens [Citizen Agents]
         Needs[Vital Needs: Hunger / Health] --> SubCheck{Check Budget & Substitutes}
         SubCheck -->|Wheat vs Fish| Decision[Utility Evaluation]
         Decision --> Purchase[Retail Purchase]
+        Purchase --> Consume[Citizen Consumption]
+        Consume --> Ledger[(Persistent Consumption Ledger)]
     end
 
-    subgraph Retail [Retail Commerce]
+    subgraph Retail [Retail Commerce & Forecasting]
         Purchase --> StockDec[Deplete Retail Stock]
-        StockDec --> Reorder{Inventory < Reorder Point?}
+        StockDec & Ledger --> Forecast[Demand Forecast & Stockout Prediction]
+        Forecast --> Reorder{Projected Stockout < Lead Time?}
         Reorder -->|Yes| Procurement[Business Procurement Engine]
     end
 
-    subgraph Wholesale [Wholesale & Production]
+    subgraph Wholesale [Wholesale Supply Chain]
         Procurement --> Ranking[Supplier Ranking: Price, Quality, Distance]
-        Ranking --> PO[Wholesale Order]
+        Ranking --> PO[Wholesale Order to Farm]
+        FarmStock --> PO
         PO --> ProdCalc[Production Cost Calculator]
         ProdCalc --> Reservation[Producer Cost Floor: Labor + Inputs]
-        Reservation --> ProdRun[Execute Production Run]
-        ProdRun --> Ship[Physical Transit / Shipment]
+        Reservation --> ProdRun
+        PO --> Ship[Physical Transit / Shipment]
         Ship --> StockDec
     end
 
@@ -933,8 +979,8 @@ While the closed economic feedback loop and authoritative intelligence are fully
 
 The repository maintains strict continuous integration standards to guarantee determinism and simulation health.
 
-- **Engine Test Suite (`@genesis/engine`):** 34 passing test suites with 192 verified tests (Time, Events, Decision, Spatial, Inventory, Banking, Production, Market Pricing, Economic Equilibrium, and Population Simulation).
-- **Backend Test Suite (`@genesis/backend`):** 9 authoritative integration suites (34 verified tests) executing against Prisma and SQLite, verifying demand intelligence, multi-stage supply aggregation, employment and payroll, market price dynamics, closed equilibrium loops, economic shortages/failures, long-run economic stability, and population lifecycle & spatial integrity.
-- **Process Restart Recovery:** Deterministic cold-restart test (`Process A` → `Process B`) confirming complete hydration of world state, workplace wallets, inventory configurations, and simulation time without drift or memory leaks.
+- **Engine Test Suite (`@genesis/engine`):** 38 passing test suites with 223 verified tests (Time, Events, Decision, Spatial, Inventory, Banking, Production, Market Pricing, Economic Equilibrium, Agricultural Yield, and Population Simulation).
+- **Backend Test Suite (`@genesis/backend`):** 11 authoritative integration suites (50+ verified tests) executing against Prisma and SQLite, verifying demand intelligence, multi-stage supply aggregation, employment and payroll, market price dynamics, closed equilibrium loops, economic shortages/failures, long-run economic stability, population lifecycle, consumption history & forecasting, and seasonal agricultural yield variation.
+- **Process Restart Recovery:** Deterministic cold-restart test (`Process A` → `Process B`) confirming complete hydration of world state, workplace wallets, inventory configurations, consumption records, and simulation time without drift or memory leaks.
 - **Typecheck:** Clean 0-error `tsc` validation across `shared`, `packages/engine`, `backend`, and `frontend` workspaces.
 - **Production Build:** `npm run build` succeeds completely, compiling all TypeScript packages and bundling minified frontend production assets with Vite.
