@@ -9,3 +9,4 @@ export * from './InventoryRepository';
 export * from './CommerceRepository';
 export * from './EventRepository';
 export * from './BankingRepository';
+export * from './ConsumptionRepository';

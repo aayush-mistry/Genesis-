@@ -13,9 +13,10 @@ describe('CivilizationDemandService', () => {
     const { supplyService } = await import('../supply.service');
     supplyService.initialize();
     await worldService.generatePopulatedWorld('Demand Test World', 'Testing demand intelligence', 42);
-    // Clear transactions and citizens for empty world test
+    // Clear transactions, citizens, and consumption records for empty world test
     await prisma.transactionRecord.deleteMany();
     await prisma.citizen.deleteMany();
+    await prisma.consumptionRecord.deleteMany();
   });
 
   afterAll(async () => {
@@ -25,6 +26,7 @@ describe('CivilizationDemandService', () => {
   beforeEach(async () => {
     await prisma.transactionRecord.deleteMany();
     await prisma.citizen.deleteMany();
+    await prisma.consumptionRecord.deleteMany();
   });
 
   it('Test 1 — Empty World: Returns zero/unavailable without fake demand', async () => {

@@ -1,4 +1,5 @@
 import { ConsumptionEngine } from '../ConsumptionEngine';
+import { ConsumptionLedger } from '../ConsumptionLedger';
 import { InventoryManager } from '../../inventory/InventoryManager';
 import { NeedsService } from '../../citizen/services/NeedsService';
 import { InMemoryCitizenRepository } from '../../citizen/repositories/InMemoryCitizenRepository';
@@ -41,7 +42,8 @@ describe('ConsumptionEngine', () => {
 
     getCommodity = (id: string) => commodities[id];
     
-    consumptionEngine = new ConsumptionEngine(inventoryManager, needsService, getCommodity);
+    const ledger = new ConsumptionLedger();
+    consumptionEngine = new ConsumptionEngine(inventoryManager, needsService, getCommodity, ledger);
 
     citizen = {
       id: 'citizen-1',
@@ -167,4 +169,56 @@ describe('ConsumptionEngine', () => {
     expect(success).toBe(false);
     expect(citizen.vitalState.hunger).toBe(80);
   });
+
+  it('Ledger 1: Successful consumption creates exactly one persistent ledger record', () => {
+    inventoryManager.addItemQuantity('inv-house-1', 'food_item', 5, 'kg', 0, 200000);
+    const ledger = consumptionEngine.getConsumptionLedger()!;
+
+    expect(ledger.count()).toBe(0);
+
+    const success = consumptionEngine.consume(citizen, 'HUNGER', 86400, 20, 'evt-success-1', 'CITIZEN_NEED', 'reg-test');
+    expect(success).toBe(true);
+
+    expect(ledger.count()).toBe(1);
+    const records = ledger.getRecords();
+    expect(records[0].eventId).toBe('evt-success-1');
+    expect(records[0].commodityId).toBe('food_item');
+    expect(records[0].quantity).toBe(3); // (80 - 20) / 20 = 3 kg
+    expect(records[0].unit).toBe('kg');
+    expect(records[0].consumerId).toBe('citizen-1');
+    expect(records[0].householdId).toBe('house-1');
+    expect(records[0].regionId).toBe('reg-test');
+    expect(records[0].simulationDay).toBe(2); // 86400s = day 2
+  });
+
+  it('Ledger 2: Failed consumption creates no ledger record', () => {
+    const ledger = consumptionEngine.getConsumptionLedger()!;
+    expect(ledger.count()).toBe(0);
+
+    // No items in inventory -> should fail
+    const success = consumptionEngine.consume(citizen, 'HUNGER', 1000, 20, 'evt-fail-1');
+    expect(success).toBe(false);
+
+    expect(ledger.count()).toBe(0);
+  });
+
+  it('Ledger 3: Retrying the same event does not duplicate consumption history', () => {
+    inventoryManager.addItemQuantity('inv-house-1', 'water_item', 10, 'L', 0, 200000);
+    const ledger = consumptionEngine.getConsumptionLedger()!;
+
+    // First consumption with specific eventId
+    const firstSuccess = consumptionEngine.consume(citizen, 'THIRST', 1000, 20, 'evt-idempotent-1');
+    expect(firstSuccess).toBe(true);
+    expect(ledger.count()).toBe(1);
+
+    // Set hunger/thirst back to require more water
+    citizen.vitalState.thirst = 70;
+
+    // Retry with SAME eventId
+    const secondSuccess = consumptionEngine.consume(citizen, 'THIRST', 1000, 20, 'evt-idempotent-1');
+    expect(secondSuccess).toBe(true); // Inventory was deducted, but ledger rejected duplicate eventId
+
+    expect(ledger.count()).toBe(1); // Still exactly 1 in ledger
+  });
 });
+

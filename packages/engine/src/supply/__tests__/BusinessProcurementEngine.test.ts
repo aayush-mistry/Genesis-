@@ -272,4 +272,115 @@ describe('BusinessProcurementEngine', () => {
     
     expect(topRank.qualityScore).toBeGreaterThan(secondRank.qualityScore);
   });
+
+  test('Forecast-driven procurement triggers before shelves become empty when projected shortage exists', () => {
+    const { ConsumptionLedger, DemandForecastingEngine } = require('../../consumption');
+    const ledger = new ConsumptionLedger();
+    const forecaster = new DemandForecastingEngine(ledger);
+    engine.setDemandForecaster(forecaster);
+
+    const buyerId = 'shop-forecast-1';
+    inventoryManager.createInventory(`inv-${buyerId}`, buyerId, 1000);
+    // Stock is 55 (slightly ABOVE reorder point of 50, so normal rule wouldn't trigger)
+    inventoryManager.addItemQuantity(`inv-${buyerId}`, 'wheat', 55, 'kg');
+
+    worldEngine.workplaceRepository.create({
+      id: buyerId,
+      type: WorkplaceType.SHOP,
+      regionId: 'reg-1',
+      locationId: 'loc-1',
+      capacity: 10,
+      occupiedPositions: 0,
+      vacancies: 10,
+      positions: [],
+      inventoryId: `inv-${buyerId}`,
+      storageCapacity: 1000,
+      inventoryConfiguration: {
+        'wheat': { reorderPoint: 50, targetStock: 200 }
+      }
+    });
+
+    // Populate actual historical consumption in ledger: 140 kg consumed over 7 days = 20 kg/day
+    const daySeconds = 86400;
+    timeEngine.setCurrentTime({ year: 1, month: 1, day: 8, hour: 0, minute: 0, second: 0 }); // Day 8
+    const currentSeconds = 7 * daySeconds;
+
+    for (let day = 0; day < 7; day++) {
+      ledger.record({
+        eventId: `hist-wheat-${day}`,
+        timestamp: day * daySeconds + 3600,
+        commodityId: 'wheat',
+        regionId: 'reg-1',
+        quantity: 20,
+        unit: 'kg',
+        context: 'CITIZEN_NEED'
+      });
+    }
+
+    // Forecast demand over 1 day horizon is 20 kg.
+    // Projected available supply = 55 - 20 = 35 kg.
+    // 35 kg < reorderPoint (50), so a projected shortage is detected before stock empties!
+    engine.runProcurementCycle();
+
+    const requirements = (engine as any).pendingRequirements;
+    expect(requirements.length).toBe(1);
+    expect(requirements[0].productId).toBe('wheat');
+    // Requested quantity accounts for forecast demand + restoring target stock:
+    // targetStock (200) + forecast (20) - effectiveStock (55) = 165
+    expect(requirements[0].requestedQuantity).toBe(165);
+  });
+
+  test('Inbound supply accounts for existing orders/shipments to prevent duplicate procurement', () => {
+    const { ConsumptionLedger, DemandForecastingEngine } = require('../../consumption');
+    const ledger = new ConsumptionLedger();
+    const forecaster = new DemandForecastingEngine(ledger);
+    engine.setDemandForecaster(forecaster);
+
+    const buyerId = 'shop-inbound-1';
+    inventoryManager.createInventory(`inv-${buyerId}`, buyerId, 1000);
+    inventoryManager.addItemQuantity(`inv-${buyerId}`, 'wheat', 55, 'kg');
+
+    worldEngine.workplaceRepository.create({
+      id: buyerId,
+      type: WorkplaceType.SHOP,
+      regionId: 'reg-1',
+      locationId: 'loc-1',
+      capacity: 10,
+      occupiedPositions: 0,
+      vacancies: 10,
+      positions: [],
+      inventoryId: `inv-${buyerId}`,
+      storageCapacity: 1000,
+      inventoryConfiguration: {
+        'wheat': { reorderPoint: 50, targetStock: 200 }
+      }
+    });
+
+    // Populate historical consumption: 20 kg/day
+    const daySeconds = 86400;
+    timeEngine.setCurrentTime({ year: 1, month: 1, day: 8, hour: 0, minute: 0, second: 0 });
+    for (let day = 0; day < 7; day++) {
+      ledger.record({
+        eventId: `hist-inbound-${day}`,
+        timestamp: day * daySeconds + 3600,
+        commodityId: 'wheat',
+        regionId: 'reg-1',
+        quantity: 20,
+        unit: 'kg',
+        context: 'CITIZEN_NEED'
+      });
+    }
+
+    // Now suppose there is already an inbound confirmed order of 100 kg
+    jest.spyOn(supplyChainEngine, 'getPendingIncomingQuantity').mockReturnValue(100);
+
+    // Effective stock = 55 current + 100 inbound = 155 kg.
+    // Projected stock = 155 - 20 forecast = 135 kg.
+    // 135 kg is well above reorderPoint (50), so NO procurement should be triggered!
+    engine.runProcurementCycle();
+
+    const requirements = (engine as any).pendingRequirements;
+    expect(requirements.length).toBe(0);
+  });
 });
+

@@ -90,14 +90,37 @@ class BackendCitizenService {
     // Schedule Needs updates
     this.engine.needsService.scheduleNeedsUpdate(eventService.scheduler, timeService.engine.getCurrentTime());
     
-    import('./supply.service').then(({ supplyService }) => {
+    Promise.all([
+      import('./supply.service'),
+      import('./consumption.service')
+    ]).then(([{ supplyService }, { consumptionService }]) => {
       const { ConsumptionEngine } = require('@genesis/engine');
       const getCommodity = (id: string) => supplyService.productionEngine.commodities.get(id);
       const consumptionEngine = new ConsumptionEngine(
         supplyService.inventoryManager,
         this.engine.needsService,
-        getCommodity
+        getCommodity,
+        consumptionService.consumptionLedger
       );
+
+      // Region resolver from spatial world engine
+      consumptionEngine.setRegionResolver((citizen: any) => {
+        try {
+          if (citizen.locationId) {
+            const building = worldService.engine.buildingManager.getBuilding(citizen.locationId);
+            if (building?.districtId) {
+              const district = worldService.engine.districtManager.getDistrict(building.districtId);
+              if (district?.cityId) {
+                const city = worldService.engine.cityManager.getCity(district.cityId);
+                if (city?.regionId) return city.regionId;
+              }
+            }
+          }
+        } catch (e) {}
+        const regions = worldService.engine.regionManager.getAllRegions();
+        return regions.length > 0 ? regions[0].id : 'DEFAULT';
+      });
+
       this.engine.actionExecutor.setConsumptionEngine(consumptionEngine);
     });
 

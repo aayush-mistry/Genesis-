@@ -352,6 +352,14 @@ export class PersistenceService {
           }
         }
         
+        // 6. Hydrate Consumption Ledger from persistence
+        try {
+          const { consumptionService } = await import('./consumption.service');
+          await consumptionService.hydrateFromDatabase();
+        } catch (err) {
+          console.error('[PersistenceService] Error hydrating consumption ledger:', err);
+        }
+
       } else {
         console.log('[PersistenceService] No existing simulation state found. Starting fresh.');
       }

@@ -68,6 +68,7 @@ export async function buildApp() {
   await import('./services/finance.service').then(m => m.financeService.initialize());
   await import('./services/supply.service').then(m => m.supplyService.initialize());
   await import('./services/banking.service').then(m => m.bankingService.initialize());
+  await import('./services/consumption.service').then(m => m.consumptionService.initialize());
   
   await import('./services/SpatialBackfillMigration').then(m => m.SpatialBackfillMigration.runMigration());
 

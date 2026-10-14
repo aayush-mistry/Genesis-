@@ -1,15 +1,43 @@
 import { Citizen, Commodity } from '@genesis/shared';
 import { InventoryManager } from '../inventory/InventoryManager';
 import { NeedsService } from '../citizen/services/NeedsService';
+import { ConsumptionLedger } from './ConsumptionLedger';
+import { ConsumptionRecord } from './ConsumptionTypes';
+import { randomUUID } from 'crypto';
 
 export type ConsumableNeedType = 'HUNGER' | 'THIRST' | 'HEALTH' | 'ENERGY';
 
 export class ConsumptionEngine {
+  private lastRecordedEvent?: ConsumptionRecord;
+  private regionResolver?: (citizen: Citizen) => string | undefined;
+
   constructor(
     private inventoryManager: InventoryManager,
     private needsService: NeedsService,
-    private getCommodity: (productId: string) => Commodity | undefined
+    private getCommodity: (productId: string) => Commodity | undefined,
+    private consumptionLedger?: ConsumptionLedger,
+    private onConsumptionCallback?: (record: ConsumptionRecord) => void
   ) {}
+
+  public setConsumptionLedger(ledger: ConsumptionLedger): void {
+    this.consumptionLedger = ledger;
+  }
+
+  public getConsumptionLedger(): ConsumptionLedger | undefined {
+    return this.consumptionLedger;
+  }
+
+  public setRegionResolver(resolver: (citizen: Citizen) => string | undefined): void {
+    this.regionResolver = resolver;
+  }
+
+  public setOnConsumption(callback: (record: ConsumptionRecord) => void): void {
+    this.onConsumptionCallback = callback;
+  }
+
+  public getLastRecordedEvent(): ConsumptionRecord | undefined {
+    return this.lastRecordedEvent;
+  }
 
   public calculateRequiredRestoration(currentValue: number, targetValue: number = 20): number {
     return Math.max(0, currentValue - targetValue);
@@ -20,7 +48,7 @@ export class ConsumptionEngine {
     const inventory = this.inventoryManager.getInventoryByOwner(citizen.householdId);
     if (!inventory) return null;
 
-    for (const [productId, item] of Object.entries(inventory.items)) {
+    for (const [productId] of Object.entries(inventory.items)) {
       const commodity = this.getCommodity(productId);
       if (commodity?.consumable?.restorationNeed === needType) {
         const usableQuantity = this.inventoryManager.getUsableQuantity(inventory.id, productId, currentTime);
@@ -37,7 +65,15 @@ export class ConsumptionEngine {
     return null;
   }
 
-  public consume(citizen: Citizen, needType: ConsumableNeedType, currentTime: number, targetValue?: number): boolean {
+  public consume(
+    citizen: Citizen, 
+    needType: ConsumableNeedType, 
+    currentTime: number, 
+    targetValue?: number,
+    eventId?: string,
+    context?: string,
+    regionId?: string
+  ): boolean {
     if (!citizen.householdId) return false;
     const inventory = this.inventoryManager.getInventoryByOwner(citizen.householdId);
     if (!inventory) return false;
@@ -56,10 +92,8 @@ export class ConsumptionEngine {
         currentNeedValue = citizen.vitalState.thirst;
         break;
       case 'HEALTH':
-        // For health and energy, they are 0-100 where 100 is best. 
-        // We want to restore up to 100.
         currentNeedValue = 100 - citizen.vitalState.health;
-        actualTargetValue = targetValue ?? 0; // We want missing health to be 0
+        actualTargetValue = targetValue ?? 0;
         break;
       case 'ENERGY':
         currentNeedValue = 100 - citizen.vitalState.energy;
@@ -75,9 +109,11 @@ export class ConsumptionEngine {
 
     if (actualQuantityToConsume <= 0) return false;
 
+    // Mutate inventory first
     const success = this.inventoryManager.removeItemQuantity(inventory.id, consumable.productId, actualQuantityToConsume);
     
     if (success) {
+      // Satisfy citizen vital state
       const actualRestoration = actualQuantityToConsume * consumable.restorationValue;
       switch (needType) {
         case 'HUNGER':
@@ -93,10 +129,47 @@ export class ConsumptionEngine {
           this.needsService.recoverEnergy(citizen, actualRestoration);
           break;
       }
+
+      // Record durable consumption only after inventory mutation succeeds
+      const commodity = this.getCommodity(consumable.productId);
+      const effectiveRegionId = regionId || (this.regionResolver ? this.regionResolver(citizen) : undefined) || 'DEFAULT';
+      
+      const simDay = Math.floor(currentTime / 86400) + 1;
+      const simHour = Math.floor((currentTime % 86400) / 3600);
+
+      const record: ConsumptionRecord = {
+        eventId: eventId || randomUUID(),
+        timestamp: currentTime,
+        simulationDay: simDay,
+        simulationHour: simHour,
+        consumerId: citizen.id,
+        householdId: citizen.householdId,
+        sourceInventoryId: inventory.id,
+        commodityId: consumable.productId,
+        quantity: actualQuantityToConsume,
+        unit: commodity?.unit || 'kg',
+        context: context || 'CITIZEN_NEED',
+        regionId: effectiveRegionId,
+        createdAt: new Date()
+      };
+
+      this.lastRecordedEvent = record;
+
+      if (this.consumptionLedger) {
+        this.consumptionLedger.record(record);
+      }
+
+      if (this.onConsumptionCallback) {
+        try {
+          this.onConsumptionCallback(record);
+        } catch (err) {
+          console.error('Error in ConsumptionEngine onConsumption callback:', err);
+        }
+      }
+
       return true;
     }
     
     return false;
   }
 }
-

@@ -65,6 +65,10 @@ class SupplyService {
     this.productionEngine.registerCommodity(water);
     this.productionEngine.registerCommodity(timber);
 
+    import('./consumption.service').then(({ consumptionService }) => {
+      this.businessProcurementEngine.setDemandForecaster(consumptionService.forecastingEngine);
+    });
+
     this.productionEngine.registerProductionDefinition({
       productId: 'wheat',
       workplaceType: 'FARM' as any, // using 'any' to avoid tight coupling if string is passed

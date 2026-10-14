@@ -73,5 +73,41 @@ export const supplyController = {
     const commodities = ['wheat', 'water', 'raw_fish', 'iron_ore', 'timber'];
     const prices = commodities.map(p => marketService.engine.getPriceBreakdown(p, regionId));
     return reply.send(prices);
+  },
+
+  getDemandForecasts: async (request: FastifyRequest<{ Querystring: { regionId?: string; commodityId?: string; horizonDays?: string } }>, reply: FastifyReply) => {
+    const { consumptionService } = await import('../services/consumption.service');
+    const regionId = request.query?.regionId;
+    const horizonDays = request.query?.horizonDays ? parseInt(request.query.horizonDays, 10) : 1;
+
+    if (request.query?.commodityId) {
+      const balance = await consumptionService.getProjectedSupplyBalance(
+        request.query.commodityId,
+        regionId,
+        horizonDays
+      );
+      return reply.send(balance);
+    }
+
+    const commodities = ['wheat', 'water', 'iron_ore', 'raw_fish', 'timber'];
+    const balances = await Promise.all(
+      commodities.map(c => consumptionService.getProjectedSupplyBalance(c, regionId, horizonDays))
+    );
+    return reply.send(balances);
+  },
+
+  getConsumptionHistory: async (request: FastifyRequest<{ Querystring: { commodityId?: string; regionId?: string; limit?: string } }>, reply: FastifyReply) => {
+    const { consumptionRepository } = await import('../repositories/ConsumptionRepository');
+    const commodityId = request.query?.commodityId;
+    const regionId = request.query?.regionId;
+    const limit = request.query?.limit ? parseInt(request.query.limit, 10) : 50;
+
+    const history = await consumptionRepository.findHistory({
+      commodityId,
+      regionId,
+      limit
+    });
+    return reply.send(history);
   }
 };
+

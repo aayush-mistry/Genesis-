@@ -89,22 +89,59 @@ export class CivilizationDemandService {
       }
     }
 
-    // 3. We cannot calculate "consumed" because consumption events are not persisted in Prisma.
-    // It would require scanning system logs or adding a new model, which is out of scope for T7.8.1 aggregation.
+    // 3. Calculate actual Consumed quantities from authoritative ConsumptionRecords
+    const recentConsumptions = await prisma.consumptionRecord.findMany({
+      where: {
+        timestamp: { gte: last24hSeconds }
+      },
+      select: { commodityId: true, quantity: true, unit: true }
+    });
+
+    let consumedFoodKg = 0;
+    let consumedWaterL = 0;
+    let hasFoodConsumption = false;
+    let hasWaterConsumption = false;
+
+    for (const record of recentConsumptions) {
+      if (foodProductIds.includes(record.commodityId)) {
+        consumedFoodKg += record.quantity;
+        hasFoodConsumption = true;
+      } else if (waterProductIds.includes(record.commodityId)) {
+        consumedWaterL += record.quantity;
+        hasWaterConsumption = true;
+      }
+    }
+
+    // 4. Calculate Demand Forecast
+    let foodDemand: any = 'unavailable';
+    let waterDemand: any = 'unavailable';
+
+    try {
+      const { consumptionService } = await import('./consumption.service');
+      const foodForecast = consumptionService.getDemandForecast('wheat', undefined, 1, 7);
+      if (foodForecast.dataSufficiency && foodForecast.forecastDemand !== null) {
+        foodDemand = foodForecast.forecastDemand;
+      }
+
+      const waterForecast = consumptionService.getDemandForecast('water', undefined, 1, 7);
+      if (waterForecast.dataSufficiency && waterForecast.forecastDemand !== null) {
+        waterDemand = waterForecast.forecastDemand;
+      }
+    } catch (e) {}
     
     return {
       period: 'last_24_hours',
       food: {
         unit: 'kg',
-        demand: 'unavailable', // Need historical data to see full daily demand accurately
-        consumed: 'unavailable',
+        demand: foodDemand,
+        consumed: hasFoodConsumption ? consumedFoodKg : 'unavailable',
         purchased: purchasedFoodKg,
         unmet: Math.ceil(currentFoodUnmetKg) // Expressed in equivalent kg of primary food
       },
       water: {
         unit: 'L',
-        demand: 'unavailable',
-        consumed: 'unavailable',
+        demand: waterDemand,
+        consumed: hasWaterConsumption ? consumedWaterL : 'unavailable',
         purchased: purchasedWaterL,
         unmet: Math.ceil(currentWaterUnmetL)
       }

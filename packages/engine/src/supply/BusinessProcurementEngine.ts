@@ -8,6 +8,7 @@ import { SpatialQueryService } from '../spatial/SpatialQueryService';
 import { EventScheduler } from '../events/EventScheduler';
 import { TimeEngine } from '../time/TimeEngine';
 import { TimeUtils } from '../utils/TimeUtils';
+import { DemandForecastingEngine } from '../consumption/DemandForecastingEngine';
 
 export interface ProcurementRequirement {
   buyerId: string;
@@ -74,11 +75,20 @@ export class BusinessProcurementEngine {
     private spatialQueryService: SpatialQueryService,
     private eventScheduler: EventScheduler,
     private timeEngine: TimeEngine,
-    private marketEngine?: MarketEngine // Optional if not fully integrated
+    private marketEngine?: MarketEngine, // Optional if not fully integrated
+    private demandForecastingEngine?: DemandForecastingEngine
   ) {
     EventRegistry.register('BusinessProcurementEngine.runProcurementCycle', async () => {
       this.runProcurementCycle();
     });
+  }
+
+  public setDemandForecaster(forecaster: DemandForecastingEngine): void {
+    this.demandForecastingEngine = forecaster;
+  }
+
+  public getDemandForecaster(): DemandForecastingEngine | undefined {
+    return this.demandForecastingEngine;
   }
 
   public initialize(): void {
@@ -105,6 +115,9 @@ export class BusinessProcurementEngine {
     const workplaces = this.worldEngine.workplaceRepository.findAll();
     const eligibleWorkplaces = workplaces.filter(w => ['SHOP', 'BUSINESS', 'WHOLESALE', 'RETAIL'].includes(w.type) && w.inventoryConfiguration);
 
+    const currentTime = this.timeEngine.getCurrentTime();
+    const currentSeconds = TimeUtils.toSeconds(currentTime);
+
     for (const buyer of eligibleWorkplaces) {
       if (!buyer.inventoryId) continue;
       
@@ -115,22 +128,59 @@ export class BusinessProcurementEngine {
         const item = inventory.items[productId];
         const currentStock = item ? item.totalQuantity : 0;
 
-        // Count pending incoming quantity
+        // Count pending incoming quantity from shipments and confirmed orders
         const pendingIncoming = this.supplyChainEngine.getPendingIncomingQuantity(buyer.id, productId);
         const effectiveStock = currentStock + pendingIncoming;
 
-        if (effectiveStock < config.reorderPoint) {
+        let shouldProcure = false;
+        let requestedQuantity = 0;
+
+        // Check demand forecast as an additional signal if available
+        if (this.demandForecastingEngine) {
+          const forecast = this.demandForecastingEngine.forecast(
+            productId,
+            buyer.regionId,
+            currentSeconds,
+            { forecastHorizonDays: 1 }
+          );
+
+          if (forecast.dataSufficiency && forecast.forecastDemand !== null) {
+            // Projected available stock over replenishment horizon
+            const projectedAvailableSupply = effectiveStock - forecast.forecastDemand;
+
+            // Trigger reorder if projected supply falls below reorder point or effective stock is low
+            if (projectedAvailableSupply < config.reorderPoint || effectiveStock < config.reorderPoint) {
+              shouldProcure = true;
+              // Quantity needed to cover forecast demand and restore target stock
+              requestedQuantity = Math.max(
+                config.targetStock - currentStock,
+                Math.ceil(config.targetStock + forecast.forecastDemand - effectiveStock)
+              );
+            }
+          } else {
+            // Insufficient history: fall back transparently to existing reorder rules
+            if (effectiveStock < config.reorderPoint) {
+              shouldProcure = true;
+              requestedQuantity = config.targetStock - currentStock;
+            }
+          }
+        } else {
+          // Standard reorder point rule fallback
+          if (effectiveStock < config.reorderPoint) {
+            shouldProcure = true;
+            requestedQuantity = config.targetStock - currentStock;
+          }
+        }
+
+        if (shouldProcure && requestedQuantity > 0) {
           const maxStorage = buyer.storageCapacity || 1000;
-          let requestedQuantity = config.targetStock - currentStock; // Actual order is based on current physical stock to reach target eventually
 
           // Respect storage limit
-          // Available space: maxStorage - (sum of all current items)
           let currentTotalVolume = 0;
           for (const invItem of Object.values(inventory.items)) {
-            currentTotalVolume += invItem.totalQuantity; // Ignoring unit conversions for simplicity
+            currentTotalVolume += invItem.totalQuantity;
           }
           const availableSpace = Math.max(0, maxStorage - currentTotalVolume);
-          
           requestedQuantity = Math.min(requestedQuantity, availableSpace);
 
           if (requestedQuantity > 0) {

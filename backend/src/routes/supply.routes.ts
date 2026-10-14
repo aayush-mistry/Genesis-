@@ -10,6 +10,9 @@ export async function supplyRoutes(fastify: FastifyInstance) {
   fastify.get('/regions/:regionId/inventory', supplyController.getRegionInventory);
   fastify.get('/procurement/requirements', supplyController.getProcurementRequirements);
   fastify.get('/procurement/history', supplyController.getProcurementHistory);
+  fastify.get('/procurement/forecasts', supplyController.getDemandForecasts);
+  fastify.get('/consumption/history', supplyController.getConsumptionHistory);
   fastify.get('/market/prices', supplyController.getMarketPrices);
 }
+
   

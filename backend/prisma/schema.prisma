@@ -654,3 +654,36 @@ model CreditHistory {
   updatedAt         DateTime @updatedAt
 }
 
+// ==========================================
+// Consumption Ledger
+// ==========================================
+model ConsumptionRecord {
+  id                String   @id @default(uuid())
+  eventId           String   @unique
+  timestamp         Int      // Simulation timestamp in seconds
+  simulationDay     Int?     // Simulation world day
+  simulationHour    Int?     // Simulation world hour
+  
+  consumerId        String?  // Citizen ID
+  householdId       String?  // Consuming household ID
+  sourceInventoryId String?  // Source inventory or business ID
+  
+  commodityId       String   // Commodity ID (e.g., 'wheat', 'water')
+  quantity          Float    // Quantity consumed (> 0)
+  unit              String   // Unit (e.g. 'kg', 'L')
+  
+  context           String   // CITIZEN_NEED, HOUSEHOLD_CONSUMPTION, CITIZEN_PURCHASE
+  worldId           String?
+  regionId          String?  // Region ID for localized demand
+  
+  createdAt         DateTime @default(now())
+
+  @@index([commodityId])
+  @@index([regionId])
+  @@index([timestamp])
+  @@index([commodityId, regionId])
+  @@index([consumerId])
+  @@index([householdId])
+}
+
+

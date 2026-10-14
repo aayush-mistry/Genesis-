@@ -6,6 +6,7 @@ export const SupplyDashboard: React.FC<{ regionId: string }> = ({ regionId }) =>
   const [wholesales, setWholesales] = useState<any[]>([]);
   const [shipments, setShipments] = useState<any[]>([]);
   const [requirements, setRequirements] = useState<any[]>([]);
+  const [forecasts, setForecasts] = useState<any[]>([]);
 
   useEffect(() => {
     if (!regionId) return;
@@ -25,6 +26,12 @@ export const SupplyDashboard: React.FC<{ regionId: string }> = ({ regionId }) =>
         const reqRes = await fetch(`/api/v1/procurement/requirements`);
         const reqData = await reqRes.json();
         setRequirements(reqData);
+
+        const forecastRes = await fetch(`/api/v1/procurement/forecasts?regionId=${regionId}`);
+        if (forecastRes.ok) {
+          const forecastData = await forecastRes.json();
+          if (Array.isArray(forecastData)) setForecasts(forecastData);
+        }
       } catch (error) {
         console.error("Failed to fetch supply data", error);
       }
@@ -36,7 +43,7 @@ export const SupplyDashboard: React.FC<{ regionId: string }> = ({ regionId }) =>
   }, [regionId]);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
       {/* Producers Panel */}
       <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-xl shadow-lg p-6 flex flex-col min-h-[300px]">
         <div className="mb-4 flex justify-between items-center border-b border-[#2a2a2a] pb-2">
@@ -180,6 +187,67 @@ export const SupplyDashboard: React.FC<{ regionId: string }> = ({ regionId }) =>
           )}
         </div>
       </div>
+
+      {/* Demand Forecast & Balance Panel */}
+      <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-xl shadow-lg p-6 flex flex-col min-h-[300px]">
+        <div className="mb-4 flex justify-between items-center border-b border-[#2a2a2a] pb-2">
+          <h3 className="text-sm font-bold text-white uppercase tracking-wider">Demand Forecast</h3>
+          <span className="text-cyan-400 font-mono text-sm">{forecasts.length}</span>
+        </div>
+        <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+          {forecasts.length === 0 ? (
+            <div className="h-full flex items-center justify-center text-center">
+              <p className="text-sm text-gray-500 italic">No forecast data available.</p>
+            </div>
+          ) : (
+            forecasts.map((f: any) => (
+              <div key={f.commodityId} className="mb-4 border-b border-[#2a2a2a] pb-2">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="font-medium text-sm text-[#e5e5e5] uppercase">{f.commodityId}</span>
+                  {f.forecast.status === 'SUFFICIENT' ? (
+                    <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider border ${
+                      f.analysis.condition === 'SHORTAGE' 
+                        ? 'border-red-500/30 text-red-400 bg-red-500/10' 
+                        : 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10'
+                    }`}>
+                      {f.analysis.condition}
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider border border-amber-500/30 text-amber-400 bg-amber-500/10">
+                      {f.forecast.status === 'NO_DATA' ? 'NO DATA' : 'INSUFFICIENT HISTORY'}
+                    </span>
+                  )}
+                </div>
+                <div className="text-[11px] text-gray-400 font-mono space-y-0.5">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">History:</span>
+                    <span className="text-slate-300">{f.historicalConsumption.total} {f.unit} ({f.historicalConsumption.eventsCount} evts)</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Forecast:</span>
+                    <span className={f.forecast.forecastDemand !== null ? 'text-cyan-400 font-bold' : 'text-amber-400 italic'}>
+                      {f.forecast.forecastDemand !== null ? `${f.forecast.forecastDemand} ${f.unit}/day` : 'Unavailable'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Supply:</span>
+                    <span className="text-emerald-400">{f.supply.availableInventory} {f.unit} {f.supply.inboundSupply > 0 ? `(+${f.supply.inboundSupply} in transit)` : ''}</span>
+                  </div>
+                  {f.analysis.projectedNet !== null && (
+                    <div className="flex justify-between border-t border-[#2a2a2a] pt-0.5 mt-0.5">
+                      <span className="text-gray-500">Net:</span>
+                      <span className={f.analysis.projectedNet < 0 ? 'text-red-400 font-bold' : 'text-emerald-400 font-bold'}>
+                        {f.analysis.projectedNet > 0 ? `+${f.analysis.projectedNet}` : f.analysis.projectedNet} {f.unit}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   );
 };
+
