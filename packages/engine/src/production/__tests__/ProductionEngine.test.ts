@@ -171,4 +171,114 @@ describe('ProductionEngine', () => {
     const inv = inventoryManager.getInventory('inv-mine-2')!;
     expect(inv.items['iron_ore']).toBeUndefined();
   });
+
+  test('should produce 0 wheat in Winter due to seasonal dormancy', async () => {
+    // Set time to Winter (month 12)
+    jest.spyOn(timeEngine, 'getCurrentTime').mockReturnValue({
+      year: 1,
+      month: 12,
+      day: 15,
+      hour: 12,
+      minute: 0,
+      second: 0
+    });
+
+    const farm: Workplace = {
+      id: 'winter-farm',
+      type: WorkplaceType.FARM,
+      locationId: 'loc-1',
+      regionId: 'reg-winter',
+      capacity: 10,
+      occupiedPositions: 10,
+      vacancies: 0,
+      positions: Array.from({ length: 10 }).map(() => ({ occupantId: 'c1' })) as any[],
+      inventoryId: 'inv-winter-farm'
+    };
+    worldEngine.workplaceRepository.create(farm);
+    inventoryManager.createInventory('inv-winter-farm', 'winter-farm', 5000);
+
+    const completedEvents: any[] = [];
+    eventScheduler.emitter.on('ProductionCompleted', (e) => completedEvents.push(e));
+
+    (productionEngine as any).runProductionCycle();
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    const inv = inventoryManager.getInventory('inv-winter-farm')!;
+    expect(inv.items['wheat']).toBeUndefined();
+    expect(completedEvents.filter(e => e.producerId === 'winter-farm')).toHaveLength(0);
+
+    const report = productionEngine.getCropYieldReport('winter-farm');
+    expect(report).toBeDefined();
+    expect(report?.season).toBe('Winter');
+    expect(report?.seasonFactor).toBe(0.0);
+    expect(report?.status).toBe('DORMANT_UNSUITABLE');
+  });
+
+  test('should reduce wheat yield under adverse weather (Storm)', async () => {
+    jest.spyOn(timeEngine, 'getCurrentTime').mockReturnValue({
+      year: 1,
+      month: 4, // Summer
+      day: 10,
+      hour: 12,
+      minute: 0,
+      second: 0
+    });
+
+    // Mock environment engine with Storm
+    const mockEnvEngine = {
+      seasonManager: { getCurrentSeason: () => 'Summer' },
+      weatherManager: { getRegionWeather: () => ({ currentType: 'Storm' }) },
+      getEnvironmentalState: () => ({ temperature: 22 })
+    } as any;
+    productionEngine.setEnvironmentEngine(mockEnvEngine);
+
+    const farm: Workplace = {
+      id: 'storm-farm',
+      type: WorkplaceType.FARM,
+      locationId: 'loc-1',
+      regionId: 'reg-storm',
+      capacity: 10,
+      occupiedPositions: 10,
+      vacancies: 0,
+      positions: Array.from({ length: 10 }).map(() => ({ occupantId: 'c1' })) as any[],
+      inventoryId: 'inv-storm-farm'
+    };
+    worldEngine.workplaceRepository.create(farm);
+    inventoryManager.createInventory('inv-storm-farm', 'storm-farm', 5000);
+
+    // Provide ample water
+    jest.spyOn(resourceEngine.resourceManager, 'getResourcesByRegion').mockReturnValue([{
+      id: 'res-water',
+      type: 'WATER' as any,
+      name: 'River',
+      category: 'RENEWABLE' as any,
+      unit: 'L',
+      renewable: true,
+      regionId: 'reg-storm',
+      currentAmount: 100000,
+      maximumAmount: 100000,
+      naturalRecoveryRate: 1000,
+      consumptionRate: 0,
+      condition: null,
+      extractionDifficulty: 0,
+      coordinates: { x: 0, y: 0 },
+      radius: 100,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }]);
+
+    (productionEngine as any).runProductionCycle();
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    const inv = inventoryManager.getInventory('inv-storm-farm')!;
+    // Base capacity 1000 * worker efficiency 1.0 = 1000
+    // Storm multiplier = 0.5 -> 500
+    expect(inv.items['wheat'].totalQuantity).toBe(500);
+
+    const report = productionEngine.getCropYieldReport('storm-farm');
+    expect(report?.weather).toBe('Storm');
+    expect(report?.weatherFactor).toBe(0.5);
+    expect(report?.status).toBe('REDUCED_YIELD');
+  });
 });
+

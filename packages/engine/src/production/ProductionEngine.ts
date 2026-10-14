@@ -3,29 +3,50 @@ import { EventScheduler } from '../events/EventScheduler';
 import { TimeEngine } from '../time/TimeEngine';
 import { InventoryManager } from '../inventory/InventoryManager';
 import { ResourceEngine } from '../resources/ResourceEngine';
-import { Commodity, ProductionDefinition, Workplace, WorkplaceType } from '@genesis/shared';
+import { EnvironmentEngine } from '../environment/EnvironmentEngine';
+import { 
+  Commodity, 
+  ProductionDefinition, 
+  CropDefinition, 
+  CropYieldBreakdown, 
+  Workplace, 
+  WorkplaceType, 
+  SeasonType, 
+  WeatherType 
+} from '@genesis/shared';
 import { SimulationEvent } from '../events/SimulationEvent';
 import { randomUUID } from 'crypto';
-
 import { EventRegistry } from '../events/EventRegistry';
 import { TimeUtils } from '../utils/TimeUtils';
+import { AgriculturalYieldCalculator } from './AgriculturalYieldCalculator';
+import { WHEAT_CROP_DEFINITION } from './CropDefinitions';
 
 export class ProductionEngine {
   private isInitialized = false;
   
   public commodities: Map<string, Commodity> = new Map();
   public productionDefinitions: Map<string, ProductionDefinition> = new Map();
+  public cropDefinitions: Map<string, CropDefinition> = new Map();
+  public recentCropYieldReports: Map<string, CropYieldBreakdown> = new Map();
 
   constructor(
     private worldEngine: WorldEngine,
     private eventScheduler: EventScheduler,
     private timeEngine: TimeEngine,
     private inventoryManager: InventoryManager,
-    private resourceEngine: ResourceEngine
+    private resourceEngine: ResourceEngine,
+    private environmentEngine?: EnvironmentEngine
   ) {
+    // Register default wheat crop definition
+    this.registerCropDefinition(WHEAT_CROP_DEFINITION);
+
     EventRegistry.register('ProductionEngine.runProductionCycle', async () => {
       this.runProductionCycle();
     });
+  }
+
+  public setEnvironmentEngine(environmentEngine: EnvironmentEngine): void {
+    this.environmentEngine = environmentEngine;
   }
 
   public registerCommodity(commodity: Commodity) {
@@ -34,6 +55,26 @@ export class ProductionEngine {
 
   public registerProductionDefinition(definition: ProductionDefinition) {
     this.productionDefinitions.set(definition.productId, definition);
+    if ((definition as CropDefinition).suitableSeasons !== undefined) {
+      this.cropDefinitions.set(definition.productId, definition as CropDefinition);
+    }
+  }
+
+  public registerCropDefinition(crop: CropDefinition) {
+    this.cropDefinitions.set(crop.productId, crop);
+    this.productionDefinitions.set(crop.productId, crop);
+  }
+
+  public getCropDefinition(productId: string): CropDefinition | undefined {
+    return this.cropDefinitions.get(productId);
+  }
+
+  public getCropYieldReport(workplaceId: string): CropYieldBreakdown | undefined {
+    return this.recentCropYieldReports.get(workplaceId);
+  }
+
+  public getAllCropYieldReports(): CropYieldBreakdown[] {
+    return Array.from(this.recentCropYieldReports.values());
   }
 
   public initialize(): void {
@@ -122,7 +163,69 @@ export class ProductionEngine {
     const workerEfficiency = workplace.capacity > 0 ? (occupiedCount / workplace.capacity) : 0;
     let actualProduction = baseCapacity * workerEfficiency;
 
-    // 3. Environment & Resources
+    // 3. Environmental Yield Calculation for Agricultural Crops
+    const isAgricultural = workplace.type === WorkplaceType.FARM || this.cropDefinitions.has(producedProductId);
+    let cropYieldBreakdown: CropYieldBreakdown | undefined = undefined;
+
+    if (isAgricultural) {
+      const cropDef = this.cropDefinitions.get(producedProductId) || ({
+        ...definition,
+        cropType: producedProductId.toUpperCase(),
+        suitableSeasons: ['Spring', 'Summer', 'Autumn'] as SeasonType[],
+        temperatureRange: { minViable: 0, optimalMin: 15, optimalMax: 25, maxViable: 35 },
+        growingPeriod: 1,
+        suitableSoil: ['PLAIN', 'GRASSLANDS'],
+        unsuitableSeasonMultiplier: 0.0
+      } as CropDefinition);
+
+      const envEngine = this.environmentEngine || (this.resourceEngine as any)?.environmentEngine;
+      const currentTime = this.timeEngine.getCurrentTime();
+      const currentTimeSeconds = TimeUtils.toSeconds(currentTime);
+
+      const season: SeasonType = envEngine?.seasonManager 
+        ? envEngine.seasonManager.getCurrentSeason()
+        : this.getSeasonFromMonth(currentTime.month);
+
+      const weather: WeatherType | null = envEngine?.weatherManager 
+        ? envEngine.weatherManager.getRegionWeather(workplace.regionId)?.currentType || null
+        : null;
+
+      const envState = envEngine?.getEnvironmentalState ? envEngine.getEnvironmentalState(workplace.regionId) : null;
+      const temperature: number | null = envState?.temperature ?? null;
+
+      // Authoritative soil measurement from region resources or terrain
+      let soilType: string | null = null;
+      if (this.resourceEngine?.resourceManager) {
+        const regionalResources = this.resourceEngine.resourceManager.getResourcesByRegion(workplace.regionId);
+        const hasGrassland = regionalResources.some(r => r.type === 'GRASSLANDS');
+        if (hasGrassland) soilType = 'GRASSLANDS';
+      }
+
+      // Check water availability ratio
+      let waterAvailabilityRatio = 1.0;
+      const waterReq = definition.resourceRequirements?.find(r => r.resourceId === 'WATER');
+      if (waterReq && waterReq.amountPerOutputUnit > 0 && this.resourceEngine?.resourceManager) {
+        const waterResources = this.resourceEngine.resourceManager.getResourcesByRegion(workplace.regionId).filter(r => r.type === 'WATER');
+        const totalWater = waterResources.reduce((sum, r) => sum + r.currentAmount, 0);
+        const neededWater = (baseCapacity * workerEfficiency) * waterReq.amountPerOutputUnit;
+        if (neededWater > 0 && totalWater < neededWater) {
+          waterAvailabilityRatio = Math.max(0, totalWater / neededWater);
+        }
+      }
+
+      cropYieldBreakdown = AgriculturalYieldCalculator.calculateYield(
+        cropDef,
+        { season, temperature, weather, soilType, waterAvailabilityRatio },
+        { baseCapacity, workerEfficiency },
+        { workplaceId: workplace.id, regionId: workplace.regionId, timestamp: currentTimeSeconds }
+      );
+
+      this.recentCropYieldReports.set(workplace.id, cropYieldBreakdown);
+      this.eventScheduler.emitter.emit('CropYieldEvaluated', cropYieldBreakdown);
+      actualProduction = cropYieldBreakdown.finalYield;
+    }
+
+    // 4. Resource Feasibility & Input Constraints
     const maxFeasibleProduction = this.resourceEngine.resourceConsumptionEngine.calculateMaximumProduction(
       definition,
       actualProduction,
@@ -130,7 +233,14 @@ export class ProductionEngine {
       workplace.regionId
     );
 
-    actualProduction = maxFeasibleProduction;
+    if (maxFeasibleProduction < actualProduction) {
+      if (cropYieldBreakdown) {
+        cropYieldBreakdown.status = 'RESOURCE_CONSTRAINED';
+        cropYieldBreakdown.explanation += `; Resource constrained (Capped from ${actualProduction} to ${maxFeasibleProduction} by available inputs)`;
+        cropYieldBreakdown.finalYield = maxFeasibleProduction;
+      }
+      actualProduction = maxFeasibleProduction;
+    }
 
     if (actualProduction > 0) {
       // Allocate resources
@@ -172,6 +282,8 @@ export class ProductionEngine {
             unit: commodity.unit,
             regionId: workplace.regionId,
             timestamp: this.timeEngine.getCurrentTime(),
+            yieldMultiplier: cropYieldBreakdown?.overallEnvironmentalMultiplier ?? 1.0,
+            cropStatus: cropYieldBreakdown?.status,
             resourcesConsumed: allocation.consumedResources.reduce((acc: any, curr) => {
                acc[curr.resourceType] = curr.amount;
                return acc;
@@ -184,4 +296,12 @@ export class ProductionEngine {
       }
     }
   }
+
+  private getSeasonFromMonth(month: number): SeasonType {
+    if (month >= 1 && month <= 3) return 'Spring';
+    if (month >= 4 && month <= 6) return 'Summer';
+    if (month >= 7 && month <= 9) return 'Autumn';
+    return 'Winter';
+  }
 }
+

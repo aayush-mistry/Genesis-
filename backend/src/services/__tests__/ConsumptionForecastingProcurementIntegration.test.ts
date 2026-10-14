@@ -191,8 +191,9 @@ describe('T8.2 — Consumption History, Demand Forecasting & Procurement Integra
     await prisma.$disconnect();
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
     consumptionService.consumptionLedger.clear();
+    await prisma.consumptionRecord.deleteMany({});
   });
 
   it('1. Successful consumption creates exactly one persistent ledger record', async () => {
@@ -553,7 +554,7 @@ describe('T8.2 — Consumption History, Demand Forecasting & Procurement Integra
     expect(emptyForecast.status).toBe('NO_DATA');
 
     // 3. Simulate Cold Restart: hydrate from database
-    const hydratedCount = await consumptionService.hydrateFromDatabase();
+    const hydratedCount = await consumptionService.hydrateFromDatabase(regionId);
     expect(hydratedCount).toBe(5);
     expect(consumptionService.consumptionLedger.count()).toBe(5);
 

@@ -87,8 +87,8 @@ export class BackendConsumptionService {
   /**
    * Hydrates the in-memory ledger from persistent SQLite records during bootstrap (survives cold restart).
    */
-  public async hydrateFromDatabase(): Promise<number> {
-    const records = await consumptionRepository.findHistory({ limit: 10000 });
+  public async hydrateFromDatabase(regionId?: string): Promise<number> {
+    const records = await consumptionRepository.findHistory({ regionId, limit: 10000 });
     const mapped: ConsumptionRecord[] = records.map(r => ({
       eventId: r.eventId,
       timestamp: r.timestamp,

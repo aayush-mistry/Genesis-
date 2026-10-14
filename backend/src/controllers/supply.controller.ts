@@ -108,6 +108,29 @@ export const supplyController = {
       limit
     });
     return reply.send(history);
+  },
+
+  getAgriculturalStatus: async (request: FastifyRequest<{ Querystring: { regionId?: string } }>, reply: FastifyReply) => {
+    const { environmentService } = await import('../services/environment.service');
+    const { timeService } = await import('../services/time.service');
+    const regionId = request.query?.regionId;
+
+    const currentSeason = environmentService.engine.seasonManager.getCurrentSeason();
+    const currentPhase = environmentService.engine.dayCycleManager.getCurrentPhase();
+    const currentTime = timeService.engine.getCurrentTime();
+
+    let reports = supplyService.productionEngine.getAllCropYieldReports();
+    if (regionId) {
+      reports = reports.filter(r => r.regionId === regionId);
+    }
+
+    return reply.send({
+      season: currentSeason,
+      dayPhase: currentPhase,
+      time: currentTime,
+      cropReports: reports
+    });
   }
 };
+
 

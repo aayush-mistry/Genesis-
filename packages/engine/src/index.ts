@@ -19,7 +19,7 @@ export * from './perception/PerceptionConfig';
 export * from './perception/PerceptionService';
 export * from './execution';
 export * from './inventory/InventoryManager';
-export * from './production/ProductionEngine';
+export * from './production';
 export * from './supply/SupplyChainEngine';
 export * from './supply/CommerceAutomation';
 export * from './supply/BusinessProcurementEngine';

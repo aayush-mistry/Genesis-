@@ -7,6 +7,7 @@ export const SupplyDashboard: React.FC<{ regionId: string }> = ({ regionId }) =>
   const [shipments, setShipments] = useState<any[]>([]);
   const [requirements, setRequirements] = useState<any[]>([]);
   const [forecasts, setForecasts] = useState<any[]>([]);
+  const [agriData, setAgriData] = useState<{ season: string; dayPhase: string; cropReports: any[] } | null>(null);
 
   useEffect(() => {
     if (!regionId) return;
@@ -31,6 +32,12 @@ export const SupplyDashboard: React.FC<{ regionId: string }> = ({ regionId }) =>
         if (forecastRes.ok) {
           const forecastData = await forecastRes.json();
           if (Array.isArray(forecastData)) setForecasts(forecastData);
+        }
+
+        const agriRes = await fetch(`/api/v1/production/agriculture/status?regionId=${regionId}`);
+        if (agriRes.ok) {
+          const agriJson = await agriRes.json();
+          setAgriData(agriJson);
         }
       } catch (error) {
         console.error("Failed to fetch supply data", error);
@@ -247,7 +254,75 @@ export const SupplyDashboard: React.FC<{ regionId: string }> = ({ regionId }) =>
           )}
         </div>
       </div>
+
+      {/* Agricultural Yield & Season Panel */}
+      <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-xl shadow-lg p-6 flex flex-col min-h-[300px]">
+        <div className="mb-4 flex justify-between items-center border-b border-[#2a2a2a] pb-2">
+          <h3 className="text-sm font-bold text-white uppercase tracking-wider">Crop Yield & Season</h3>
+          {agriData && (
+            <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider border ${
+              agriData.season === 'Winter' 
+                ? 'border-blue-500/40 text-blue-300 bg-blue-500/10' 
+                : 'border-emerald-500/40 text-emerald-300 bg-emerald-500/10'
+            }`}>
+              {agriData.season}
+            </span>
+          )}
+        </div>
+        <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+          {!agriData || !agriData.cropReports || agriData.cropReports.length === 0 ? (
+            <div className="h-full flex items-center justify-center text-center">
+              <p className="text-sm text-gray-500 italic">No crop production recorded in this region.</p>
+            </div>
+          ) : (
+            agriData.cropReports.map((c: any) => {
+              const statusColors: Record<string, string> = {
+                OPTIMAL: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10',
+                FAVORABLE: 'border-green-500/30 text-green-400 bg-green-500/10',
+                REDUCED_YIELD: 'border-amber-500/30 text-amber-400 bg-amber-500/10',
+                DORMANT_UNSUITABLE: 'border-blue-500/30 text-blue-300 bg-blue-500/10',
+                RESOURCE_CONSTRAINED: 'border-orange-500/30 text-orange-400 bg-orange-500/10',
+                SEVERE_ADVERSE: 'border-red-500/30 text-red-400 bg-red-500/10',
+              };
+              const badgeClass = statusColors[c.status] || 'border-gray-500/30 text-gray-400 bg-gray-500/10';
+
+              return (
+                <div key={c.workplaceId || c.cropId} className="mb-4 border-b border-[#2a2a2a] pb-2">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="font-medium text-sm text-[#e5e5e5] uppercase">{c.cropType}</span>
+                    <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider border ${badgeClass}`}>
+                      {c.status.replace('_', ' ')}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-gray-400 font-mono space-y-0.5">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Yield Multiplier:</span>
+                      <span className={c.overallEnvironmentalMultiplier > 0 ? 'text-emerald-400 font-bold' : 'text-blue-300 font-bold'}>
+                        {(c.overallEnvironmentalMultiplier * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Output:</span>
+                      <span className="text-slate-200">{c.finalYield} kg (Cap: {c.capacityYield})</span>
+                    </div>
+                    <div className="flex justify-between text-[10px] text-gray-500">
+                      <span>S: {(c.seasonFactor * 100).toFixed(0)}%</span>
+                      <span>T: {(c.temperatureFactor * 100).toFixed(0)}%</span>
+                      <span>W: {(c.weatherFactor * 100).toFixed(0)}%</span>
+                      <span>Soil: {(c.soilFactor * 100).toFixed(0)}%</span>
+                    </div>
+                    <div className="text-[10px] text-gray-400 italic mt-1 leading-tight">
+                      {c.explanation}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
     </div>
   );
 };
+
 

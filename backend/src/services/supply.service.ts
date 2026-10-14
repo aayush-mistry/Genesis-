@@ -1,8 +1,9 @@
-import { InventoryManager, ProductionEngine, SupplyChainEngine, CommerceAutomation, BusinessProcurementEngine, EventRegistry, TimeUtils } from '@genesis/engine';
+import { InventoryManager, ProductionEngine, SupplyChainEngine, CommerceAutomation, BusinessProcurementEngine, EventRegistry, TimeUtils, WHEAT_CROP_DEFINITION } from '@genesis/engine';
 import { worldService } from './world.service';
 import { eventService } from './event.service';
 import { timeService } from './time.service';
 import { resourceService } from './resource.service';
+import { environmentService } from './environment.service';
 import { spatialService } from './spatial.service';
 import { Commodity, ProductCategory } from '@genesis/shared';
 
@@ -20,7 +21,8 @@ class SupplyService {
       eventService.scheduler,
       timeService.engine,
       this.inventoryManager,
-      resourceService.engine
+      resourceService.engine,
+      environmentService.engine
     );
     this.supplyChainEngine = new SupplyChainEngine(
       worldService.engine,
@@ -69,16 +71,7 @@ class SupplyService {
       this.businessProcurementEngine.setDemandForecaster(consumptionService.forecastingEngine);
     });
 
-    this.productionEngine.registerProductionDefinition({
-      productId: 'wheat',
-      workplaceType: 'FARM' as any, // using 'any' to avoid tight coupling if string is passed
-      unit: 'kg',
-      baseYieldPerArea: 100,
-      workersRequiredPerUnitArea: 1,
-      resourceRequirements: [
-        { resourceId: 'WATER', amountPerOutputUnit: 20 },
-      ]
-    });
+    this.productionEngine.registerCropDefinition(WHEAT_CROP_DEFINITION);
 
     this.productionEngine.registerProductionDefinition({
       productId: 'iron_ore',
@@ -200,7 +193,8 @@ class SupplyService {
       eventService.scheduler,
       timeService.engine,
       this.inventoryManager,
-      resourceService.engine
+      resourceService.engine,
+      environmentService.engine
     );
     this.supplyChainEngine = new SupplyChainEngine(
       worldService.engine,

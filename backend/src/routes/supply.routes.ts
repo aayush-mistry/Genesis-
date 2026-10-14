@@ -13,6 +13,8 @@ export async function supplyRoutes(fastify: FastifyInstance) {
   fastify.get('/procurement/forecasts', supplyController.getDemandForecasts);
   fastify.get('/consumption/history', supplyController.getConsumptionHistory);
   fastify.get('/market/prices', supplyController.getMarketPrices);
+  fastify.get('/production/agriculture/status', supplyController.getAgriculturalStatus);
 }
+
 
   
