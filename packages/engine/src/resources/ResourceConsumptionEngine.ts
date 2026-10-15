@@ -1,4 +1,4 @@
-import { ProductionDefinition } from '@genesis/shared';
+import { ProductionDefinition, ResourceType } from '@genesis/shared';
 import { ResourceManager } from './ResourceManager';
 import { randomUUID } from 'crypto';
 
@@ -40,20 +40,37 @@ export class ResourceConsumptionEngine {
     }));
   }
 
+  private isWaterResource(type: string): boolean {
+    return type === 'WATER' || type === (ResourceType.WATER as any);
+  }
+
+  private getWaterUnitMultiplier(unit?: string): number {
+    if (!unit) return 1.0;
+    const u = unit.trim().toLowerCase();
+    if (u === 'm³' || u === 'm3' || u === 'cubic_meter' || u === 'cubic_meters') {
+      return 1000.0;
+    }
+    return 1.0;
+  }
+
   private getAggregatedResource(regionId: string, type: string) {
     const resources = this.resourceManager.getResourcesByRegion(regionId);
     let totalAvailable = 0;
     let regionalReserved = 0;
     let unit = '';
+    const isWater = this.isWaterResource(type);
+    let resourceCount = 0;
 
     for (const res of resources) {
-      if (res.type === type) {
-        totalAvailable += res.currentAmount;
-        regionalReserved += res.reservedAmount || 0;
-        unit = res.unit;
+      if (res.type === type || (isWater && (res.type as string).toUpperCase() === 'WATER')) {
+        resourceCount++;
+        const multiplier = isWater ? this.getWaterUnitMultiplier(res.unit) : 1.0;
+        totalAvailable += res.currentAmount * multiplier;
+        regionalReserved += (res.reservedAmount || 0) * multiplier;
+        unit = isWater ? 'L' : res.unit;
       }
     }
-    return { totalAvailable, regionalReserved, unit };
+    return { totalAvailable, regionalReserved, unit, resourceCount };
   }
 
   public calculateMaximumProduction(
@@ -70,7 +87,13 @@ export class ResourceConsumptionEngine {
     let maxFeasibleOutput = requestedOutput;
 
     for (const req of definition.resourceRequirements) {
+      const isWater = this.isWaterResource(req.resourceId);
       const agg = this.getAggregatedResource(regionId, req.resourceId);
+
+      // Preserve documented neutral fallback when local water data is unavailable
+      if (isWater && agg.resourceCount === 0) {
+        continue;
+      }
       
       const producerReserves = this.producerReserves.get(workplaceId) || {};
       const producerReserved = producerReserves[req.resourceId] || 0;
@@ -87,7 +110,7 @@ export class ResourceConsumptionEngine {
       }
     }
 
-    return maxFeasibleOutput;
+    return Math.max(0, maxFeasibleOutput);
   }
 
   public allocateResources(
@@ -111,7 +134,13 @@ export class ResourceConsumptionEngine {
     const consumedResources: { resourceType: string; amount: number; unit: string }[] = [];
 
     for (const req of definition.resourceRequirements) {
+      const isWater = this.isWaterResource(req.resourceId);
       const agg = this.getAggregatedResource(regionId, req.resourceId);
+
+      // Preserve documented neutral fallback when local water data is unavailable
+      if (isWater && agg.resourceCount === 0) {
+        continue;
+      }
 
       const producerReserves = this.producerReserves.get(workplaceId) || {};
       const producerReserved = producerReserves[req.resourceId] || 0;
@@ -148,18 +177,30 @@ export class ResourceConsumptionEngine {
     if (!allocation) return false;
 
     for (const consumed of allocation.consumedResources) {
+      const isWater = this.isWaterResource(consumed.resourceType);
       const resources = this.resourceManager.getResourcesByRegion(allocation.regionId)
-        .filter(r => r.type === consumed.resourceType);
+        .filter(r => r.type === consumed.resourceType || (isWater && (r.type as string).toUpperCase() === 'WATER'));
 
       let remainingToDeduct = consumed.amount;
 
       for (const res of resources) {
         if (remainingToDeduct <= 0) break;
 
-        const deduct = Math.min(res.currentAmount, remainingToDeduct);
-        const updates = { currentAmount: res.currentAmount - deduct };
-        this.resourceManager.updateResource(allocation.regionId, res.id, updates);
-        remainingToDeduct -= deduct;
+        if (isWater) {
+          const mult = this.getWaterUnitMultiplier(res.unit);
+          // res.currentAmount * mult is in Litres. consumed.amount is in Litres.
+          const availableInLitres = res.currentAmount * mult;
+          const deductInLitres = Math.min(availableInLitres, remainingToDeduct);
+          const deductInResourceUnits = deductInLitres / mult;
+          const newAmount = Math.max(0, res.currentAmount - deductInResourceUnits);
+          this.resourceManager.updateResource(allocation.regionId, res.id, { currentAmount: newAmount });
+          remainingToDeduct -= deductInLitres;
+        } else {
+          const deduct = Math.min(res.currentAmount, remainingToDeduct);
+          const updates = { currentAmount: Math.max(0, res.currentAmount - deduct) };
+          this.resourceManager.updateResource(allocation.regionId, res.id, updates);
+          remainingToDeduct -= deduct;
+        }
       }
     }
 
@@ -173,6 +214,7 @@ export class ResourceConsumptionEngine {
 
   public getExportableSurplus(regionId: string, resourceType: string): number {
     const agg = this.getAggregatedResource(regionId, resourceType);
+    const isWater = this.isWaterResource(resourceType);
     
     let totalProducerReserved = 0;
     for (const reserves of this.producerReserves.values()) {
@@ -185,7 +227,7 @@ export class ResourceConsumptionEngine {
     for (const alloc of this.pendingAllocations.values()) {
       if (alloc.regionId === regionId) {
          for (const res of alloc.consumedResources) {
-            if (res.resourceType === resourceType) {
+            if (res.resourceType === resourceType || (isWater && this.isWaterResource(res.resourceType))) {
                pendingConsumed += res.amount;
             }
          }

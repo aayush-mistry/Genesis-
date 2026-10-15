@@ -12,7 +12,8 @@ import {
   Workplace, 
   WorkplaceType, 
   SeasonType, 
-  WeatherType 
+  WeatherType,
+  ResourceType 
 } from '@genesis/shared';
 import { SimulationEvent } from '../events/SimulationEvent';
 import { randomUUID } from 'crypto';
@@ -23,6 +24,7 @@ import { WHEAT_CROP_DEFINITION } from './CropDefinitions';
 
 export class ProductionEngine {
   private isInitialized = false;
+  private completedCycleIds: Set<string> = new Set();
   
   public commodities: Map<string, Commodity> = new Map();
   public productionDefinitions: Map<string, ProductionDefinition> = new Map();
@@ -40,8 +42,8 @@ export class ProductionEngine {
     // Register default wheat crop definition
     this.registerCropDefinition(WHEAT_CROP_DEFINITION);
 
-    EventRegistry.register('ProductionEngine.runProductionCycle', async () => {
-      this.runProductionCycle();
+    EventRegistry.register('ProductionEngine.runProductionCycle', async (event?: SimulationEvent) => {
+      this.runProductionCycle(event);
     });
   }
 
@@ -77,6 +79,30 @@ export class ProductionEngine {
     return Array.from(this.recentCropYieldReports.values());
   }
 
+  public isCycleCompleted(cycleId: string): boolean {
+    if (this.completedCycleIds.has(cycleId)) return true;
+    if (this.eventScheduler) {
+      const executed = this.eventScheduler.getExecutedEvents();
+      if (executed.some(e => (e.id === cycleId || e.metadata?.cycleId === cycleId) && e.status === 'Completed')) {
+        this.completedCycleIds.add(cycleId);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  public recordCompletedCycle(cycleId: string): void {
+    this.completedCycleIds.add(cycleId);
+  }
+
+  public getCompletedCycleIds(): string[] {
+    return Array.from(this.completedCycleIds);
+  }
+
+  public clearCompletedCycles(): void {
+    this.completedCycleIds.clear();
+  }
+
   public initialize(): void {
     if (this.isInitialized) return;
     this.isInitialized = true;
@@ -85,12 +111,18 @@ export class ProductionEngine {
   }
 
   private scheduleProductionCycle(): void {
+    const existingUpcoming = this.eventScheduler.getUpcomingEvents().find(
+      e => e.handlerName === 'ProductionEngine.runProductionCycle' && !e.cancelFlag && e.status !== 'Cancelled'
+    );
+    if (existingUpcoming) {
+      return;
+    }
+
     const time = this.timeEngine.getCurrentTime();
+    const cycleId = `prod-cycle-${time.year}-${time.month}-${time.day}`;
     
-    // We want this to run every simulation day (or could be Hour, but daily is good for bulk production)
-    // Actually, maybe let's do it daily to match "growingPeriod: days"
     const event: SimulationEvent = {
-      id: randomUUID(),
+      id: cycleId,
       name: 'Daily Production Cycle',
       description: 'Calculates production for all producers and updates inventories.',
       scheduledTime: { ...time }, 
@@ -102,13 +134,27 @@ export class ProductionEngine {
       sourceModule: 'ProductionEngine',
       targetModule: 'ProductionEngine',
       recurrence: { interval: 'Day' }, // Daily recurring
-      handlerName: 'ProductionEngine.runProductionCycle'
+      handlerName: 'ProductionEngine.runProductionCycle',
+      metadata: { cycleId }
     };
 
     this.eventScheduler.scheduleEvent(event);
   }
 
-  private runProductionCycle(): void {
+  public runProductionCycle(cycleOrEvent?: SimulationEvent | string): void {
+    let cycleId: string;
+    if (typeof cycleOrEvent === 'string') {
+      cycleId = cycleOrEvent;
+    } else if (cycleOrEvent && typeof cycleOrEvent === 'object') {
+      cycleId = (cycleOrEvent.metadata?.cycleId as string) || cycleOrEvent.id;
+    } else {
+      cycleId = `adhoc-${randomUUID()}`;
+    }
+
+    if (this.isCycleCompleted(cycleId)) {
+      return;
+    }
+
     const workplaces = this.worldEngine.workplaceRepository.findAll();
 
     for (const workplace of workplaces) {
@@ -116,6 +162,8 @@ export class ProductionEngine {
         this.processProductionForWorkplace(workplace);
       }
     }
+
+    this.completedCycleIds.add(cycleId);
   }
 
   private isProducer(workplace: Workplace): boolean {
@@ -203,13 +251,28 @@ export class ProductionEngine {
 
       // Check water availability ratio
       let waterAvailabilityRatio = 1.0;
-      const waterReq = definition.resourceRequirements?.find(r => r.resourceId === 'WATER');
+      const waterReq = cropDef.resourceRequirements?.find(r => r.resourceId === 'WATER' || (r.resourceId as any) === ResourceType.WATER)
+        || definition.resourceRequirements?.find(r => r.resourceId === 'WATER' || (r.resourceId as any) === ResourceType.WATER);
+
       if (waterReq && waterReq.amountPerOutputUnit > 0 && this.resourceEngine?.resourceManager) {
-        const waterResources = this.resourceEngine.resourceManager.getResourcesByRegion(workplace.regionId).filter(r => r.type === 'WATER');
-        const totalWater = waterResources.reduce((sum, r) => sum + r.currentAmount, 0);
-        const neededWater = (baseCapacity * workerEfficiency) * waterReq.amountPerOutputUnit;
-        if (neededWater > 0 && totalWater < neededWater) {
-          waterAvailabilityRatio = Math.max(0, totalWater / neededWater);
+        const waterResources = this.resourceEngine.resourceManager.getResourcesByRegion(workplace.regionId)
+          .filter(r => r.type === 'WATER' || (r.type as any) === ResourceType.WATER);
+        if (waterResources.length > 0) {
+          const totalWaterLitres = waterResources.reduce((sum, r) => {
+            const isCubicMeters = r.unit === 'm³' || r.unit === 'm3' || r.unit === 'cubic_meter' || r.unit === 'cubic_meters';
+            const amountInLitres = isCubicMeters ? r.currentAmount * 1000 : r.currentAmount;
+            return sum + Math.max(0, amountInLitres);
+          }, 0);
+          const plannedHarvestKg = baseCapacity * workerEfficiency;
+          const neededWaterLitres = plannedHarvestKg * waterReq.amountPerOutputUnit;
+          if (neededWaterLitres > 0) {
+            waterAvailabilityRatio = Math.max(0, Math.min(1.0, totalWaterLitres / neededWaterLitres));
+          } else {
+            waterAvailabilityRatio = 1.0;
+          }
+        } else {
+          // Documented neutral fallback when local water data is unavailable
+          waterAvailabilityRatio = 1.0;
         }
       }
 
@@ -225,9 +288,16 @@ export class ProductionEngine {
       actualProduction = cropYieldBreakdown.finalYield;
     }
 
+    const effectiveDefinition: ProductionDefinition = isAgricultural && (!definition.resourceRequirements || definition.resourceRequirements.length === 0)
+      ? {
+          ...definition,
+          resourceRequirements: this.cropDefinitions.get(producedProductId)?.resourceRequirements
+        }
+      : definition;
+
     // 4. Resource Feasibility & Input Constraints
     const maxFeasibleProduction = this.resourceEngine.resourceConsumptionEngine.calculateMaximumProduction(
-      definition,
+      effectiveDefinition,
       actualProduction,
       workplace.id,
       workplace.regionId
@@ -245,7 +315,7 @@ export class ProductionEngine {
     if (actualProduction > 0) {
       // Allocate resources
       const allocation = this.resourceEngine.resourceConsumptionEngine.allocateResources(
-        definition,
+        effectiveDefinition,
         actualProduction,
         workplace.id,
         workplace.regionId
@@ -271,24 +341,29 @@ export class ProductionEngine {
         );
 
         if (success) {
-          // Consume resources
-          this.resourceEngine.resourceConsumptionEngine.consumeResources(allocation.allocationId);
+          // Consume resources exactly once
+          const consumed = this.resourceEngine.resourceConsumptionEngine.consumeResources(allocation.allocationId);
 
-          // Emit Event
-          this.eventScheduler.emitter.emit('ProductionCompleted', {
-            producerId: workplace.id,
-            productId: producedProductId,
-            quantity: actualProduction,
-            unit: commodity.unit,
-            regionId: workplace.regionId,
-            timestamp: this.timeEngine.getCurrentTime(),
-            yieldMultiplier: cropYieldBreakdown?.overallEnvironmentalMultiplier ?? 1.0,
-            cropStatus: cropYieldBreakdown?.status,
-            resourcesConsumed: allocation.consumedResources.reduce((acc: any, curr) => {
-               acc[curr.resourceType] = curr.amount;
-               return acc;
-            }, {})
-          });
+          if (consumed) {
+            // Emit Event
+            this.eventScheduler.emitter.emit('ProductionCompleted', {
+              producerId: workplace.id,
+              productId: producedProductId,
+              quantity: actualProduction,
+              unit: commodity.unit,
+              regionId: workplace.regionId,
+              timestamp: this.timeEngine.getCurrentTime(),
+              yieldMultiplier: cropYieldBreakdown?.overallEnvironmentalMultiplier ?? 1.0,
+              cropStatus: cropYieldBreakdown?.status,
+              resourcesConsumed: allocation.consumedResources.reduce((acc: any, curr) => {
+                 acc[curr.resourceType] = curr.amount;
+                 return acc;
+              }, {})
+            });
+          } else {
+            // Roll back inventory if consumption failed
+            this.inventoryManager.removeItemQuantity(workplace.inventoryId, producedProductId, actualProduction);
+          }
         } else {
           // Revert allocation if inventory failed
           this.resourceEngine.resourceConsumptionEngine.releaseReservation(allocation.allocationId);

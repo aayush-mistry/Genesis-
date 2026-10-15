@@ -351,6 +351,32 @@ export class PersistenceService {
             console.error(`[PersistenceService] Error hydrating event ${event.id}:`, err);
           }
         }
+
+        // 5.1 Hydrate Completed Production Cycles for Idempotency
+        try {
+          const { supplyService } = await import('./supply.service');
+          const completedEvents = await prisma.simulationEvent.findMany({
+            where: {
+              handlerName: 'ProductionEngine.runProductionCycle',
+              status: 'Completed'
+            },
+            select: { id: true, metadataJson: true }
+          });
+          for (const ev of completedEvents) {
+            supplyService.productionEngine.recordCompletedCycle(ev.id);
+            if (ev.metadataJson) {
+              try {
+                const meta = JSON.parse(ev.metadataJson);
+                if (meta.cycleId) {
+                  supplyService.productionEngine.recordCompletedCycle(meta.cycleId);
+                }
+              } catch (_) {}
+            }
+          }
+          console.log(`[PersistenceService] Hydrated ${completedEvents.length} completed production cycles.`);
+        } catch (err) {
+          console.error('[PersistenceService] Error hydrating completed production cycles:', err);
+        }
         
         // 6. Hydrate Consumption Ledger from persistence
         try {

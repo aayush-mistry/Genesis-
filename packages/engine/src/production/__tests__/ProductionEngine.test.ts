@@ -280,5 +280,268 @@ describe('ProductionEngine', () => {
     expect(report?.weatherFactor).toBe(0.5);
     expect(report?.status).toBe('REDUCED_YIELD');
   });
+
+  test('should accurately convert m³ water units to Litres and limit crop yield accordingly', async () => {
+    const farm: Workplace = {
+      id: 'farm-m3',
+      type: WorkplaceType.FARM,
+      locationId: 'loc-1',
+      regionId: 'reg-m3',
+      capacity: 10,
+      occupiedPositions: 10,
+      vacancies: 0,
+      positions: Array.from({ length: 10 }).map(() => ({ occupantId: 'c1' })) as any[],
+      inventoryId: 'inv-farm-m3'
+    };
+    worldEngine.workplaceRepository.create(farm);
+    inventoryManager.createInventory('inv-farm-m3', 'farm-m3', 5000);
+
+    // Provide 10 m³ of water = 10,000 Litres
+    // Base capacity = 1000 kg. Wheat requires 20 L/kg. Needed = 20,000 L.
+    // Available 10,000 L supports 500 kg max.
+    const waterRes = resourceEngine.resourceManager.addResource({
+      type: 'WATER' as any,
+      name: 'Reservoir',
+      category: 'RENEWABLE' as any,
+      unit: 'm³',
+      renewable: true,
+      regionId: 'reg-m3',
+      currentAmount: 10,
+      maximumAmount: 100,
+      naturalRecoveryRate: 0,
+      consumptionRate: 0,
+      condition: null,
+      extractionDifficulty: 0,
+      coordinates: { x: 0, y: 0 },
+      radius: 100
+    });
+
+    productionEngine.runProductionCycle('m3-water-cycle');
+
+    const inv = inventoryManager.getInventory('inv-farm-m3')!;
+    expect(inv.items['wheat'].totalQuantity).toBe(500);
+
+    // Water consumed = 500 kg * 20 L/kg = 10,000 L = 10 m³
+    const updatedWater = resourceEngine.resourceManager.getResourceById('reg-m3', waterRes.id)!;
+    expect(updatedWater.currentAmount).toBe(0);
+  });
+
+  test('should produce zero yield when authoritative water is depleted (0 L)', async () => {
+    const farm: Workplace = {
+      id: 'farm-dry',
+      type: WorkplaceType.FARM,
+      locationId: 'loc-1',
+      regionId: 'reg-dry',
+      capacity: 10,
+      occupiedPositions: 10,
+      vacancies: 0,
+      positions: Array.from({ length: 10 }).map(() => ({ occupantId: 'c1' })) as any[],
+      inventoryId: 'inv-farm-dry'
+    };
+    worldEngine.workplaceRepository.create(farm);
+    inventoryManager.createInventory('inv-farm-dry', 'farm-dry', 5000);
+
+    resourceEngine.resourceManager.addResource({
+      type: 'WATER' as any,
+      name: 'Dry Well',
+      category: 'RENEWABLE' as any,
+      unit: 'L',
+      renewable: true,
+      regionId: 'reg-dry',
+      currentAmount: 0,
+      maximumAmount: 1000,
+      naturalRecoveryRate: 0,
+      consumptionRate: 0,
+      condition: null,
+      extractionDifficulty: 0,
+      coordinates: { x: 0, y: 0 },
+      radius: 100
+    });
+
+    productionEngine.runProductionCycle('dry-cycle');
+
+    const inv = inventoryManager.getInventory('inv-farm-dry')!;
+    expect(inv.items['wheat']).toBeUndefined();
+
+    const report = productionEngine.getCropYieldReport('farm-dry');
+    expect(report?.waterAvailabilityFactor).toBe(0.0);
+    expect(report?.finalYield).toBe(0);
+    expect(report?.status).toBe('RESOURCE_CONSTRAINED');
+  });
+
+  test('should guarantee exactly-once deduction and prevent duplicate inventory on cycle retry', async () => {
+    const farm: Workplace = {
+      id: 'farm-idempotent',
+      type: WorkplaceType.FARM,
+      locationId: 'loc-1',
+      regionId: 'reg-idempotent',
+      capacity: 10,
+      occupiedPositions: 10,
+      vacancies: 0,
+      positions: Array.from({ length: 10 }).map(() => ({ occupantId: 'c1' })) as any[],
+      inventoryId: 'inv-farm-idempotent'
+    };
+    worldEngine.workplaceRepository.create(farm);
+    inventoryManager.createInventory('inv-farm-idempotent', 'farm-idempotent', 5000);
+
+    const waterRes = resourceEngine.resourceManager.addResource({
+      type: 'WATER' as any,
+      name: 'Idempotency Lake',
+      category: 'RENEWABLE' as any,
+      unit: 'L',
+      renewable: true,
+      regionId: 'reg-idempotent',
+      currentAmount: 50000,
+      maximumAmount: 100000,
+      naturalRecoveryRate: 0,
+      consumptionRate: 0,
+      condition: null,
+      extractionDifficulty: 0,
+      coordinates: { x: 0, y: 0 },
+      radius: 100
+    });
+
+    const completionEvents: any[] = [];
+    eventScheduler.emitter.on('ProductionCompleted', (e) => completionEvents.push(e));
+
+    const cycleId = 'cycle-idempotency-100';
+
+    // First execution
+    productionEngine.runProductionCycle(cycleId);
+
+    const inv = inventoryManager.getInventory('inv-farm-idempotent')!;
+    expect(inv.items['wheat'].totalQuantity).toBe(1000); // 1000 kg produced
+    expect(resourceEngine.resourceManager.getResourceById('reg-idempotent', waterRes.id)!.currentAmount).toBe(30000); // 50000 - 20000 L consumed
+    expect(completionEvents.filter(e => e.producerId === 'farm-idempotent')).toHaveLength(1);
+
+    // Retrying the EXACT same completed cycle
+    productionEngine.runProductionCycle(cycleId);
+
+    // Inventory must NOT duplicate
+    expect(inv.items['wheat'].totalQuantity).toBe(1000);
+    // Water must NOT be deducted again
+    expect(resourceEngine.resourceManager.getResourceById('reg-idempotent', waterRes.id)!.currentAmount).toBe(30000);
+    // Events must NOT be duplicated
+    expect(completionEvents.filter(e => e.producerId === 'farm-idempotent')).toHaveLength(1);
+  });
+
+  test('should allow legitimate subsequent production cycles to execute normally', async () => {
+    const farm: Workplace = {
+      id: 'farm-subsequent',
+      type: WorkplaceType.FARM,
+      locationId: 'loc-1',
+      regionId: 'reg-subsequent',
+      capacity: 10,
+      occupiedPositions: 10,
+      vacancies: 0,
+      positions: Array.from({ length: 10 }).map(() => ({ occupantId: 'c1' })) as any[],
+      inventoryId: 'inv-farm-subsequent'
+    };
+    worldEngine.workplaceRepository.create(farm);
+    inventoryManager.createInventory('inv-farm-subsequent', 'farm-subsequent', 10000);
+
+    const waterRes = resourceEngine.resourceManager.addResource({
+      type: 'WATER' as any,
+      name: 'Stream',
+      category: 'RENEWABLE' as any,
+      unit: 'L',
+      renewable: true,
+      regionId: 'reg-subsequent',
+      currentAmount: 50000,
+      maximumAmount: 100000,
+      naturalRecoveryRate: 0,
+      consumptionRate: 0,
+      condition: null,
+      extractionDifficulty: 0,
+      coordinates: { x: 0, y: 0 },
+      radius: 100
+    });
+
+    // Cycle 1
+    productionEngine.runProductionCycle('cycle-day-1');
+    const inv = inventoryManager.getInventory('inv-farm-subsequent')!;
+    expect(inv.items['wheat'].totalQuantity).toBe(1000);
+    expect(resourceEngine.resourceManager.getResourceById('reg-subsequent', waterRes.id)!.currentAmount).toBe(30000);
+
+    // Cycle 2 (legitimate next day)
+    productionEngine.runProductionCycle('cycle-day-2');
+    expect(inv.items['wheat'].totalQuantity).toBe(2000);
+    expect(resourceEngine.resourceManager.getResourceById('reg-subsequent', waterRes.id)!.currentAmount).toBe(10000);
+  });
+
+  test('should recognize hydrated completed cycles after cold restart', async () => {
+    const farm: Workplace = {
+      id: 'farm-cold-restart',
+      type: WorkplaceType.FARM,
+      locationId: 'loc-1',
+      regionId: 'reg-cold',
+      capacity: 10,
+      occupiedPositions: 10,
+      vacancies: 0,
+      positions: Array.from({ length: 10 }).map(() => ({ occupantId: 'c1' })) as any[],
+      inventoryId: 'inv-farm-cold'
+    };
+    worldEngine.workplaceRepository.create(farm);
+    inventoryManager.createInventory('inv-farm-cold', 'farm-cold-restart', 5000);
+
+    // Pre-populate inventory from persistent database (already has 1000 kg from previous run)
+    inventoryManager.addItemQuantity('inv-farm-cold', 'wheat', 1000, 'kg', 1000);
+
+    // Hydrate completed cycle ID
+    productionEngine.recordCompletedCycle('pre-restart-cycle-day-1');
+
+    // Attempt to replay the completed cycle
+    productionEngine.runProductionCycle('pre-restart-cycle-day-1');
+
+    const inv = inventoryManager.getInventory('inv-farm-cold')!;
+    // Harvest must NOT be duplicated
+    expect(inv.items['wheat'].totalQuantity).toBe(1000);
+  });
+
+  test('should ensure failed cycle leaves inputs unconsumed and no falsely recorded harvest', async () => {
+    const farm: Workplace = {
+      id: 'farm-fail-rollback',
+      type: WorkplaceType.FARM,
+      locationId: 'loc-1',
+      regionId: 'reg-fail-rollback',
+      capacity: 10,
+      occupiedPositions: 10,
+      vacancies: 0,
+      positions: Array.from({ length: 10 }).map(() => ({ occupantId: 'c1' })) as any[],
+      inventoryId: 'inv-fail-rollback'
+    };
+    worldEngine.workplaceRepository.create(farm);
+    // Insufficient storage capacity (5 kg max, while harvest is 1000 kg)
+    inventoryManager.createInventory('inv-fail-rollback', 'farm-fail-rollback', 5);
+
+    const waterRes = resourceEngine.resourceManager.addResource({
+      type: 'WATER' as any,
+      name: 'Rollback Stream',
+      category: 'RENEWABLE' as any,
+      unit: 'L',
+      renewable: true,
+      regionId: 'reg-fail-rollback',
+      currentAmount: 20000,
+      maximumAmount: 20000,
+      naturalRecoveryRate: 0,
+      consumptionRate: 0,
+      condition: null,
+      extractionDifficulty: 0,
+      coordinates: { x: 0, y: 0 },
+      radius: 100
+    });
+
+    const completionEvents: any[] = [];
+    eventScheduler.emitter.on('ProductionCompleted', (e) => completionEvents.push(e));
+
+    productionEngine.runProductionCycle('fail-cycle-1');
+
+    const inv = inventoryManager.getInventory('inv-fail-rollback')!;
+    expect(inv.items['wheat']).toBeUndefined();
+    // Water must NOT be deducted
+    expect(waterRes.currentAmount).toBe(20000);
+    // No completion event
+    expect(completionEvents.filter(e => e.producerId === 'farm-fail-rollback')).toHaveLength(0);
+  });
 });
 

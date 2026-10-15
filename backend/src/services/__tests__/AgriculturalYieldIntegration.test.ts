@@ -474,4 +474,176 @@ describe('T8.3 — Seasonal Agricultural Yield & Supply Integration Tests', () =
     const reports = supplyService.productionEngine.getAllCropYieldReports();
     expect(Array.isArray(reports)).toBe(true);
   });
+
+  test('12. Water Unit Conversion: Regional m³ water is converted to Litres and accurately bounds yield', async () => {
+    const farm: Workplace = {
+      id: 'farm-m3-integration',
+      name: 'Canal Farm',
+      type: WorkplaceType.FARM,
+      locationId: 'loc-1',
+      regionId: 'reg-m3-integ',
+      capacity: 10,
+      occupiedPositions: 10,
+      vacancies: 0,
+      positions: Array.from({ length: 10 }).map((_, i) => ({ id: `p-${i}`, occupantId: `c-${i}` })) as any[],
+      inventoryId: 'inv-m3-integ'
+    };
+    worldService.engine.workplaceRepository.create(farm);
+    supplyService.inventoryManager.createInventory('inv-m3-integ', 'farm-m3-integration', 10000);
+
+    // 10 m³ = 10,000 Litres of Water.
+    // Base capacity 1000 kg. Wheat requires 20 L/kg -> 20,000 L needed for full yield.
+    // 10,000 L available bounds yield to 500 kg.
+    const water = resourceService.engine.resourceManager.addResource({
+      type: ResourceType.WATER,
+      name: 'Highland Reservoir',
+      category: ResourceCategory.RENEWABLE,
+      unit: 'm³',
+      renewable: true,
+      regionId: 'reg-m3-integ',
+      currentAmount: 10,
+      maximumAmount: 50,
+      naturalRecoveryRate: 0,
+      consumptionRate: 0,
+      condition: null,
+      extractionDifficulty: 0,
+      coordinates: { x: 0, y: 0 },
+      radius: 100
+    });
+
+    jest.spyOn(environmentService.engine.seasonManager, 'getCurrentSeason').mockReturnValue('Spring');
+    jest.spyOn(environmentService.engine, 'getEnvironmentalState').mockReturnValue({
+      regionId: 'reg-m3-integ',
+      temperature: 20
+    } as any);
+
+    supplyService.productionEngine.runProductionCycle('m3-integ-cycle-1');
+
+    const inv = supplyService.inventoryManager.getInventory('inv-m3-integ')!;
+    const producedWheat = inv.items['wheat']?.totalQuantity || 0;
+    expect(producedWheat).toBe(500);
+
+    // Water must be deducted in m³: 500 kg * 20 L/kg = 10,000 L = 10 m³ consumed
+    const updatedWater = resourceService.engine.resourceManager.getResourceById('reg-m3-integ', water.id)!;
+    expect(updatedWater.currentAmount).toBe(0);
+  });
+
+  test('13. Production-Cycle Idempotency: Retrying completed cycle produces output exactly once', async () => {
+    const farm: Workplace = {
+      id: 'farm-idempotent-integ',
+      name: 'Single Output Farm',
+      type: WorkplaceType.FARM,
+      locationId: 'loc-1',
+      regionId: 'reg-idem-integ',
+      capacity: 10,
+      occupiedPositions: 10,
+      vacancies: 0,
+      positions: Array.from({ length: 10 }).map((_, i) => ({ id: `p-${i}`, occupantId: `c-${i}` })) as any[],
+      inventoryId: 'inv-idem-integ'
+    };
+    worldService.engine.workplaceRepository.create(farm);
+    supplyService.inventoryManager.createInventory('inv-idem-integ', 'farm-idempotent-integ', 10000);
+
+    const water = resourceService.engine.resourceManager.addResource({
+      type: ResourceType.WATER,
+      name: 'Abundant River',
+      category: ResourceCategory.RENEWABLE,
+      unit: 'L',
+      renewable: true,
+      regionId: 'reg-idem-integ',
+      currentAmount: 100000,
+      maximumAmount: 100000,
+      naturalRecoveryRate: 0,
+      consumptionRate: 0,
+      condition: null,
+      extractionDifficulty: 0,
+      coordinates: { x: 0, y: 0 },
+      radius: 100
+    });
+
+    jest.spyOn(environmentService.engine.seasonManager, 'getCurrentSeason').mockReturnValue('Spring');
+    jest.spyOn(environmentService.engine, 'getEnvironmentalState').mockReturnValue({
+      regionId: 'reg-idem-integ',
+      temperature: 20
+    } as any);
+
+    const cycleId = 'production-cycle-day-42';
+
+    // First execution
+    supplyService.productionEngine.runProductionCycle(cycleId);
+
+    const inv = supplyService.inventoryManager.getInventory('inv-idem-integ')!;
+    expect(inv.items['wheat']?.totalQuantity).toBe(1000);
+    const waterAfterFirst = resourceService.engine.resourceManager.getResourceById('reg-idem-integ', water.id)!;
+    expect(waterAfterFirst.currentAmount).toBe(80000); // 100000 - 20000 L
+
+    // Retrying the exact same cycle
+    supplyService.productionEngine.runProductionCycle(cycleId);
+
+    // Harvest must NOT duplicate
+    expect(inv.items['wheat']?.totalQuantity).toBe(1000);
+    // Water must NOT be deducted again
+    const waterAfterRetry = resourceService.engine.resourceManager.getResourceById('reg-idem-integ', water.id)!;
+    expect(waterAfterRetry.currentAmount).toBe(80000);
+  });
+
+  test('14. Cold-Restart Hydration: Completed cycles prevent replay after system restart', async () => {
+    const cycleId = 'pre-restart-cycle-99';
+
+    // Persist a completed simulation event into the test database
+    await prisma.simulationEvent.upsert({
+      where: { id: cycleId },
+      create: {
+        id: cycleId,
+        name: 'Daily Production Cycle',
+        description: 'Completed production cycle before restart',
+        priority: 'Normal',
+        status: 'Completed',
+        scheduledTimeJson: JSON.stringify({ year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0 }),
+        createdTimeJson: JSON.stringify({ year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0 }),
+        handlerName: 'ProductionEngine.runProductionCycle',
+        sourceModule: 'ProductionEngine',
+        targetModule: 'ProductionEngine'
+      },
+      update: {
+        status: 'Completed'
+      }
+    });
+
+    const farm: Workplace = {
+      id: 'farm-restart-integ',
+      name: 'Hydrated Farm',
+      type: WorkplaceType.FARM,
+      locationId: 'loc-1',
+      regionId: 'reg-restart-integ',
+      capacity: 10,
+      occupiedPositions: 10,
+      vacancies: 0,
+      positions: Array.from({ length: 10 }).map((_, i) => ({ id: `p-${i}`, occupantId: `c-${i}` })) as any[],
+      inventoryId: 'inv-restart-integ'
+    };
+    worldService.engine.workplaceRepository.create(farm);
+    supplyService.inventoryManager.createInventory('inv-restart-integ', 'farm-restart-integ', 10000);
+    // Previously produced 1000 kg stored in inventory
+    supplyService.inventoryManager.addItemQuantity('inv-restart-integ', 'wheat', 1000, 'kg', 1000);
+
+    // Simulate cold restart hydration of completed cycles
+    const completedEvents = await prisma.simulationEvent.findMany({
+      where: {
+        handlerName: 'ProductionEngine.runProductionCycle',
+        status: 'Completed'
+      },
+      select: { id: true }
+    });
+    for (const ev of completedEvents) {
+      supplyService.productionEngine.recordCompletedCycle(ev.id);
+    }
+
+    // Attempt to replay the completed cycle
+    supplyService.productionEngine.runProductionCycle(cycleId);
+
+    const inv = supplyService.inventoryManager.getInventory('inv-restart-integ')!;
+    // Output must not duplicate (remains 1000 kg, not 2000 kg)
+    expect(inv.items['wheat']?.totalQuantity).toBe(1000);
+  });
 });

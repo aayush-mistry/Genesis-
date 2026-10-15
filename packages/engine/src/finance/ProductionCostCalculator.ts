@@ -48,9 +48,12 @@ export class ProductionCostCalculator {
   }
 
     let inputCost = 0;
-    for (const [resId, qty] of Object.entries(resourcesConsumed)) {
-       const unitPrice = ResourceValuation[resId] || ResourceValuation['DEFAULT'] || 5;
-       inputCost += qty * unitPrice;
+    if (resourcesConsumed && typeof resourcesConsumed === 'object') {
+      for (const [resId, qty] of Object.entries(resourcesConsumed)) {
+        const unitPrice = ResourceValuation[resId] || ResourceValuation['DEFAULT'] || 5;
+        const validQty = Number.isFinite(qty) ? Math.max(0, qty) : 0;
+        inputCost += validQty * unitPrice;
+      }
     }
 
     const operatingCost = 0; // Placeholder for future
