@@ -19,6 +19,15 @@ class ResourceService {
   public initialize(): void {
     this.engine.initialize();
   }
+
+  public reset(): void {
+    this.engine = new ResourceEngine(
+      worldService.engine,
+      environmentService.engine,
+      eventService.scheduler,
+      timeService.engine
+    );
+  }
 }
 
 export const resourceService = new ResourceService();

@@ -13,6 +13,16 @@ export class ResourceRepository {
       data: { currentAmount }
     });
   }
+
+  async updateResourceState(id: string, currentAmount: number, conditionValue?: number | null) {
+    return prisma.resource.update({
+      where: { id },
+      data: {
+        currentAmount,
+        ...(conditionValue !== undefined ? { conditionValue } : {})
+      }
+    });
+  }
   
   async createResource(data: any) {
     return prisma.resource.create({ data });

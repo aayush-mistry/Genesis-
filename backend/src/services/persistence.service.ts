@@ -377,6 +377,32 @@ export class PersistenceService {
         } catch (err) {
           console.error('[PersistenceService] Error hydrating completed production cycles:', err);
         }
+
+        // 5.2 Hydrate Completed Resource Regeneration Intervals for Idempotency
+        try {
+          const { resourceService } = await import('./resource.service');
+          const completedRegenEvents = await prisma.simulationEvent.findMany({
+            where: {
+              handlerName: 'ResourceEngine.processRegeneration',
+              status: 'Completed'
+            },
+            select: { id: true, metadataJson: true }
+          });
+          for (const ev of completedRegenEvents) {
+            resourceService.engine.recordProcessedInterval(ev.id);
+            if (ev.metadataJson) {
+              try {
+                const meta = JSON.parse(ev.metadataJson);
+                if (meta.intervalId) {
+                  resourceService.engine.recordProcessedInterval(meta.intervalId);
+                }
+              } catch (_) {}
+            }
+          }
+          console.log(`[PersistenceService] Hydrated ${completedRegenEvents.length} completed resource regeneration intervals.`);
+        } catch (err) {
+          console.error('[PersistenceService] Error hydrating completed regeneration intervals:', err);
+        }
         
         // 6. Hydrate Consumption Ledger from persistence
         try {
@@ -559,6 +585,25 @@ export class PersistenceService {
         if (workplace.wallet) {
           await syncWallet(workplace.wallet);
         }
+      }
+
+      // Sync Regional Resources (consumption and regeneration)
+      try {
+        const { resourceService } = await import('./resource.service');
+        const allResources = resourceService.engine.resourceManager.getAllResources();
+        for (const res of allResources) {
+          try {
+            await resourceRepository.updateResourceState(
+              res.id,
+              res.currentAmount,
+              res.condition?.value
+            );
+          } catch (_) {
+            // Resource not yet persisted or table uninitialized in partial fixture
+          }
+        }
+      } catch (err) {
+        console.error('[PersistenceService] Error persisting resources in persistTickBoundary:', err);
       }
     }
 }

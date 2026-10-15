@@ -23,6 +23,8 @@ export class ResourceEngine {
   private timeEngine: TimeEngine;
   private isInitialized = false;
 
+  private completedIntervalIds: Set<string> = new Set();
+
   constructor(
     worldEngine: WorldEngine,
     environmentEngine: EnvironmentEngine,
@@ -39,9 +41,25 @@ export class ResourceEngine {
     this.resourceCalculator = new ResourceCalculator();
     this.resourceConsumptionEngine = new ResourceConsumptionEngine(this.resourceManager);
     
-    EventRegistry.register('ResourceEngine.processRegeneration', async () => {
-      this.processRegeneration(24);
+    EventRegistry.register('ResourceEngine.processRegeneration', async (event?: SimulationEvent | string) => {
+      this.processRegeneration(event);
     });
+  }
+
+  public recordProcessedInterval(intervalId: string): void {
+    this.completedIntervalIds.add(intervalId);
+  }
+
+  public isIntervalProcessed(intervalId: string): boolean {
+    return this.completedIntervalIds.has(intervalId);
+  }
+
+  public getProcessedIntervalIds(): string[] {
+    return Array.from(this.completedIntervalIds);
+  }
+
+  public clearProcessedIntervals(): void {
+    this.completedIntervalIds.clear();
   }
 
   public initialize(): void {
@@ -52,6 +70,7 @@ export class ResourceEngine {
 
   public clear(): void {
     this.resourceManager.clear();
+    this.completedIntervalIds.clear();
   }
 
   /**
@@ -66,12 +85,20 @@ export class ResourceEngine {
   }
 
   private scheduleRegenerationCheck(): void {
+    const existingUpcoming = this.eventScheduler.getUpcomingEvents().find(
+      e => e.handlerName === 'ResourceEngine.processRegeneration' && !e.cancelFlag && e.status !== 'Cancelled'
+    );
+    if (existingUpcoming) {
+      return;
+    }
+
     const time = this.timeEngine.getCurrentTime();
+    const intervalId = `regen-interval-${time.year}-${time.month}-${time.day}`;
     
     // We want this to run every simulation day (24 hours) for performance, 
     // but the calculator supports hourly if needed. Let's do Daily.
     const event: SimulationEvent = {
-      id: randomUUID(),
+      id: intervalId,
       name: 'Resource Regeneration Tick',
       description: 'Periodic check to update renewable resources based on environment.',
       scheduledTime: { ...time },
@@ -83,23 +110,46 @@ export class ResourceEngine {
       sourceModule: 'ResourceEngine',
       targetModule: 'ResourceEngine',
       recurrence: { interval: 'Day' }, // Daily regeneration
-      handlerName: 'ResourceEngine.processRegeneration'
+      handlerName: 'ResourceEngine.processRegeneration',
+      metadata: { intervalId, hoursElapsed: 24 }
     };
 
     this.eventScheduler.scheduleEvent(event);
   }
 
-  public processRegeneration(hoursElapsed: number): void {
+  public processRegeneration(eventOrHours?: SimulationEvent | string | number, hoursElapsedParam?: number): void {
+    let intervalId: string | undefined;
+    let hoursElapsed = 24;
+
+    if (typeof eventOrHours === 'object' && eventOrHours !== null) {
+      intervalId = (eventOrHours.metadata?.intervalId as string) || eventOrHours.id;
+      hoursElapsed = (eventOrHours.metadata?.hoursElapsed as number) || 24;
+    } else if (typeof eventOrHours === 'string') {
+      intervalId = eventOrHours;
+      hoursElapsed = hoursElapsedParam ?? 24;
+    } else if (typeof eventOrHours === 'number') {
+      hoursElapsed = eventOrHours;
+    }
+
+    // Idempotency check: prevent duplicate resource regeneration for the same interval
+    if (intervalId && this.isIntervalProcessed(intervalId)) {
+      return;
+    }
+
     const season = this.environmentEngine.seasonManager.getCurrentSeason();
     const dayPhase = this.environmentEngine.dayCycleManager.getCurrentPhase();
     
-    // Iterate regions and update resources
-    const regions = this.worldEngine.regionManager.getAllRegions();
-    regions.forEach(region => {
-      const envState = this.environmentEngine.getEnvironmentalState(region.id);
-      const weather = this.environmentEngine.weatherManager.getRegionWeather(region.id);
+    // Iterate regions with resources
+    const regionIds = Array.from(new Set([
+      ...this.worldEngine.regionManager.getAllRegions().map(r => r.id),
+      ...this.resourceManager.getRegionIds()
+    ]));
+
+    regionIds.forEach(regionId => {
+      const envState = this.environmentEngine.getEnvironmentalState(regionId);
+      const weather = this.environmentEngine.weatherManager.getRegionWeather(regionId);
       
-      const resources = this.resourceManager.getResourcesByRegion(region.id);
+      const resources = this.resourceManager.getResourcesByRegion(regionId);
       
       resources.forEach(resource => {
         const updates = this.resourceCalculator.calculateRegeneration(
@@ -112,10 +162,14 @@ export class ResourceEngine {
         );
         
         if (Object.keys(updates).length > 0) {
-          this.resourceManager.updateResource(region.id, resource.id, updates);
+          this.resourceManager.updateResource(regionId, resource.id, updates);
         }
       });
     });
+
+    if (intervalId) {
+      this.recordProcessedInterval(intervalId);
+    }
   }
 
   public getResourceQuantity(regionId: string, resourceType: string): number {

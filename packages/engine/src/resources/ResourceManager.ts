@@ -54,6 +54,10 @@ export class ResourceManager {
     this.resourcesByRegion.delete(regionId);
   }
 
+  public getRegionIds(): string[] {
+    return Array.from(this.resourcesByRegion.keys());
+  }
+
   public getAllResources(): Resource[] {
     return Array.from(this.resourcesByRegion.values()).flat();
   }
