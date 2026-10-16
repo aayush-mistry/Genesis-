@@ -24,6 +24,19 @@ export class ResourceManager {
     return resource;
   }
 
+  public loadResource(resource: Resource): void {
+    if (!this.resourcesByRegion.has(resource.regionId)) {
+      this.resourcesByRegion.set(resource.regionId, []);
+    }
+    const list = this.resourcesByRegion.get(resource.regionId)!;
+    const existingIndex = list.findIndex(r => r.id === resource.id);
+    if (existingIndex >= 0) {
+      list[existingIndex] = resource;
+    } else {
+      list.push(resource);
+    }
+  }
+
   public getResourcesByRegion(regionId: string): Resource[] {
     return this.resourcesByRegion.get(regionId) || [];
   }

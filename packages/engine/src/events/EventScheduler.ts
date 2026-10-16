@@ -331,9 +331,21 @@ export class EventScheduler {
       nextScheduledTime = this.calculateNextRecurrenceTime(currentTime, event.recurrence.interval);
     }
 
+    const nextId = `${event.id.split('-rec-')[0]}-rec-${event.recurrenceCount}`;
+    const nextMetadata = event.metadata ? { ...event.metadata } : undefined;
+    if (nextMetadata) {
+      if (nextMetadata.intervalId) {
+        nextMetadata.intervalId = nextId;
+      }
+      if (nextMetadata.cycleId) {
+        nextMetadata.cycleId = nextId;
+      }
+    }
+
     const nextEvent: SimulationEvent = {
       ...event,
-      id: `${event.id.split('-rec-')[0]}-rec-${event.recurrenceCount}`,
+      id: nextId,
+      metadata: nextMetadata,
       status: 'Scheduled',
       createdTime: TimeUtils.clone(currentTime),
       executionTime: undefined,

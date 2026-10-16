@@ -95,6 +95,7 @@ export class PersistenceService {
 
           // Hydrate Resources
           const { resourceService } = await import('./resource.service');
+          resourceService.engine.resourceManager.clear();
           const allRegions = Array.from((worldService.engine.regionManager as any).regions.values()) as any[];
           for (const region of allRegions) {
             const dbResources = await resourceRepository.getResourcesByRegion(region.id);
@@ -113,16 +114,19 @@ export class PersistenceService {
                 maximumAmount: r.maximumAmount,
                 naturalRecoveryRate: r.naturalRecoveryRate,
                 consumptionRate: r.consumptionRate,
-                condition: r.conditionType ? { type: r.conditionType, value: r.conditionValue } : null,
+                condition: (r.conditionType && r.conditionValue !== null && r.conditionValue !== undefined) 
+                  ? { type: r.conditionType, value: r.conditionValue } 
+                  : null,
                 extractionDifficulty: r.extractionDifficulty,
+                tradable: r.tradable,
+                borrowable: r.borrowable,
+                exportable: r.exportable,
+                reservedAmount: r.reservedAmount,
                 createdAt: r.createdAt,
                 updatedAt: r.updatedAt
               };
               
-              if (!(resourceService.engine.resourceManager as any).resourcesByRegion.has(r.regionId)) {
-                (resourceService.engine.resourceManager as any).resourcesByRegion.set(r.regionId, []);
-              }
-              (resourceService.engine.resourceManager as any).resourcesByRegion.get(r.regionId)!.push(resObj);
+              resourceService.engine.resourceManager.loadResource(resObj as any);
             }
           }
         }

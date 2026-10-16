@@ -24,6 +24,12 @@ export class ResourceRepository {
     });
   }
   
+  async getResourceById(id: string) {
+    return prisma.resource.findUnique({
+      where: { id }
+    });
+  }
+
   async createResource(data: any) {
     return prisma.resource.create({ data });
   }

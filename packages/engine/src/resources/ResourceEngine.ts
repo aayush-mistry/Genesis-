@@ -122,8 +122,15 @@ export class ResourceEngine {
     let hoursElapsed = 24;
 
     if (typeof eventOrHours === 'object' && eventOrHours !== null) {
-      intervalId = (eventOrHours.metadata?.intervalId as string) || eventOrHours.id;
+      if ((eventOrHours.recurrenceCount && eventOrHours.recurrenceCount > 0) || eventOrHours.id.includes('-rec-')) {
+        intervalId = eventOrHours.id;
+      } else {
+        intervalId = (eventOrHours.metadata?.intervalId as string) || eventOrHours.id;
+      }
       hoursElapsed = (eventOrHours.metadata?.hoursElapsed as number) || 24;
+      if (eventOrHours.id && this.isIntervalProcessed(eventOrHours.id)) {
+        return;
+      }
     } else if (typeof eventOrHours === 'string') {
       intervalId = eventOrHours;
       hoursElapsed = hoursElapsedParam ?? 24;
@@ -169,6 +176,9 @@ export class ResourceEngine {
 
     if (intervalId) {
       this.recordProcessedInterval(intervalId);
+    }
+    if (typeof eventOrHours === 'object' && eventOrHours?.id && eventOrHours.id !== intervalId) {
+      this.recordProcessedInterval(eventOrHours.id);
     }
   }
 

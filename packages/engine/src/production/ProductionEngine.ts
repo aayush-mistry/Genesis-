@@ -146,7 +146,11 @@ export class ProductionEngine {
     if (typeof cycleOrEvent === 'string') {
       cycleId = cycleOrEvent;
     } else if (cycleOrEvent && typeof cycleOrEvent === 'object') {
-      cycleId = (cycleOrEvent.metadata?.cycleId as string) || cycleOrEvent.id;
+      if ((cycleOrEvent.recurrenceCount && cycleOrEvent.recurrenceCount > 0) || cycleOrEvent.id.includes('-rec-')) {
+        cycleId = cycleOrEvent.id;
+      } else {
+        cycleId = (cycleOrEvent.metadata?.cycleId as string) || cycleOrEvent.id;
+      }
     } else {
       cycleId = `adhoc-${randomUUID()}`;
     }
