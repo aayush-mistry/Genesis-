@@ -30,10 +30,8 @@ class MarketService {
       priceFormationService.setProductionCostCalculator(financeService.engine.productionCostCalculator);
     });
 
-    // Also connect marketEngine to supplyService.businessProcurementEngine if not already wired
-    if (supplyService.businessProcurementEngine && !(supplyService.businessProcurementEngine as any).marketEngine) {
-      (supplyService.businessProcurementEngine as any).marketEngine = this.engine;
-    }
+    // Explicitly inject marketEngine into supplyService
+    supplyService.setMarketEngine(this.engine);
 
     console.log('[Market Engine] Initialized with PriceFormationService');
   }

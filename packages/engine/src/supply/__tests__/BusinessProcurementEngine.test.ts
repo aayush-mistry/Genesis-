@@ -7,6 +7,7 @@ import { TimeEngine } from '../../time/TimeEngine';
 import { SpatialQueryService } from '../../spatial/SpatialQueryService';
 import { GridSpatialIndex } from '../../spatial/GridSpatialIndex';
 import { WorkplaceType, OrderStatus } from '@genesis/shared';
+import { MarketEngine } from '../../market/MarketEngine';
 
 describe('BusinessProcurementEngine', () => {
   let worldEngine: WorldEngine;
@@ -382,5 +383,201 @@ describe('BusinessProcurementEngine', () => {
     const requirements = (engine as any).pendingRequirements;
     expect(requirements.length).toBe(0);
   });
+
+  test('MarketEngine explicit dependency injection and retrieval', () => {
+    const marketEngine = new MarketEngine(worldEngine, timeEngine, eventScheduler);
+    expect(engine.getMarketEngine()).toBeUndefined();
+
+    engine.setMarketEngine(marketEngine);
+    expect(engine.getMarketEngine()).toBe(marketEngine);
+
+    // Also constructor injection
+    const engineWithMarket = new BusinessProcurementEngine(
+      worldEngine,
+      inventoryManager,
+      supplyChainEngine,
+      spatialQueryService,
+      eventScheduler,
+      timeEngine,
+      marketEngine
+    );
+    expect(engineWithMarket.getMarketEngine()).toBe(marketEngine);
+  });
+
+  test('Valid B2B procurement routes through MarketEngine and creates ledger records exactly once', () => {
+    const marketEngine = new MarketEngine(worldEngine, timeEngine, eventScheduler);
+    engine.setMarketEngine(marketEngine);
+
+    const buyerId = 'shop-b2b-buyer';
+    const sellerId = 'wholesale-b2b-seller';
+
+    inventoryManager.createInventory(`inv-${buyerId}`, buyerId, 1000);
+    inventoryManager.createInventory(`inv-${sellerId}`, sellerId, 2000);
+    inventoryManager.addItemQuantity(`inv-${sellerId}`, 'wheat', 500, 'kg');
+
+    const buyerWallet = {
+      id: `wallet-${buyerId}`,
+      ownerId: buyerId,
+      balance: 10000,
+      currency: 'GEN',
+      totalIncome: 0,
+      totalExpenses: 0
+    };
+
+    const sellerWallet = {
+      id: `wallet-${sellerId}`,
+      ownerId: sellerId,
+      balance: 1000,
+      currency: 'GEN',
+      totalIncome: 0,
+      totalExpenses: 0
+    };
+
+    worldEngine.workplaceRepository.create({
+      id: buyerId,
+      type: WorkplaceType.SHOP,
+      regionId: 'reg-1',
+      locationId: 'loc-1',
+      capacity: 10,
+      occupiedPositions: 0,
+      vacancies: 10,
+      positions: [],
+      inventoryId: `inv-${buyerId}`,
+      storageCapacity: 1000,
+      wallet: buyerWallet,
+      inventoryConfiguration: {
+        'wheat': { reorderPoint: 50, targetStock: 200 }
+      }
+    });
+
+    worldEngine.workplaceRepository.create({
+      id: sellerId,
+      type: WorkplaceType.WHOLESALE,
+      regionId: 'reg-1',
+      locationId: 'loc-2',
+      capacity: 10,
+      occupiedPositions: 0,
+      vacancies: 10,
+      positions: [],
+      inventoryId: `inv-${sellerId}`,
+      storageCapacity: 2000,
+      wallet: sellerWallet
+    });
+
+    jest.spyOn(spatialQueryService, 'calculateRoute').mockReturnValue({ distance: 5 } as any);
+
+    // Spy on marketEngine.processTransaction
+    const processTransactionSpy = jest.spyOn(marketEngine, 'processTransaction');
+
+    engine.runProcurementCycle();
+
+    // Verify MarketEngine was called
+    expect(processTransactionSpy).toHaveBeenCalled();
+
+    // Verify ledger transactions
+    const buyerTxs = marketEngine.getTransactionsByEntity(buyerId);
+    expect(buyerTxs.length).toBeGreaterThanOrEqual(1);
+
+    const mainPurchaseTx = buyerTxs.find(t => t.sellerId === sellerId);
+    expect(mainPurchaseTx).toBeDefined();
+    expect(mainPurchaseTx!.productId).toBe('wheat');
+    expect(mainPurchaseTx!.quantity).toBe(200);
+    expect(mainPurchaseTx!.transactionType).toBe('RETAIL_PROCUREMENT');
+    expect(mainPurchaseTx!.totalPrice).toBeGreaterThan(0);
+
+    // Exactly one purchase transaction from seller to buyer recorded
+    const directPurchases = buyerTxs.filter(t => t.sellerId === sellerId && t.productId === 'wheat');
+    expect(directPurchases.length).toBe(1);
+
+    // Wallets correctly updated through MarketEngine
+    expect(buyerWallet.totalExpenses).toBeGreaterThan(0);
+    expect(sellerWallet.totalIncome).toBe(mainPurchaseTx!.totalPrice);
+    expect(sellerWallet.balance).toBe(1000 + mainPurchaseTx!.totalPrice);
+
+    // Order created in supply chain
+    const orders = supplyChainEngine.getOrdersForBusiness(buyerId);
+    expect(orders.length).toBe(1);
+    expect(orders[0].quantity).toBe(200);
+  });
+
+  test('Invalid B2B procurement with insufficient funds is rejected without creating ledger records', () => {
+    const marketEngine = new MarketEngine(worldEngine, timeEngine, eventScheduler);
+    engine.setMarketEngine(marketEngine);
+
+    const buyerId = 'shop-broke-buyer';
+    const sellerId = 'wholesale-wealthy-seller';
+
+    inventoryManager.createInventory(`inv-${buyerId}`, buyerId, 1000);
+    inventoryManager.createInventory(`inv-${sellerId}`, sellerId, 2000);
+    inventoryManager.addItemQuantity(`inv-${sellerId}`, 'wheat', 500, 'kg');
+
+    const buyerWallet = {
+      id: `wallet-${buyerId}`,
+      ownerId: buyerId,
+      balance: 1, // Only 1 GEN, cannot afford 200 kg wheat at ~8-10 GEN/kg
+      currency: 'GEN',
+      totalIncome: 0,
+      totalExpenses: 0
+    };
+
+    const sellerWallet = {
+      id: `wallet-${sellerId}`,
+      ownerId: sellerId,
+      balance: 1000,
+      currency: 'GEN',
+      totalIncome: 0,
+      totalExpenses: 0
+    };
+
+    worldEngine.workplaceRepository.create({
+      id: buyerId,
+      type: WorkplaceType.SHOP,
+      regionId: 'reg-1',
+      locationId: 'loc-1',
+      capacity: 10,
+      occupiedPositions: 0,
+      vacancies: 10,
+      positions: [],
+      inventoryId: `inv-${buyerId}`,
+      storageCapacity: 1000,
+      wallet: buyerWallet,
+      inventoryConfiguration: {
+        'wheat': { reorderPoint: 50, targetStock: 200 }
+      }
+    });
+
+    worldEngine.workplaceRepository.create({
+      id: sellerId,
+      type: WorkplaceType.WHOLESALE,
+      regionId: 'reg-1',
+      locationId: 'loc-2',
+      capacity: 10,
+      occupiedPositions: 0,
+      vacancies: 10,
+      positions: [],
+      inventoryId: `inv-${sellerId}`,
+      storageCapacity: 2000,
+      wallet: sellerWallet
+    });
+
+    jest.spyOn(spatialQueryService, 'calculateRoute').mockReturnValue({ distance: 5 } as any);
+
+    engine.runProcurementCycle();
+
+    // No transactions should be created
+    const buyerTxs = marketEngine.getTransactionsByEntity(buyerId);
+    expect(buyerTxs.length).toBe(0);
+
+    // Wallets should not be mutated
+    expect(buyerWallet.balance).toBe(1);
+    expect(buyerWallet.totalExpenses).toBe(0);
+    expect(sellerWallet.balance).toBe(1000);
+    expect(sellerWallet.totalIncome).toBe(0);
+
+    // No supply chain order created
+    const orders = supplyChainEngine.getOrdersForBusiness(buyerId);
+    expect(orders.length).toBe(0);
+  });
 });
+
 

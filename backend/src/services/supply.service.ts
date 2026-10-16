@@ -1,4 +1,4 @@
-import { InventoryManager, ProductionEngine, SupplyChainEngine, CommerceAutomation, BusinessProcurementEngine, EventRegistry, TimeUtils, WHEAT_CROP_DEFINITION } from '@genesis/engine';
+import { InventoryManager, ProductionEngine, SupplyChainEngine, CommerceAutomation, BusinessProcurementEngine, EventRegistry, TimeUtils, WHEAT_CROP_DEFINITION, MarketEngine } from '@genesis/engine';
 import { worldService } from './world.service';
 import { eventService } from './event.service';
 import { timeService } from './time.service';
@@ -13,6 +13,18 @@ class SupplyService {
   public supplyChainEngine: SupplyChainEngine;
   public commerceAutomation: CommerceAutomation;
   public businessProcurementEngine: BusinessProcurementEngine;
+  private marketEngine?: MarketEngine;
+
+  public setMarketEngine(engine: MarketEngine): void {
+    this.marketEngine = engine;
+    if (this.businessProcurementEngine) {
+      this.businessProcurementEngine.setMarketEngine(engine);
+    }
+  }
+
+  public getMarketEngine(): MarketEngine | undefined {
+    return this.marketEngine;
+  }
 
   constructor() {
     this.inventoryManager = new InventoryManager();
@@ -45,7 +57,8 @@ class SupplyService {
       this.supplyChainEngine,
       spatialService.engine.queryService,
       eventService.scheduler,
-      timeService.engine
+      timeService.engine,
+      this.marketEngine
     );
     
     EventRegistry.register('SupplyService.removeExpiredItems', async () => {
@@ -70,6 +83,16 @@ class SupplyService {
     import('./consumption.service').then(({ consumptionService }) => {
       this.businessProcurementEngine.setDemandForecaster(consumptionService.forecastingEngine);
     });
+
+    if (!this.marketEngine) {
+      import('./market.service').then(({ marketService }) => {
+        if (marketService?.engine) {
+          this.setMarketEngine(marketService.engine);
+        }
+      });
+    } else {
+      this.businessProcurementEngine.setMarketEngine(this.marketEngine);
+    }
 
     this.productionEngine.registerCropDefinition(WHEAT_CROP_DEFINITION);
 
@@ -180,7 +203,11 @@ class SupplyService {
     }
   }
 
-  public reset(): void {
+  public reset(marketEngine?: MarketEngine): void {
+    if (marketEngine) {
+      this.marketEngine = marketEngine;
+    }
+
     // Re-instantiate internal managers and engines
     if (!this.inventoryManager) {
       this.inventoryManager = new InventoryManager();
@@ -217,8 +244,12 @@ class SupplyService {
       this.supplyChainEngine,
       spatialService.engine.queryService,
       eventService.scheduler,
-      timeService.engine
+      timeService.engine,
+      this.marketEngine
     );
+    if (this.marketEngine) {
+      this.businessProcurementEngine.setMarketEngine(this.marketEngine);
+    }
     this.initialize();
   }
 }

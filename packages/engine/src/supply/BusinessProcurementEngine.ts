@@ -91,6 +91,14 @@ export class BusinessProcurementEngine {
     return this.demandForecastingEngine;
   }
 
+  public setMarketEngine(engine: MarketEngine): void {
+    this.marketEngine = engine;
+  }
+
+  public getMarketEngine(): MarketEngine | undefined {
+    return this.marketEngine;
+  }
+
   public initialize(): void {
     // Register Daily Procurement Event
     const time = this.timeEngine.getCurrentTime();
