@@ -35,6 +35,28 @@ export class WorkplaceRepository {
       }
     });
   }
+
+  async updateFinancials(
+    id: string,
+    revenue: number,
+    expenses: number,
+    profit: number,
+    occupiedPositions?: number,
+    vacancies?: number,
+    accountingHistoryJson?: string | null
+  ) {
+    return prisma.workplace.update({
+      where: { id },
+      data: {
+        revenue,
+        expenses,
+        profit,
+        ...(occupiedPositions !== undefined ? { occupiedPositions } : {}),
+        ...(vacancies !== undefined ? { vacancies } : {}),
+        ...(accountingHistoryJson !== undefined ? { accountingHistoryJson } : {})
+      }
+    });
+  }
 }
 
 export const workplaceRepository = new WorkplaceRepository();

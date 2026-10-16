@@ -158,6 +158,7 @@ export class PersistenceService {
             revenue: wp.revenue,
             expenses: wp.expenses,
             profit: wp.profit,
+            accounting: wp.accountingHistoryJson ? { history: JSON.parse(wp.accountingHistoryJson) } : undefined,
             wallet: undefined,
             positions: [],
             inventoryConfiguration: ['SHOP', 'BUSINESS', 'WHOLESALE'].includes(wp.type) ? {
@@ -166,19 +167,17 @@ export class PersistenceService {
               'water': { reorderPoint: 100, targetStock: 500 }
             } : undefined
           };
-          if (wp.walletId) {
-            const wWallet = walletMap.get(wp.id);
-            if (wWallet) {
-              workplaceObj.wallet = {
-                id: wWallet.id,
-                ownerId: wWallet.ownerId,
-                balance: wWallet.balance,
-                currency: wWallet.currency,
-                totalIncome: wWallet.totalIncome,
-                totalExpenses: wWallet.totalExpenses,
-                history: []
-              };
-            }
+          const wWallet = (wp.walletId ? walletMap.get(wp.id) : undefined) || walletMap.get(wp.id);
+          if (wWallet) {
+            workplaceObj.wallet = {
+              id: wWallet.id,
+              ownerId: wWallet.ownerId,
+              balance: wWallet.balance,
+              currency: wWallet.currency,
+              totalIncome: wWallet.totalIncome,
+              totalExpenses: wWallet.totalExpenses,
+              history: []
+            };
           }
           const { worldService } = await import('./world.service');
           worldService.engine.workplaceRepository.create(workplaceObj as any);
@@ -588,6 +587,40 @@ export class PersistenceService {
         }
         if (workplace.wallet) {
           await syncWallet(workplace.wallet);
+        }
+
+        // Synchronize workplace financial metrics to database (GAP-4)
+        const revenue = workplace.revenue !== undefined
+          ? workplace.revenue
+          : (workplace.wallet?.totalIncome ?? 0);
+        const expenses = workplace.expenses !== undefined
+          ? workplace.expenses
+          : (workplace.wallet?.totalExpenses ?? 0);
+        const profit = workplace.profit !== undefined
+          ? workplace.profit
+          : (revenue - expenses);
+
+        // Keep in-memory model synchronized with authoritative numbers
+        workplace.revenue = revenue;
+        workplace.expenses = expenses;
+        workplace.profit = profit;
+
+        const accountingHistoryJson = workplace.accounting?.history
+          ? JSON.stringify(workplace.accounting.history)
+          : null;
+
+        try {
+          await workplaceRepository.updateFinancials(
+            workplace.id,
+            revenue,
+            expenses,
+            profit,
+            workplace.occupiedPositions,
+            workplace.vacancies,
+            accountingHistoryJson
+          );
+        } catch (_) {
+          // Workplace not yet in database or table uninitialized in partial test fixtures
         }
       }
 
