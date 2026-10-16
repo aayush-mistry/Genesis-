@@ -113,6 +113,11 @@ npm run build:frontend
   - 8.1–8.6: Spatial Foundation, Canvas Rendering, Live Simulation Synchronization, and Civilization Overview.
   - T8.2: Consumption History & Supply Forecasting (`ConsumptionEngine` persistent ledger, historical demand velocity, and proactive business procurement replenishment).
   - T8.3: Seasonal Agricultural Yield Variation (`AgriculturalYieldCalculator`, deterministic season/weather/temperature curves, zero-yield dormancy, and end-to-end supply-to-market feedback).
+  - T8.4: Dynamic Regional Resource Regeneration (`ResourceEngine` periodic recovery curves, renewable capacity clamping, extraction difficulty, and seasonal replenishment).
+  - T8.5: Resource Persistence & Conservation (`ResourceRepository` persistence, tick-boundary state sync, and deterministic cold-restart pool restoration).
+  - T8.6: Resource-Aware Production & Economic Integration Audit (comprehensive end-to-end trace from agricultural yield calculators and water volumetric unit conversions to B2B procurement and financial ledgers).
+  - T8.6.1: B2B Transaction Integrity Restoration (explicit `MarketEngine` dependency injection into `SupplyService` and `BusinessProcurementEngine`, preserving market routing and authoritative ledger creation across `reset()` cycles).
+  - T8.6.2: Workplace Financial Persistence (`WorkplaceRepository.updateFinancials()`, authoritative tick-boundary synchronization of `revenue`, `expenses`, `profit`, and accounting history, with full cold-restart hydration).
 
 ## Genesis Roadmap
 
@@ -177,7 +182,12 @@ Phase 8 ✅ Visualization & Advanced Economic Dynamics
 ├── 8.5 Live Simulation Synchronization
 ├── 8.6 Civilization Overview & Metrics Exposure
 ├── T8.2 Consumption History & Supply Forecasting
-└── T8.3 Seasonal Agricultural Yield Variation
+├── T8.3 Seasonal Agricultural Yield Variation
+├── T8.4 Dynamic Resource Regeneration
+├── T8.5 Resource Persistence & Conservation
+├── T8.6 Economic Integration & Production Audit
+├── T8.6.1 B2B Transaction Integrity Restoration
+└── T8.6.2 Workplace Financial Persistence
 
 Phase 9 🔜 Social Framework & Relationships
 Phase 10 🔜 Optimization & Scale
@@ -210,6 +220,9 @@ Phase 10 🔜 Optimization & Scale
 | Supplier Quality | ✅ Implemented | Dynamic quality tracking and ranking |
 | Banking & Loans | ✅ Implemented | Core banking, credit scores, and EMI processing |
 | Civilization Intelligence | ✅ Implemented | Authoritative live demand, supply, employment, and market metrics |
+| Resource Regeneration & Conservation | ✅ Implemented | Natural regeneration, capacity clamping, extraction difficulty, and authoritative SQLite persistence |
+| B2B Transaction Pipeline | ✅ Implemented | Authoritative market routing, wholesale pricing, and transaction ledger persistence across resets |
+| Workplace Financial Persistence | ✅ Implemented | Authoritative snapshot sync of workplace revenue, expenses, and profit to SQLite |
 | Taxes | 🔴 Not implemented | Slated for future phase |
 | Spatial Renderer | ✅ Implemented | Canvas-based rendering of the world |
 | Live Simulation UI | ✅ Implemented | Real-time visualization of citizens and environment |
@@ -908,6 +921,27 @@ Connects environment directly to agricultural output:
 - **End-to-End Economic Continuity:** A harvest shortage naturally reduces workplace inventory, starving downstream wholesale replenishment, causing retail stock depletion, driving price formation higher, and prompting budget-conscious citizens to seek cheaper substitutes.
 - **Agricultural Status Telemetry:** Exposed via `GET /api/v1/production/agriculture/status` and visualized in the frontend Supply Dashboard with live seasonal yield factor breakdowns.
 
+### T8.4 & T8.5: Dynamic Resource Regeneration & Authoritative Persistence
+Governs the natural recovery, replenishment bounds, and persistence of regional natural resources:
+- **Natural Recovery Modeling:** `ResourceEngine.processRegeneration()` computes periodic resource replenishment based on regeneration rate, current environmental conditions, and resource extraction difficulty.
+- **Strict Conservation Bounds:** Resource pools are bounded: $0 \le \text{currentAmount} \le \text{maximumAmount}$. Non-renewable resources do not regenerate; renewable pools (e.g. aquifers, forests, fish) recover up to their strict environmental capacity without overflow.
+- **Authoritative SQLite Persistence:** `ResourceRepository` synchronizes live regional resource pools (`currentAmount` and condition values) at tick boundaries via `PersistenceService.persistTickBoundary()`.
+- **Cold-Restart Restoration:** Startup bootstrap hydrates persisted resource pools into `ResourceManager` without silent re-generation or reset drift.
+
+### T8.6.1: B2B Transaction Integrity Restoration
+Ensures wholesale and retail business procurement flows through the authoritative market engine:
+- **Explicit Dependency Injection:** Replaced fragile monkey-patched assignments with typed `setMarketEngine()` and `getMarketEngine()` methods on `BusinessProcurementEngine` and `SupplyService`.
+- **Reset Preservation:** `SupplyService.reset()` preserves the authoritative `MarketEngine` reference across world re-initializations and simulation resets.
+- **Authoritative Market Routing:** All B2B procurement purchases route through `MarketEngine.processTransaction()`, verifying wallet solvency, updating balances, logging formal `TransactionRecord` ledger entries, and persisting records to SQLite.
+- **Transaction Validation:** Orders with insufficient buyer wallet balances are rejected without deducting funds or generating phantom inventory.
+
+### T8.6.2: Workplace Financial Metric Synchronization
+Bridges in-memory business accounting to durable database storage:
+- **Authoritative Snapshot Synchronization:** `PersistenceService.persistTickBoundary()` flushes live workplace financial metrics (`revenue`, `expenses`, `profit`, `occupiedPositions`, `vacancies`, and serialized accounting history) to the Prisma `Workplace` model via `WorkplaceRepository.updateFinancials()`.
+- **Accounting Convention Integrity:** Profit is recorded strictly according to established accounting standards: $\text{Profit} = \text{Revenue} - \text{Expenses}$.
+- **Idempotent Tick Boundaries:** Repeated tick persistence executes snapshot updates rather than relative increments, preventing double-counting or balance inflation.
+- **Cold-Restart Hydration:** `PersistenceService.bootstrap()` hydrates saved workplace metrics and period accounting histories, restoring exact business financial standing across server restarts.
+
 ---
 
 ## End-to-End Economic Feedback Architecture
@@ -979,8 +1013,8 @@ While the closed economic feedback loop and authoritative intelligence are fully
 
 The repository maintains strict continuous integration standards to guarantee determinism and simulation health.
 
-- **Engine Test Suite (`@genesis/engine`):** 38 passing test suites with 223 verified tests (Time, Events, Decision, Spatial, Inventory, Banking, Production, Market Pricing, Economic Equilibrium, Agricultural Yield, and Population Simulation).
-- **Backend Test Suite (`@genesis/backend`):** 11 authoritative integration suites (50+ verified tests) executing against Prisma and SQLite, verifying demand intelligence, multi-stage supply aggregation, employment and payroll, market price dynamics, closed equilibrium loops, economic shortages/failures, long-run economic stability, population lifecycle, consumption history & forecasting, and seasonal agricultural yield variation.
+- **Engine Test Suite (`@genesis/engine`):** 40 passing test suites with 248 verified tests (Time, Events, Decision, Spatial, Inventory, Banking, Production, Market Pricing, Economic Equilibrium, Agricultural Yield, Resource Regeneration, B2B Procurement, and Population Simulation).
+- **Backend Test Suite (`@genesis/backend`):** 12 authoritative integration suites (50 verified tests) executing sequentially against Prisma and SQLite, verifying demand intelligence, multi-stage supply aggregation, employment and payroll, market price dynamics, closed equilibrium loops, economic shortages/failures, long-run economic stability, population lifecycle, consumption history & forecasting, seasonal agricultural yield variation, B2B transaction integrity, and workplace financial persistence.
 - **Process Restart Recovery:** Deterministic cold-restart test (`Process A` → `Process B`) confirming complete hydration of world state, workplace wallets, inventory configurations, consumption records, and simulation time without drift or memory leaks.
 - **Typecheck:** Clean 0-error `tsc` validation across `shared`, `packages/engine`, `backend`, and `frontend` workspaces.
 - **Production Build:** `npm run build` succeeds completely, compiling all TypeScript packages and bundling minified frontend production assets with Vite.
