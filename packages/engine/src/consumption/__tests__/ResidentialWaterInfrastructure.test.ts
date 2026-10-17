@@ -407,10 +407,89 @@ describe('Residential Water Infrastructure (T8.6.3)', () => {
       // Thirst remains 70
       expect(citizen.vitalState.thirst).toBe(70);
     });
+
+    it('should refund water and reverse financial transaction if satisfyThirst throws an error', () => {
+      const initialAquiferM3 = resourceManager.getResourceById(regionId, 'res-water-1')!.currentAmount;
+      const initialCitizenBalance = citizen.wallet!.balance;
+      const utilityWallet = marketEngine.getOrCreateUtilityWallet(regionId);
+      const initialUtilityBalance = utilityWallet.balance;
+
+      // Simulate unexpected error in satisfyThirst
+      jest.spyOn(needsService, 'satisfyThirst').mockImplementationOnce(() => {
+        throw new Error('Simulated satisfyThirst failure');
+      });
+
+      const success = consumptionEngine.consume(
+        citizen,
+        'THIRST',
+        100,
+        undefined,
+        'evt-err-thirst',
+        'RESIDENTIAL_WATER',
+        regionId
+      );
+      expect(success).toBe(false);
+
+      // 1. Water must be restored to aquifer
+      expect(resourceManager.getResourceById(regionId, 'res-water-1')!.currentAmount).toBe(initialAquiferM3);
+
+      // 2. Citizen wallet must be restored
+      expect(citizen.wallet!.balance).toBe(initialCitizenBalance);
+      expect(citizen.wallet!.totalExpenses).toBe(0);
+
+      // 3. Utility wallet must be restored
+      expect(utilityWallet.balance).toBe(initialUtilityBalance);
+      expect(utilityWallet.totalIncome).toBe(0);
+
+      // 4. Thirst must be unchanged
+      expect(citizen.vitalState.thirst).toBe(70);
+
+      // 5. No completed consumption record
+      expect(consumptionLedger.getRecords().filter(r => r.eventId === 'evt-err-thirst').length).toBe(0);
+
+      // 6. Traceable reversal transaction recorded
+      const reversalTx = marketEngine.getTransaction('tx-tap-evt-err-thirst-reversal');
+      expect(reversalTx).toBeDefined();
+      expect(reversalTx!.referenceId).toBe('tx-tap-evt-err-thirst');
+    });
+
+    it('should revert thirst, refund water, and reverse financial transaction if consumptionLedger rejects record', () => {
+      const initialAquiferM3 = resourceManager.getResourceById(regionId, 'res-water-1')!.currentAmount;
+      const initialCitizenBalance = citizen.wallet!.balance;
+      const utilityWallet = marketEngine.getOrCreateUtilityWallet(regionId);
+      const initialUtilityBalance = utilityWallet.balance;
+
+      // Simulate consumption ledger returning false
+      jest.spyOn(consumptionLedger, 'record').mockReturnValueOnce(false);
+
+      const success = consumptionEngine.consume(
+        citizen,
+        'THIRST',
+        100,
+        undefined,
+        'evt-err-ledger',
+        'RESIDENTIAL_WATER',
+        regionId
+      );
+      expect(success).toBe(false);
+
+      // Water refunded
+      expect(resourceManager.getResourceById(regionId, 'res-water-1')!.currentAmount).toBe(initialAquiferM3);
+
+      // Wallets restored
+      expect(citizen.wallet!.balance).toBe(initialCitizenBalance);
+      expect(utilityWallet.balance).toBe(initialUtilityBalance);
+
+      // Thirst reverted back to original
+      expect(citizen.vitalState.thirst).toBe(70);
+
+      // Reversal transaction recorded
+      expect(marketEngine.getTransaction('tx-tap-evt-err-ledger-reversal')).toBeDefined();
+    });
   });
 
   describe('8. Duplicate Retries and Idempotency', () => {
-    it('should not extract water or charge citizen twice on replayed eventId', () => {
+    it('should not extract water or charge citizen twice on replayed eventId in same session', () => {
       const eventId = 'action-drink-uuid-001';
 
       const initialCitizenBalance = citizen.wallet!.balance;
@@ -436,6 +515,154 @@ describe('Residential Water Infrastructure (T8.6.3)', () => {
       // Ledger should contain only 1 record
       const records = consumptionLedger.getRecords().filter(r => r.consumerId === citizen.id);
       expect(records.length).toBe(1);
+    });
+
+    it('should prevent duplicate debit/credit when MarketEngine.processTransaction is called with same transactionId', () => {
+      const utilityWallet = marketEngine.getOrCreateUtilityWallet(regionId);
+      const initialCitizenBal = citizen.wallet!.balance;
+      const initialUtilityBal = utilityWallet.balance;
+      const txId = 'tx-direct-dup-001';
+
+      // First transaction call
+      const tx1 = marketEngine.processTransaction(
+        citizen.id,
+        utilityWallet.ownerId,
+        'water',
+        2,
+        'L',
+        0.05,
+        0.10,
+        'GEN',
+        TransactionType.EXPENSE,
+        regionId,
+        txId
+      );
+      expect(tx1).toBeDefined();
+      expect(citizen.wallet!.balance).toBe(Number((initialCitizenBal - 0.10).toFixed(4)));
+      expect(utilityWallet.balance).toBe(Number((initialUtilityBal + 0.10).toFixed(4)));
+
+      // Duplicate transaction call with same transactionId
+      const tx2 = marketEngine.processTransaction(
+        citizen.id,
+        utilityWallet.ownerId,
+        'water',
+        2,
+        'L',
+        0.05,
+        0.10,
+        'GEN',
+        TransactionType.EXPENSE,
+        regionId,
+        txId
+      );
+      expect(tx2).toBeDefined();
+      expect(tx2!.transactionId).toBe(txId);
+
+      // Wallets must not be debited or credited a second time
+      expect(citizen.wallet!.balance).toBe(Number((initialCitizenBal - 0.10).toFixed(4)));
+      expect(utilityWallet.balance).toBe(Number((initialUtilityBal + 0.10).toFixed(4)));
+
+      // Transaction list must have exactly 1 record with this ID
+      const matching = marketEngine.getTransactionsByEntity(citizen.id).filter(t => t.transactionId === txId);
+      expect(matching.length).toBe(1);
+    });
+
+    it('should be idempotent on duplicate reverseTransaction calls', () => {
+      const utilityWallet = marketEngine.getOrCreateUtilityWallet(regionId);
+      const origTxId = 'tx-to-reverse-001';
+      const revTxId = 'tx-to-reverse-001-reversal';
+
+      const initialCitizenBal = citizen.wallet!.balance;
+
+      marketEngine.processTransaction(
+        citizen.id,
+        utilityWallet.ownerId,
+        'water',
+        2,
+        'L',
+        0.05,
+        0.10,
+        'GEN',
+        TransactionType.EXPENSE,
+        regionId,
+        origTxId
+      );
+
+      // First reversal
+      const rev1 = marketEngine.reverseTransaction(origTxId, revTxId);
+      expect(rev1).toBeDefined();
+      expect(citizen.wallet!.balance).toBe(initialCitizenBal);
+      expect(utilityWallet.balance).toBe(0);
+
+      // Duplicate reversal call
+      const rev2 = marketEngine.reverseTransaction(origTxId, revTxId);
+      expect(rev2).toBeDefined();
+      expect(rev2!.transactionId).toBe(revTxId);
+
+      // Balances must not be altered again
+      expect(citizen.wallet!.balance).toBe(initialCitizenBal);
+      expect(utilityWallet.balance).toBe(0);
+    });
+
+    it('should detect persistent eventId via hydrated ConsumptionLedger and prevent duplicate execution across restart', () => {
+      // Simulate cold restart: create a new ConsumptionEngine with clean processedEventIds,
+      // but with a ConsumptionLedger pre-hydrated with 'evt-preloaded-restart-1'
+      const freshLedger = new ConsumptionLedger();
+      freshLedger.loadRecords([{
+        eventId: 'evt-preloaded-restart-1',
+        timestamp: 500,
+        commodityId: 'water',
+        quantity: 2,
+        unit: 'L',
+        context: 'RESIDENTIAL_WATER',
+        regionId,
+        consumerId: citizen.id,
+        householdId
+      }]);
+
+      const commodities: Record<string, Commodity> = {
+        water: {
+          id: 'water',
+          name: 'Water',
+          category: ProductCategory.FOOD,
+          unit: 'L',
+          basePrice: 0.05,
+          isBiological: true,
+          consumable: { restorationNeed: 'THIRST', restorationValue: 25 }
+        }
+      };
+
+      const freshEngine = new ConsumptionEngine(
+        inventoryManager,
+        needsService,
+        (id: string) => commodities[id],
+        freshLedger
+      );
+      freshEngine.setResourceConsumptionEngine(resourceConsumptionEngine);
+      freshEngine.setMarketEngine(marketEngine);
+      freshEngine.setWaterTariff(0.05);
+      freshEngine.setWaterConnectionChecker(() => ({ connected: true, buildingId, regionId }));
+
+      const aquiferBefore = resourceManager.getResourceById(regionId, 'res-water-1')!.currentAmount;
+      const citizenBalBefore = citizen.wallet!.balance;
+      const thirstBefore = citizen.vitalState.thirst;
+
+      // Replay the persistent event ID
+      const result = freshEngine.consume(
+        citizen,
+        'THIRST',
+        100,
+        undefined,
+        'evt-preloaded-restart-1',
+        'RESIDENTIAL_WATER',
+        regionId
+      );
+      expect(result).toBe(true);
+
+      // Assert no second water extraction, charge, or thirst restoration
+      expect(resourceManager.getResourceById(regionId, 'res-water-1')!.currentAmount).toBe(aquiferBefore);
+      expect(citizen.wallet!.balance).toBe(citizenBalBefore);
+      expect(citizen.vitalState.thirst).toBe(thirstBefore);
     });
   });
 

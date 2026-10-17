@@ -163,6 +163,33 @@ export class PersistenceService {
         }
       }
 
+      // Hydrate historical transactions into MarketEngine for idempotency across restarts
+      try {
+        const dbTransactions = await prisma.transactionRecord.findMany({
+          take: 10000,
+          orderBy: { timestamp: 'desc' }
+        });
+        marketService.engine.loadTransactions(dbTransactions.map(tx => ({
+          transactionId: tx.transactionId,
+          timestamp: tx.timestamp,
+          buyerId: tx.buyerId,
+          sellerId: tx.sellerId,
+          productId: tx.productId,
+          quantity: tx.quantity,
+          unit: tx.unit,
+          unitPrice: tx.unitPrice,
+          totalPrice: tx.totalPrice,
+          currency: tx.currency,
+          transactionType: tx.transactionType as any,
+          regionId: tx.regionId,
+          description: tx.description ?? undefined,
+          referenceId: tx.referenceId ?? undefined,
+          referenceType: tx.referenceType ?? undefined
+        })));
+      } catch (err) {
+        console.error('[PersistenceService] Error hydrating transaction records into MarketEngine:', err);
+      }
+
       // 3. Load Workplaces
       const workplaces = await workplaceRepository.listWorkplaces();
       console.log(`[PersistenceService] Loaded ${workplaces.length} workplaces.`);

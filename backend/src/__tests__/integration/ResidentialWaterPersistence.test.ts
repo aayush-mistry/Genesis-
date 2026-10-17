@@ -6,6 +6,8 @@ import { marketService } from '../../services/market.service';
 import { persistenceService } from '../../services/persistence.service';
 import { resourceRepository } from '../../repositories/ResourceRepository';
 import { financialRepository } from '../../repositories/FinancialRepository';
+import { financeService } from '../../services/finance.service';
+import { consumptionService } from '../../services/consumption.service';
 import { BuildingType, ResourceType, ResourceCategory, CitizenGender, CitizenStatus } from '@genesis/shared';
 import { EventRegistry } from '@genesis/engine';
 
@@ -236,6 +238,8 @@ describe('Residential Water Infrastructure Persistence & Cold Restart (T8.6.3)',
     await persistenceService.bootstrap();
     await citizenService.initialize();
     marketService.initialize();
+    consumptionService.initialize();
+    financeService.initialize();
 
     // Verify building has active water connection in engine
     const bld = worldService.engine.buildingManager.getBuilding(buildingId);
@@ -277,6 +281,9 @@ describe('Residential Water Infrastructure Persistence & Cold Restart (T8.6.3)',
     const utilityWallet = marketService.engine.getOrCreateUtilityWallet(regionId);
     expect(utilityWallet.balance).toBe(0.10);
 
+    // Allow asynchronous event persistence listeners to write to SQLite
+    await new Promise(r => setTimeout(r, 150));
+
     // Persist at tick boundary
     await persistenceService.persistTickBoundary({
       citizens: [citizenId],
@@ -296,11 +303,35 @@ describe('Residential Water Infrastructure Persistence & Cold Restart (T8.6.3)',
     expect(dbUtilityWallet).toBeDefined();
     expect(dbUtilityWallet!.balance).toBe(0.10);
 
+    // Verify actual persistent transaction and consumption records in SQLite
+    const dbTx = await prisma.transactionRecord.findUnique({
+      where: { transactionId: 'tx-tap-evt-pers-drink-1' }
+    });
+    expect(dbTx).toBeDefined();
+    expect(dbTx!.buyerId).toBe(citizenId);
+    expect(dbTx!.sellerId).toBe(utilityWallet.ownerId);
+    expect(dbTx!.totalPrice).toBe(0.10);
+    expect(dbTx!.quantity).toBe(2);
+    expect(dbTx!.unit).toBe('L');
+
+    const dbConsumption = await prisma.consumptionRecord.findUnique({
+      where: { eventId: 'evt-pers-drink-1' }
+    });
+    expect(dbConsumption).toBeDefined();
+    expect(dbConsumption!.consumerId).toBe(citizenId);
+    expect(dbConsumption!.householdId).toBe(householdId);
+    expect(dbConsumption!.commodityId).toBe('water');
+    expect(dbConsumption!.quantity).toBe(2);
+    expect(dbConsumption!.unit).toBe('L');
+    expect(dbConsumption!.context).toBe('RESIDENTIAL_WATER');
+
     // 3. Simulate cold restart: clear all in-memory services
     worldService.engine.reset();
     resourceService.reset();
     citizenService.reset();
     marketService.initialize();
+    consumptionService.initialize();
+    financeService.initialize();
 
     // Bootstrap again from DB
     await persistenceService.bootstrap();
@@ -323,5 +354,32 @@ describe('Residential Water Infrastructure Persistence & Cold Restart (T8.6.3)',
     const reloadedUtilityWallet = marketService.engine.getWallet(utilityWallet.ownerId);
     expect(reloadedUtilityWallet).toBeDefined();
     expect(reloadedUtilityWallet!.balance).toBe(0.10);
+
+    // 5. Cold-restart replay test: attempt to execute same event ID again
+    const reloadedConsumptionEngine = citizenService.engine.actionExecutor.consumptionEngine!;
+    expect(reloadedConsumptionEngine).toBeDefined();
+
+    const replaySuccess = reloadedConsumptionEngine.consume(
+      reloadedCitizen!,
+      'THIRST',
+      1000,
+      undefined,
+      'evt-pers-drink-1',
+      'RESIDENTIAL_WATER',
+      regionId
+    );
+    expect(replaySuccess).toBe(true);
+
+    // 6. Assert no second extraction, charge, thirst restoration, or duplicate records
+    expect(reloadedCitizen!.vitalState.thirst).toBe(20);
+    expect(reloadedCitizen!.wallet?.balance).toBe(9.90);
+    expect(resourceService.engine.resourceManager.getResourceById(regionId, resourceId)!.currentAmount).toBe(99.998);
+    expect(marketService.engine.getWallet(utilityWallet.ownerId)!.balance).toBe(0.10);
+
+    const allTx = await prisma.transactionRecord.findMany({ where: { transactionId: 'tx-tap-evt-pers-drink-1' } });
+    expect(allTx.length).toBe(1);
+
+    const allConsumption = await prisma.consumptionRecord.findMany({ where: { eventId: 'evt-pers-drink-1' } });
+    expect(allConsumption.length).toBe(1);
   });
 });

@@ -48,6 +48,14 @@ export class ConsumptionLedger {
   }
 
   /**
+   * Check whether an event ID has already been recorded or hydrated from persistence.
+   */
+  public hasEvent(eventId: string): boolean {
+    if (!eventId) return false;
+    return this.seenEventIds.has(eventId);
+  }
+
+  /**
    * Subscribe to new consumption records.
    */
   public onRecord(listener: (record: ConsumptionRecord) => void): () => void {

@@ -122,6 +122,11 @@ export class MarketEngine {
     regionId: string,
     transactionId?: string
   ): TransactionRecord | null {
+    // 1. Idempotency check: Return existing transaction if already processed
+    if (transactionId && this.transactions.has(transactionId)) {
+      return this.transactions.get(transactionId)!;
+    }
+
     // Basic validation
     if (totalPrice < 0) return null;
 
@@ -170,6 +175,96 @@ export class MarketEngine {
     this.eventScheduler.emitter.emit('TransactionCompleted', transaction);
 
     return transaction;
+  }
+
+  private reversedTransactionIds: Set<string> = new Set();
+
+  public hasTransaction(id: string): boolean {
+    return this.transactions.has(id);
+  }
+
+  public isTransactionReversed(id: string): boolean {
+    return this.reversedTransactionIds.has(id);
+  }
+
+  public loadTransactions(transactions: TransactionRecord[]): void {
+    for (const tx of transactions) {
+      if (tx && tx.transactionId && !this.transactions.has(tx.transactionId)) {
+        this.transactions.set(tx.transactionId, tx);
+        if (tx.referenceType === 'TRANSACTION_REVERSAL' && tx.referenceId) {
+          this.reversedTransactionIds.add(tx.referenceId);
+        }
+      }
+    }
+  }
+
+  /**
+   * Idempotently reverses a completed transaction.
+   * Restores buyer balance and decrements seller balance, adjusting income/expenses.
+   * If reversalTransactionId has already been processed, returns the existing reversal record
+   * without mutating wallets again.
+   */
+  public reverseTransaction(
+    originalTransactionId: string,
+    reversalTransactionId: string,
+    reason?: string
+  ): TransactionRecord | null {
+    // 1. Idempotency: Return existing reversal if already processed
+    if (this.transactions.has(reversalTransactionId)) {
+      return this.transactions.get(reversalTransactionId)!;
+    }
+
+    const orig = this.transactions.get(originalTransactionId);
+    if (!orig) {
+      console.warn(`[MarketEngine] Cannot reverse unknown transaction: ${originalTransactionId}`);
+      return null;
+    }
+
+    // Check if original transaction has already been reversed under a different ID
+    if (this.reversedTransactionIds.has(originalTransactionId)) {
+      console.warn(`[MarketEngine] Transaction ${originalTransactionId} has already been reversed.`);
+      return null;
+    }
+
+    let buyerWallet = this.getWallet(orig.buyerId);
+    let sellerWallet = this.getWallet(orig.sellerId);
+
+    // Reversal transfer: refund funds from seller back to buyer
+    if (sellerWallet) {
+      sellerWallet.balance -= orig.totalPrice;
+      sellerWallet.totalIncome = Math.max(0, sellerWallet.totalIncome - orig.totalPrice);
+    }
+
+    if (buyerWallet) {
+      buyerWallet.balance += orig.totalPrice;
+      buyerWallet.totalExpenses = Math.max(0, buyerWallet.totalExpenses - orig.totalPrice);
+    }
+
+    const reversalTx: TransactionRecord = {
+      transactionId: reversalTransactionId,
+      timestamp: TimeUtils.toSeconds(this.timeEngine.getCurrentTime()),
+      buyerId: orig.sellerId,
+      sellerId: orig.buyerId,
+      productId: orig.productId,
+      quantity: orig.quantity,
+      unit: orig.unit,
+      unitPrice: orig.unitPrice,
+      totalPrice: orig.totalPrice,
+      currency: orig.currency,
+      transactionType: TransactionType.TRANSFER,
+      regionId: orig.regionId,
+      description: reason || `Reversal of transaction ${originalTransactionId}`,
+      referenceId: originalTransactionId,
+      referenceType: 'TRANSACTION_REVERSAL'
+    };
+
+    this.reversedTransactionIds.add(originalTransactionId);
+    this.transactions.set(reversalTransactionId, reversalTx);
+
+    // Emit event so persistence / analytics capture the reversal
+    this.eventScheduler.emitter.emit('TransactionCompleted', reversalTx);
+
+    return reversalTx;
   }
 
   private customWalletLookup?: (entityId: string) => Wallet | undefined;

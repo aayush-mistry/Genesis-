@@ -1,4 +1,4 @@
-import { Citizen, Commodity, TransactionType } from '@genesis/shared';
+import { Citizen, Commodity, TransactionType, TransactionRecord } from '@genesis/shared';
 import { InventoryManager } from '../inventory/InventoryManager';
 import { NeedsService } from '../citizen/services/NeedsService';
 import { ConsumptionLedger } from './ConsumptionLedger';
@@ -117,8 +117,10 @@ export class ConsumptionEngine {
     regionId?: string
   ): boolean {
     // Idempotency: Replayed or duplicate action/event IDs do not duplicate extraction, charges, or thirst restoration
-    if (eventId && this.processedEventIds.has(eventId)) {
-      return true;
+    if (eventId) {
+      if (this.processedEventIds.has(eventId) || (this.consumptionLedger && this.consumptionLedger.hasEvent(eventId))) {
+        return true;
+      }
     }
 
     if (!citizen.householdId) return false;
@@ -299,16 +301,32 @@ export class ConsumptionEngine {
       return false; // No physical resource engine available
     }
 
-    // Physically extract water from regional resource (1 m³ = 1000 L)
-    const extraction = this.resourceConsumptionEngine.extractDomesticWater(effectiveRegionId, requestedLitres);
-    if (!extraction.success || extraction.extractedLitres <= 0) {
-      return false; // Reservoir depleted or unavailable: tap runs dry
+    const txId = eventId ? `tx-tap-${eventId}` : undefined;
+    const isExistingUnreversedTx = !!(
+      txId &&
+      this.marketEngine &&
+      this.marketEngine.hasTransaction(txId) &&
+      !this.marketEngine.isTransactionReversed(txId)
+    );
+
+    let actualLitres = 0;
+    if (isExistingUnreversedTx) {
+      // Re-use already extracted/billed quantity from existing transaction
+      const existingTx = this.marketEngine!.getTransaction(txId!)!;
+      actualLitres = existingTx.quantity || requestedLitres;
+    } else {
+      // Physically extract water from regional resource (1 m³ = 1000 L)
+      const extraction = this.resourceConsumptionEngine.extractDomesticWater(effectiveRegionId, requestedLitres);
+      if (!extraction.success || extraction.extractedLitres <= 0) {
+        return false; // Reservoir depleted or unavailable: tap runs dry
+      }
+      actualLitres = extraction.extractedLitres;
     }
 
-    const actualLitres = extraction.extractedLitres;
     const actualCost = Number((actualLitres * tariff).toFixed(4));
 
     // Execute economic transaction through MarketEngine
+    let tx: TransactionRecord | null = null;
     if (this.marketEngine) {
       let payeeId = this.utilityPayeeResolver ? this.utilityPayeeResolver(effectiveRegionId) : undefined;
       if (!payeeId) {
@@ -316,7 +334,7 @@ export class ConsumptionEngine {
         payeeId = utilityWallet.ownerId;
       }
 
-      const tx = this.marketEngine.processTransaction(
+      tx = this.marketEngine.processTransaction(
         citizen.id,
         payeeId,
         'water',
@@ -327,58 +345,106 @@ export class ConsumptionEngine {
         citizen.wallet.currency || 'GEN',
         TransactionType.EXPENSE,
         effectiveRegionId,
-        eventId ? `tx-tap-${eventId}` : undefined
+        txId
       );
 
       if (!tx) {
         // Multi-step compensating transaction: refund physical water if billing fails!
-        this.resourceConsumptionEngine.refundDomesticWater(effectiveRegionId, actualLitres);
+        if (!isExistingUnreversedTx) {
+          this.resourceConsumptionEngine.refundDomesticWater(effectiveRegionId, actualLitres);
+        }
         return false;
       }
     }
 
-    // Fulfill thirst strictly based on actual water delivered
-    const actualRestoration = actualLitres * restorationPerLitre;
-    this.needsService.satisfyThirst(citizen, actualRestoration);
+    // Now execute downstream operations with full partial-failure compensation
+    let thirstSatisfied = false;
+    let actualRestoration = 0;
 
-    // Record durable consumption in ledger
-    const simDay = Math.floor(currentTime / 86400) + 1;
-    const simHour = Math.floor((currentTime % 86400) / 3600);
+    try {
+      // Fulfill thirst strictly based on actual water delivered
+      actualRestoration = actualLitres * restorationPerLitre;
+      this.needsService.satisfyThirst(citizen, actualRestoration);
+      thirstSatisfied = true;
 
-    const record: ConsumptionRecord = {
-      eventId: eventId || randomUUID(),
-      timestamp: currentTime,
-      simulationDay: simDay,
-      simulationHour: simHour,
-      consumerId: citizen.id,
-      householdId: citizen.householdId,
-      sourceInventoryId: undefined, // piped water has no source inventory
-      commodityId: 'water',
-      quantity: actualLitres,
-      unit: 'L',
-      context: context || 'RESIDENTIAL_WATER',
-      regionId: effectiveRegionId,
-      createdAt: new Date()
-    };
+      // Record durable consumption in ledger
+      const simDay = Math.floor(currentTime / 86400) + 1;
+      const simHour = Math.floor((currentTime % 86400) / 3600);
 
-    this.lastRecordedEvent = record;
+      const record: ConsumptionRecord = {
+        eventId: eventId || randomUUID(),
+        timestamp: currentTime,
+        simulationDay: simDay,
+        simulationHour: simHour,
+        consumerId: citizen.id,
+        householdId: citizen.householdId,
+        sourceInventoryId: undefined, // piped water has no source inventory
+        commodityId: 'water',
+        quantity: actualLitres,
+        unit: 'L',
+        context: context || 'RESIDENTIAL_WATER',
+        regionId: effectiveRegionId,
+        createdAt: new Date()
+      };
 
-    if (this.consumptionLedger) {
-      this.consumptionLedger.record(record);
-    }
-
-    if (this.onConsumptionCallback) {
-      try {
-        this.onConsumptionCallback(record);
-      } catch (err) {
-        console.error('Error in ConsumptionEngine onConsumption callback:', err);
+      if (this.consumptionLedger) {
+        const recorded = this.consumptionLedger.record(record);
+        if (!recorded) {
+          throw new Error(`ConsumptionLedger rejected record for event ${record.eventId}`);
+        }
       }
-    }
 
-    if (eventId) {
-      this.processedEventIds.add(eventId);
-    }
+      this.lastRecordedEvent = record;
 
-    return true;
+      if (this.onConsumptionCallback) {
+        try {
+          this.onConsumptionCallback(record);
+        } catch (err) {
+          console.error('Error in ConsumptionEngine onConsumption callback:', err);
+        }
+      }
+
+      if (eventId) {
+        this.processedEventIds.add(eventId);
+      }
+
+      return true;
+    } catch (err) {
+      console.error(`[ConsumptionEngine] Downstream failure during tap water consumption (eventId: ${eventId}):`, err);
+
+      // 1. Revert thirst if satisfied
+      if (thirstSatisfied) {
+        try {
+          citizen.vitalState.thirst = Math.min(100, citizen.vitalState.thirst + actualRestoration);
+        } catch (revertErr) {
+          console.error(`[ConsumptionEngine] Failed to revert thirst for citizen ${citizen.id}:`, revertErr);
+        }
+      }
+
+      // 2. Reverse financial transaction if executed
+      if (this.marketEngine && tx && tx.transactionId) {
+        const reversalTxId = `${tx.transactionId}-reversal`;
+        try {
+          this.marketEngine.reverseTransaction(
+            tx.transactionId,
+            reversalTxId,
+            `Compensating reversal for failed consumption event ${eventId}`
+          );
+        } catch (revErr) {
+          console.error(`[ConsumptionEngine] Failed to reverse transaction ${tx.transactionId}:`, revErr);
+        }
+      }
+
+      // 3. Refund physical water back to regional reservoir
+      if (!isExistingUnreversedTx) {
+        try {
+          this.resourceConsumptionEngine.refundDomesticWater(effectiveRegionId, actualLitres);
+        } catch (refundErr) {
+          console.error(`[ConsumptionEngine] Failed to refund domestic water to region ${effectiveRegionId}:`, refundErr);
+        }
+      }
+
+      return false;
+    }
   }
 }

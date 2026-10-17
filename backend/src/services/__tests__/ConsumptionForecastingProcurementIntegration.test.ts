@@ -528,6 +528,7 @@ describe('T8.2 — Consumption History, Demand Forecasting & Procurement Integra
 
   it('9. Historical records and forecast behavior survive a cold restart', async () => {
     // 1. Persist known consumption records into SQLite via repository
+    await new Promise(r => setTimeout(r, 100));
     await prisma.consumptionRecord.deleteMany({});
     const daySec = 86400;
 
