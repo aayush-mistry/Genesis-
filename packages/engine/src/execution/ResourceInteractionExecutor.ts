@@ -43,7 +43,7 @@ export class ResourceInteractionExecutor extends BaseActionExecutor {
       const currentSeconds = TimeUtils.toSeconds(currentTime);
       const needType = this.getNeedTypeForAction(action.actionType);
       
-      const success = this.consumptionEngine.consume(citizen, needType, currentSeconds);
+      const success = this.consumptionEngine.consume(citizen, needType, currentSeconds, undefined, action.actionId);
       
       if (success) {
         this.lifecycleManager.transition(action, ActionState.COMPLETED);

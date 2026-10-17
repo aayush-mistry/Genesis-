@@ -76,8 +76,19 @@ export class PersistenceService {
 
                       if (districtData.buildings) {
                         districtData.buildings.forEach(buildingData => {
+                          let metadata = undefined;
+                          if (buildingData.metadataJson) {
+                            try {
+                              metadata = typeof buildingData.metadataJson === 'string'
+                                ? JSON.parse(buildingData.metadataJson)
+                                : buildingData.metadataJson;
+                            } catch (e) {
+                              // ignore
+                            }
+                          }
                           const building = {
                             ...buildingData,
+                            metadata: metadata || (buildingData as any).metadata,
                             coordinates: { x: buildingData.coordX, y: buildingData.coordY },
                             width: buildingData.width,
                             height: buildingData.height,
@@ -138,6 +149,19 @@ export class PersistenceService {
       // Pre-load all wallets to hydrate without N+1 queries if possible.
       const wallets = await financialRepository.listWallets();
       const walletMap = new Map(wallets.map(w => [w.ownerId, w]));
+      const { marketService } = await import('./market.service');
+      for (const w of wallets) {
+        if (w.ownerId.startsWith('utility-')) {
+          marketService.engine.registerWallet({
+            id: w.id,
+            ownerId: w.ownerId,
+            balance: w.balance,
+            currency: w.currency,
+            totalIncome: w.totalIncome,
+            totalExpenses: w.totalExpenses
+          });
+        }
+      }
 
       // 3. Load Workplaces
       const workplaces = await workplaceRepository.listWorkplaces();
@@ -641,6 +665,17 @@ export class PersistenceService {
         }
       } catch (err) {
         console.error('[PersistenceService] Error persisting resources in persistTickBoundary:', err);
+      }
+
+      // Sync Registered Wallets (e.g. Utility Wallets)
+      try {
+        const { marketService } = await import('./market.service');
+        const regWallets = marketService.engine.getRegisteredWallets();
+        for (const w of regWallets) {
+          await syncWallet(w);
+        }
+      } catch (err) {
+        console.error('[PersistenceService] Error persisting utility wallets in persistTickBoundary:', err);
       }
     }
 }

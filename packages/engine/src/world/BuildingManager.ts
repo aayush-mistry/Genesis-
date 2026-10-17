@@ -4,12 +4,12 @@ import { randomUUID } from 'crypto';
 export class BuildingManager {
   private buildings: Map<string, Building> = new Map();
 
-  public createBuilding(buildingData: Omit<Building, 'id' | 'roomIds' | 'width' | 'height'> & { width?: number, height?: number }): Building {
+  public createBuilding(buildingData: Omit<Building, 'id' | 'roomIds' | 'width' | 'height' | 'createdAt' | 'updatedAt'> & { id?: string, width?: number, height?: number, createdAt?: Date, updatedAt?: Date }): Building {
     const building: Building = {
       ...buildingData,
       width: buildingData.width ?? 20,
       height: buildingData.height ?? 20,
-      id: randomUUID(),
+      id: (buildingData as any).id || randomUUID(),
       createdAt: new Date(),
       updatedAt: new Date(),
       roomIds: [],
@@ -52,4 +52,22 @@ export class BuildingManager {
       building.roomIds = building.roomIds.filter((id: string) => id !== roomId);
     }
   }
+
+  public setWaterConnection(buildingId: string, connected: boolean): boolean {
+    const building = this.buildings.get(buildingId);
+    if (!building) return false;
+    building.metadata = {
+      ...(building.metadata || {}),
+      hasWaterConnection: connected
+    };
+    (building as any).hasWaterConnection = connected;
+    return true;
+  }
+
+  public hasWaterConnection(buildingId: string): boolean {
+    const building = this.buildings.get(buildingId);
+    if (!building) return false;
+    return building.metadata?.hasWaterConnection === true || (building as any).hasWaterConnection === true;
+  }
 }
+

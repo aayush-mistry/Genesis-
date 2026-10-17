@@ -336,6 +336,8 @@ export class CitizenService {
           }
         }
 
+        const hasWaterConnection = homeId ? this.worldEngine.buildingManager.hasWaterConnection(homeId) : false;
+
         const context: DecisionContext = {
           citizenId: citizen.id,
           age: this.getCitizenAge(citizen),
@@ -350,6 +352,7 @@ export class CitizenService {
           perception: this.perceptionService!.generateSnapshot(citizen.id),
           householdId: citizen.householdId,
           homeId,
+          hasWaterConnection,
           personality: citizen.personality,
           walletBalance: citizen.wallet?.balance ?? 0,
           stockLevels,

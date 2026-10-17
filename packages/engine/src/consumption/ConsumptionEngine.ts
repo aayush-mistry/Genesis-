@@ -1,8 +1,10 @@
-import { Citizen, Commodity } from '@genesis/shared';
+import { Citizen, Commodity, TransactionType } from '@genesis/shared';
 import { InventoryManager } from '../inventory/InventoryManager';
 import { NeedsService } from '../citizen/services/NeedsService';
 import { ConsumptionLedger } from './ConsumptionLedger';
 import { ConsumptionRecord } from './ConsumptionTypes';
+import { ResourceConsumptionEngine } from '../resources/ResourceConsumptionEngine';
+import { MarketEngine } from '../market/MarketEngine';
 import { randomUUID } from 'crypto';
 
 export type ConsumableNeedType = 'HUNGER' | 'THIRST' | 'HEALTH' | 'ENERGY';
@@ -10,6 +12,12 @@ export type ConsumableNeedType = 'HUNGER' | 'THIRST' | 'HEALTH' | 'ENERGY';
 export class ConsumptionEngine {
   private lastRecordedEvent?: ConsumptionRecord;
   private regionResolver?: (citizen: Citizen) => string | undefined;
+  private resourceConsumptionEngine?: ResourceConsumptionEngine;
+  private marketEngine?: MarketEngine;
+  private waterTariffPerLitre: number = 0.05; // 0.05 credits/L
+  private waterConnectionChecker?: (citizen: Citizen) => { connected: boolean; buildingId?: string; regionId?: string };
+  private utilityPayeeResolver?: (regionId: string) => string | undefined;
+  private processedEventIds: Set<string> = new Set();
 
   constructor(
     private inventoryManager: InventoryManager,
@@ -18,6 +26,40 @@ export class ConsumptionEngine {
     private consumptionLedger?: ConsumptionLedger,
     private onConsumptionCallback?: (record: ConsumptionRecord) => void
   ) {}
+
+  public setResourceConsumptionEngine(engine: ResourceConsumptionEngine): void {
+    this.resourceConsumptionEngine = engine;
+  }
+
+  public getResourceConsumptionEngine(): ResourceConsumptionEngine | undefined {
+    return this.resourceConsumptionEngine;
+  }
+
+  public setMarketEngine(engine: MarketEngine): void {
+    this.marketEngine = engine;
+  }
+
+  public getMarketEngine(): MarketEngine | undefined {
+    return this.marketEngine;
+  }
+
+  public setWaterTariff(tariff: number): void {
+    this.waterTariffPerLitre = Math.max(0, tariff);
+  }
+
+  public getWaterTariff(): number {
+    return this.waterTariffPerLitre;
+  }
+
+  public setWaterConnectionChecker(
+    checker: (citizen: Citizen) => { connected: boolean; buildingId?: string; regionId?: string }
+  ): void {
+    this.waterConnectionChecker = checker;
+  }
+
+  public setUtilityPayeeResolver(resolver: (regionId: string) => string | undefined): void {
+    this.utilityPayeeResolver = resolver;
+  }
 
   public setConsumptionLedger(ledger: ConsumptionLedger): void {
     this.consumptionLedger = ledger;
@@ -74,102 +116,269 @@ export class ConsumptionEngine {
     context?: string,
     regionId?: string
   ): boolean {
-    if (!citizen.householdId) return false;
-    const inventory = this.inventoryManager.getInventoryByOwner(citizen.householdId);
-    if (!inventory) return false;
-
-    const consumable = this.getUsableConsumable(citizen, currentTime, needType);
-    if (!consumable) return false;
-
-    let currentNeedValue = 0;
-    let actualTargetValue = targetValue ?? 20;
-
-    switch (needType) {
-      case 'HUNGER':
-        currentNeedValue = citizen.vitalState.hunger;
-        break;
-      case 'THIRST':
-        currentNeedValue = citizen.vitalState.thirst;
-        break;
-      case 'HEALTH':
-        currentNeedValue = 100 - citizen.vitalState.health;
-        actualTargetValue = targetValue ?? 0;
-        break;
-      case 'ENERGY':
-        currentNeedValue = 100 - citizen.vitalState.energy;
-        actualTargetValue = targetValue ?? 0;
-        break;
-    }
-
-    const requiredRestoration = this.calculateRequiredRestoration(currentNeedValue, actualTargetValue);
-    if (requiredRestoration <= 0) return true; // Already satisfied
-
-    const requiredQuantity = Math.ceil(requiredRestoration / consumable.restorationValue);
-    const actualQuantityToConsume = Math.min(requiredQuantity, consumable.quantity);
-
-    if (actualQuantityToConsume <= 0) return false;
-
-    // Mutate inventory first
-    const success = this.inventoryManager.removeItemQuantity(inventory.id, consumable.productId, actualQuantityToConsume);
-    
-    if (success) {
-      // Satisfy citizen vital state
-      const actualRestoration = actualQuantityToConsume * consumable.restorationValue;
-      switch (needType) {
-        case 'HUNGER':
-          this.needsService.satisfyHunger(citizen, actualRestoration);
-          break;
-        case 'THIRST':
-          this.needsService.satisfyThirst(citizen, actualRestoration);
-          break;
-        case 'HEALTH':
-          this.needsService.restoreHealth(citizen, actualRestoration);
-          break;
-        case 'ENERGY':
-          this.needsService.recoverEnergy(citizen, actualRestoration);
-          break;
-      }
-
-      // Record durable consumption only after inventory mutation succeeds
-      const commodity = this.getCommodity(consumable.productId);
-      const effectiveRegionId = regionId || (this.regionResolver ? this.regionResolver(citizen) : undefined) || 'DEFAULT';
-      
-      const simDay = Math.floor(currentTime / 86400) + 1;
-      const simHour = Math.floor((currentTime % 86400) / 3600);
-
-      const record: ConsumptionRecord = {
-        eventId: eventId || randomUUID(),
-        timestamp: currentTime,
-        simulationDay: simDay,
-        simulationHour: simHour,
-        consumerId: citizen.id,
-        householdId: citizen.householdId,
-        sourceInventoryId: inventory.id,
-        commodityId: consumable.productId,
-        quantity: actualQuantityToConsume,
-        unit: commodity?.unit || 'kg',
-        context: context || 'CITIZEN_NEED',
-        regionId: effectiveRegionId,
-        createdAt: new Date()
-      };
-
-      this.lastRecordedEvent = record;
-
-      if (this.consumptionLedger) {
-        this.consumptionLedger.record(record);
-      }
-
-      if (this.onConsumptionCallback) {
-        try {
-          this.onConsumptionCallback(record);
-        } catch (err) {
-          console.error('Error in ConsumptionEngine onConsumption callback:', err);
-        }
-      }
-
+    // Idempotency: Replayed or duplicate action/event IDs do not duplicate extraction, charges, or thirst restoration
+    if (eventId && this.processedEventIds.has(eventId)) {
       return true;
     }
-    
+
+    if (!citizen.householdId) return false;
+
+    // 1. Path A: Check if a physical consumable exists in household inventory (e.g. bottled water, food)
+    const inventory = this.inventoryManager.getInventoryByOwner(citizen.householdId);
+    const consumable = inventory ? this.getUsableConsumable(citizen, currentTime, needType) : null;
+
+    if (consumable && inventory) {
+      let currentNeedValue = 0;
+      let actualTargetValue = targetValue ?? 20;
+
+      switch (needType) {
+        case 'HUNGER':
+          currentNeedValue = citizen.vitalState.hunger;
+          break;
+        case 'THIRST':
+          currentNeedValue = citizen.vitalState.thirst;
+          break;
+        case 'HEALTH':
+          currentNeedValue = 100 - citizen.vitalState.health;
+          actualTargetValue = targetValue ?? 0;
+          break;
+        case 'ENERGY':
+          currentNeedValue = 100 - citizen.vitalState.energy;
+          actualTargetValue = targetValue ?? 0;
+          break;
+      }
+
+      const requiredRestoration = this.calculateRequiredRestoration(currentNeedValue, actualTargetValue);
+      if (requiredRestoration <= 0) return true; // Already satisfied
+
+      const requiredQuantity = Math.ceil(requiredRestoration / consumable.restorationValue);
+      const actualQuantityToConsume = Math.min(requiredQuantity, consumable.quantity);
+
+      if (actualQuantityToConsume <= 0) return false;
+
+      // Mutate inventory first
+      const success = this.inventoryManager.removeItemQuantity(inventory.id, consumable.productId, actualQuantityToConsume);
+      
+      if (success) {
+        // Satisfy citizen vital state
+        const actualRestoration = actualQuantityToConsume * consumable.restorationValue;
+        switch (needType) {
+          case 'HUNGER':
+            this.needsService.satisfyHunger(citizen, actualRestoration);
+            break;
+          case 'THIRST':
+            this.needsService.satisfyThirst(citizen, actualRestoration);
+            break;
+          case 'HEALTH':
+            this.needsService.restoreHealth(citizen, actualRestoration);
+            break;
+          case 'ENERGY':
+            this.needsService.recoverEnergy(citizen, actualRestoration);
+            break;
+        }
+
+        // Record durable consumption only after inventory mutation succeeds
+        const commodity = this.getCommodity(consumable.productId);
+        const effectiveRegionId = regionId || (this.regionResolver ? this.regionResolver(citizen) : undefined) || 'DEFAULT';
+        
+        const simDay = Math.floor(currentTime / 86400) + 1;
+        const simHour = Math.floor((currentTime % 86400) / 3600);
+
+        const record: ConsumptionRecord = {
+          eventId: eventId || randomUUID(),
+          timestamp: currentTime,
+          simulationDay: simDay,
+          simulationHour: simHour,
+          consumerId: citizen.id,
+          householdId: citizen.householdId,
+          sourceInventoryId: inventory.id,
+          commodityId: consumable.productId,
+          quantity: actualQuantityToConsume,
+          unit: commodity?.unit || 'kg',
+          context: context || 'CITIZEN_NEED',
+          regionId: effectiveRegionId,
+          createdAt: new Date()
+        };
+
+        this.lastRecordedEvent = record;
+
+        if (this.consumptionLedger) {
+          this.consumptionLedger.record(record);
+        }
+
+        if (this.onConsumptionCallback) {
+          try {
+            this.onConsumptionCallback(record);
+          } catch (err) {
+            console.error('Error in ConsumptionEngine onConsumption callback:', err);
+          }
+        }
+
+        if (eventId) {
+          this.processedEventIds.add(eventId);
+        }
+
+        return true;
+      }
+      
+      return false;
+    }
+
+    // 2. Path B: If NO usable bottled water in inventory and needType is THIRST, attempt residential tap water
+    if (needType === 'THIRST') {
+      return this.consumeResidentialTapWater(citizen, currentTime, targetValue, eventId, context, regionId);
+    }
+
     return false;
+  }
+
+  /**
+   * Fulfills citizen thirst via residential tap water drawn directly from regional resources.
+   * Physically extracts from canonical regional ResourceType.WATER, charges citizen via MarketEngine,
+   * restores thirst proportionally, and records durable consumption in the ledger.
+   */
+  private consumeResidentialTapWater(
+    citizen: Citizen,
+    currentTime: number,
+    targetValue?: number,
+    eventId?: string,
+    context?: string,
+    regionId?: string
+  ): boolean {
+    if (!citizen.householdId) return false;
+
+    // Check residential water connection
+    let hasConnection = false;
+    let resolvedBuildingId: string | undefined = undefined;
+    let effectiveRegionId = regionId;
+
+    if (this.waterConnectionChecker) {
+      const check = this.waterConnectionChecker(citizen);
+      hasConnection = check.connected;
+      resolvedBuildingId = check.buildingId;
+      if (!effectiveRegionId && check.regionId) {
+        effectiveRegionId = check.regionId;
+      }
+    }
+
+    if (!hasConnection) {
+      return false; // Building has no functioning water connection
+    }
+
+    if (!effectiveRegionId) {
+      effectiveRegionId = (this.regionResolver ? this.regionResolver(citizen) : undefined) || 'DEFAULT';
+    }
+
+    // Enforce location: citizen must be at their residence if building location is known
+    if (citizen.locationId && resolvedBuildingId && citizen.locationId !== resolvedBuildingId) {
+      return false; // Citizen not at residence
+    }
+
+    // Determine required restoration
+    const currentThirst = citizen.vitalState.thirst;
+    const actualTarget = targetValue ?? 20;
+    const requiredRestoration = this.calculateRequiredRestoration(currentThirst, actualTarget);
+    if (requiredRestoration <= 0) {
+      return true; // Already satisfied
+    }
+
+    // Commodity restoration rate: 1 L of water restores 25 thirst
+    const waterCommodity = this.getCommodity('water');
+    const restorationPerLitre = waterCommodity?.consumable?.restorationValue ?? 25;
+    const requestedLitres = Math.max(1, Math.ceil(requiredRestoration / restorationPerLitre));
+
+    // Pre-check citizen funds against tariff
+    const tariff = this.waterTariffPerLitre;
+    const estimatedCost = Number((requestedLitres * tariff).toFixed(4));
+
+    if (!citizen.wallet || citizen.wallet.balance < estimatedCost) {
+      return false; // Insufficient funds: do not extract or provide unpaid water
+    }
+
+    if (!this.resourceConsumptionEngine) {
+      return false; // No physical resource engine available
+    }
+
+    // Physically extract water from regional resource (1 m³ = 1000 L)
+    const extraction = this.resourceConsumptionEngine.extractDomesticWater(effectiveRegionId, requestedLitres);
+    if (!extraction.success || extraction.extractedLitres <= 0) {
+      return false; // Reservoir depleted or unavailable: tap runs dry
+    }
+
+    const actualLitres = extraction.extractedLitres;
+    const actualCost = Number((actualLitres * tariff).toFixed(4));
+
+    // Execute economic transaction through MarketEngine
+    if (this.marketEngine) {
+      let payeeId = this.utilityPayeeResolver ? this.utilityPayeeResolver(effectiveRegionId) : undefined;
+      if (!payeeId) {
+        const utilityWallet = this.marketEngine.getOrCreateUtilityWallet(effectiveRegionId);
+        payeeId = utilityWallet.ownerId;
+      }
+
+      const tx = this.marketEngine.processTransaction(
+        citizen.id,
+        payeeId,
+        'water',
+        actualLitres,
+        'L',
+        tariff,
+        actualCost,
+        citizen.wallet.currency || 'GEN',
+        TransactionType.EXPENSE,
+        effectiveRegionId,
+        eventId ? `tx-tap-${eventId}` : undefined
+      );
+
+      if (!tx) {
+        // Multi-step compensating transaction: refund physical water if billing fails!
+        this.resourceConsumptionEngine.refundDomesticWater(effectiveRegionId, actualLitres);
+        return false;
+      }
+    }
+
+    // Fulfill thirst strictly based on actual water delivered
+    const actualRestoration = actualLitres * restorationPerLitre;
+    this.needsService.satisfyThirst(citizen, actualRestoration);
+
+    // Record durable consumption in ledger
+    const simDay = Math.floor(currentTime / 86400) + 1;
+    const simHour = Math.floor((currentTime % 86400) / 3600);
+
+    const record: ConsumptionRecord = {
+      eventId: eventId || randomUUID(),
+      timestamp: currentTime,
+      simulationDay: simDay,
+      simulationHour: simHour,
+      consumerId: citizen.id,
+      householdId: citizen.householdId,
+      sourceInventoryId: undefined, // piped water has no source inventory
+      commodityId: 'water',
+      quantity: actualLitres,
+      unit: 'L',
+      context: context || 'RESIDENTIAL_WATER',
+      regionId: effectiveRegionId,
+      createdAt: new Date()
+    };
+
+    this.lastRecordedEvent = record;
+
+    if (this.consumptionLedger) {
+      this.consumptionLedger.record(record);
+    }
+
+    if (this.onConsumptionCallback) {
+      try {
+        this.onConsumptionCallback(record);
+      } catch (err) {
+        console.error('Error in ConsumptionEngine onConsumption callback:', err);
+      }
+    }
+
+    if (eventId) {
+      this.processedEventIds.add(eventId);
+    }
+
+    return true;
   }
 }

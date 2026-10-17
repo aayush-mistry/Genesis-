@@ -125,13 +125,12 @@ export class MarketEngine {
     // Basic validation
     if (totalPrice < 0) return null;
 
-    // We need to fetch wallets. Since buyer/seller can be Citizens or Workplaces,
-    // we need to look them up. This requires a robust lookup.
-    // For now, we assume we have a way to fetch the wallet of an entity.
+    // We need to fetch wallets. Since buyer/seller can be Citizens or Workplaces or Utilities,
+    // we need to look them up through real wallet infrastructure.
     let buyerWallet = this.getWallet(buyerId);
     let sellerWallet = this.getWallet(sellerId);
 
-    // If it's a purchase/expense/wage, buyer must have enough funds.
+    // If it's a purchase/expense/wage, buyer must have enough funds if wallet is present.
     if (buyerWallet && buyerWallet.balance < totalPrice) {
       return null; // Insufficient funds
     }
@@ -173,7 +172,39 @@ export class MarketEngine {
     return transaction;
   }
 
-  private getWallet(entityId: string): Wallet | undefined {
+  private customWalletLookup?: (entityId: string) => Wallet | undefined;
+  private registeredWallets: Map<string, Wallet> = new Map();
+
+  public registerWallet(wallet: Wallet): void {
+    this.registeredWallets.set(wallet.ownerId, wallet);
+  }
+
+  public setCustomWalletLookup(lookup: (entityId: string) => Wallet | undefined): void {
+    this.customWalletLookup = lookup;
+  }
+
+  public getOrCreateUtilityWallet(regionId: string): Wallet {
+    const utilityOwnerId = `utility-water-${regionId}`;
+    let wallet = this.registeredWallets.get(utilityOwnerId);
+    if (!wallet) {
+      wallet = {
+        id: `wallet-${utilityOwnerId}`,
+        ownerId: utilityOwnerId,
+        balance: 0,
+        currency: 'GEN',
+        totalIncome: 0,
+        totalExpenses: 0
+      };
+      this.registeredWallets.set(utilityOwnerId, wallet);
+    }
+    return wallet;
+  }
+
+  public getRegisteredWallets(): Wallet[] {
+    return Array.from(this.registeredWallets.values());
+  }
+
+  public getWallet(entityId: string): Wallet | undefined {
     // Check citizen
     if (this.citizenWalletLookup) {
       const wallet = this.citizenWalletLookup(entityId);
@@ -183,6 +214,17 @@ export class MarketEngine {
     // Check workplace
     const workplace = this.worldEngine.workplaceRepository.findById(entityId);
     if (workplace && workplace.wallet) return workplace.wallet;
+
+    // Check registered wallets (e.g. municipal utility accounts)
+    if (this.registeredWallets.has(entityId)) {
+      return this.registeredWallets.get(entityId);
+    }
+
+    // Check custom wallet lookup
+    if (this.customWalletLookup) {
+      const wallet = this.customWalletLookup(entityId);
+      if (wallet) return wallet;
+    }
 
     return undefined;
   }

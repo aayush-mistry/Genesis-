@@ -114,57 +114,63 @@ export class CandidateGenerator {
   private generateThirstCandidates(need: NeedState, context: DecisionContext, candidates: CandidateAction[]) {
     const perception = context.perception;
     const waterStock = context.stockLevels?.['water'] || 0;
+    const hasWaterConnection = context.hasWaterConnection ?? context.hasResidentialWaterService ?? false;
 
     if (need.level === NeedUrgencyLevel.VERY_LOW) return;
 
-    if (waterStock > 0) {
+    if (waterStock > 0 || hasWaterConnection) {
       candidates.push({
         type: ActionType.CONSUME_WATER,
         source: need.needType,
-        reason: `Thirst is ${need.level} and water is available`
+        reason: waterStock > 0
+          ? `Thirst is ${need.level} and bottled water is available`
+          : `Thirst is ${need.level} and residential tap water is available`
       });
     }
 
     let shouldPurchase = false;
     let purchaseReason = '';
     
-    // Emergency
-    if (need.urgency >= 80 && waterStock <= 0) {
-      shouldPurchase = true;
-      purchaseReason = `EMERGENCY: Thirst is ${need.level} and no water in stock`;
-    }
-    // Reactive
-    else if (need.urgency >= 40 && waterStock < 10) {
-      shouldPurchase = true;
-      purchaseReason = `REACTIVE: Thirst is ${need.level} and water stock is running low (${waterStock})`;
-    }
-    // Planned
-    else if (waterStock < 5) {
-      shouldPurchase = true;
-      purchaseReason = `PLANNED: Water stock is very low (${waterStock}), planning procurement`;
-    }
+    // Only seek external retail water or rivers if neither bottled water nor tap service is available
+    if (!hasWaterConnection) {
+      // Emergency
+      if (need.urgency >= 80 && waterStock <= 0) {
+        shouldPurchase = true;
+        purchaseReason = `EMERGENCY: Thirst is ${need.level} and no water in stock`;
+      }
+      // Reactive
+      else if (need.urgency >= 40 && waterStock < 10) {
+        shouldPurchase = true;
+        purchaseReason = `REACTIVE: Thirst is ${need.level} and water stock is running low (${waterStock})`;
+      }
+      // Planned
+      else if (waterStock < 5) {
+        shouldPurchase = true;
+        purchaseReason = `PLANNED: Water stock is very low (${waterStock}), planning procurement`;
+      }
 
-    if (shouldPurchase) {
-      candidates.push({
-        type: ActionType.PURCHASE,
-        source: need.needType,
-        reason: purchaseReason,
-        metadata: {
-          productId: 'water',
-          targetQuantity: 20
-        }
-      });
-    }
-
-    if (need.urgency > 40 && waterStock <= 0) {
-      const waterResource = perception.nearbyResources.find(r => r.type === 'WATER');
-      if (waterResource) {
+      if (shouldPurchase) {
         candidates.push({
-          type: ActionType.GO_TO_WATER_SOURCE,
+          type: ActionType.PURCHASE,
           source: need.needType,
-          reason: `Thirst is ${need.level} and water source perceived`,
-          target: { type: 'RESOURCE', id: waterResource.id }
+          reason: purchaseReason,
+          metadata: {
+            productId: 'water',
+            targetQuantity: 20
+          }
         });
+      }
+
+      if (need.urgency > 40 && waterStock <= 0) {
+        const waterResource = perception?.nearbyResources?.find(r => r.type === 'WATER');
+        if (waterResource) {
+          candidates.push({
+            type: ActionType.GO_TO_WATER_SOURCE,
+            source: need.needType,
+            reason: `Thirst is ${need.level} and water source perceived`,
+            target: { type: 'RESOURCE', id: waterResource.id }
+          });
+        }
       }
     }
   }

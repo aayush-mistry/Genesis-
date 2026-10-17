@@ -10,6 +10,15 @@ export interface ResourceAllocation {
   consumedResources: { resourceType: string; amount: number; unit: string }[];
 }
 
+export interface DomesticWaterExtractionResult {
+  success: boolean;
+  requestedLitres: number;
+  extractedLitres: number;
+  extractedM3: number;
+  remainingRegionalWaterM3: number;
+  failureReason?: string;
+}
+
 export class ResourceConsumptionEngine {
   // In-memory mapping of workplaceId -> { resourceType -> reservedAmount }
   private producerReserves: Map<string, Record<string, number>> = new Map();
@@ -235,5 +244,122 @@ export class ResourceConsumptionEngine {
     }
 
     return Math.max(0, agg.totalAvailable - agg.regionalReserved - totalProducerReserved - pendingConsumed);
+  }
+
+  /**
+   * Directly extracts domestic water in Litres from canonical regional water resources.
+   * Converts exactly 1 m³ = 1,000 Litres (0.001 m³ per Litre).
+   * Physical water is deducted directly from ResourceManager, ensuring conservation
+   * and preventing negative stocks or duplicate extraction.
+   */
+  public extractDomesticWater(regionId: string, requestedLitres: number): DomesticWaterExtractionResult {
+    if (requestedLitres <= 0) {
+      return {
+        success: false,
+        requestedLitres,
+        extractedLitres: 0,
+        extractedM3: 0,
+        remainingRegionalWaterM3: 0,
+        failureReason: 'INVALID_QUANTITY'
+      };
+    }
+
+    const resources = this.resourceManager.getResourcesByRegion(regionId)
+      .filter(r => this.isWaterResource(r.type));
+
+    if (resources.length === 0) {
+      return {
+        success: false,
+        requestedLitres,
+        extractedLitres: 0,
+        extractedM3: 0,
+        remainingRegionalWaterM3: 0,
+        failureReason: 'NO_WATER_RESOURCE'
+      };
+    }
+
+    // Compute total physically available unreserved water in Litres
+    let totalAvailableLitres = 0;
+    for (const res of resources) {
+      const mult = this.getWaterUnitMultiplier(res.unit);
+      const unreservedM3 = Math.max(0, res.currentAmount - (res.reservedAmount || 0));
+      totalAvailableLitres += unreservedM3 * mult;
+    }
+
+    if (totalAvailableLitres <= 0) {
+      let remainingM3 = 0;
+      for (const res of resources) remainingM3 += res.currentAmount;
+      return {
+        success: false,
+        requestedLitres,
+        extractedLitres: 0,
+        extractedM3: 0,
+        remainingRegionalWaterM3: remainingM3,
+        failureReason: 'DEPLETED_RESERVOIR'
+      };
+    }
+
+    const litresToExtract = Math.min(requestedLitres, totalAvailableLitres);
+    let remainingToDeduct = litresToExtract;
+
+    for (const res of resources) {
+      if (remainingToDeduct <= 0) break;
+      const mult = this.getWaterUnitMultiplier(res.unit);
+      const unreservedM3 = Math.max(0, res.currentAmount - (res.reservedAmount || 0));
+      const availableLitres = unreservedM3 * mult;
+      if (availableLitres <= 0) continue;
+
+      const deductLitres = Math.min(availableLitres, remainingToDeduct);
+      const deductM3 = deductLitres / mult; // 1 m³ = 1000 L
+      const newAmount = Math.max(0, res.currentAmount - deductM3);
+
+      this.resourceManager.updateResource(regionId, res.id, {
+        currentAmount: Number(newAmount.toFixed(6))
+      });
+      remainingToDeduct -= deductLitres;
+    }
+
+    const actuallyExtractedLitres = litresToExtract - remainingToDeduct;
+    const actuallyExtractedM3 = Number((actuallyExtractedLitres / 1000.0).toFixed(6));
+
+    let remainingTotalM3 = 0;
+    for (const res of this.resourceManager.getResourcesByRegion(regionId).filter(r => this.isWaterResource(r.type))) {
+      remainingTotalM3 += res.currentAmount;
+    }
+
+    return {
+      success: actuallyExtractedLitres > 0,
+      requestedLitres,
+      extractedLitres: actuallyExtractedLitres,
+      extractedM3: actuallyExtractedM3,
+      remainingRegionalWaterM3: Number(remainingTotalM3.toFixed(6))
+    };
+  }
+
+  /**
+   * Compensating rollback: refunds extracted domestic water back to the regional water resource.
+   * Used if a multi-step economic transaction or downstream operation fails.
+   */
+  public refundDomesticWater(regionId: string, litresToRefund: number): void {
+    if (litresToRefund <= 0) return;
+    const resources = this.resourceManager.getResourcesByRegion(regionId)
+      .filter(r => this.isWaterResource(r.type));
+    if (resources.length === 0) return;
+
+    let remainingLitres = litresToRefund;
+    for (const res of resources) {
+      if (remainingLitres <= 0) break;
+      const mult = this.getWaterUnitMultiplier(res.unit);
+      const capacityM3 = Math.max(0, res.maximumAmount - res.currentAmount);
+      const capacityLitres = capacityM3 * mult;
+      const refundLitres = Math.min(capacityLitres, remainingLitres);
+      const refundM3 = refundLitres / mult;
+      const newAmount = Math.min(res.maximumAmount, res.currentAmount + refundM3);
+
+      this.resourceManager.updateResource(regionId, res.id, {
+        currentAmount: Number(newAmount.toFixed(6))
+      });
+      remainingLitres -= refundLitres;
+    }
   }
 }

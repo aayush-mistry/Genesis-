@@ -61,7 +61,34 @@ class BackendCitizenService {
     return result;
   }
 
-  public initialize() {
+  public reset(): void {
+    const repository = new InMemoryCitizenRepository();
+    const householdService = new HouseholdService(supplyService.inventoryManager);
+    this.engine = new CitizenService(
+      repository, 
+      worldService.engine, 
+      timeService.engine,
+      eventService.scheduler,
+      spatialService.engine.queryService,
+      householdService
+    );
+    this.simulator = new PopulationSimulator(
+      this.engine, 
+      timeService.engine,
+      undefined,
+      undefined,
+      () => {
+        const cities = worldService.engine.cityManager.getAllCities();
+        if (cities.length > 0) return cities[0].id;
+        const regions = worldService.engine.regionManager.getAllRegions();
+        return regions.length > 0 ? regions[0].id : null;
+      }
+    );
+    this.dirtyCitizenIds.clear();
+    this.dirtyHouseholdIds.clear();
+  }
+
+  public async initialize(): Promise<void> {
     // In the future, this might load existing citizens from a database.
     this.simulator.start();
     
@@ -90,10 +117,12 @@ class BackendCitizenService {
     // Schedule Needs updates
     this.engine.needsService.scheduleNeedsUpdate(eventService.scheduler, timeService.engine.getCurrentTime());
     
-    Promise.all([
+    await Promise.all([
       import('./supply.service'),
-      import('./consumption.service')
-    ]).then(([{ supplyService }, { consumptionService }]) => {
+      import('./consumption.service'),
+      import('./resource.service'),
+      import('./market.service')
+    ]).then(([{ supplyService }, { consumptionService }, { resourceService }, { marketService }]) => {
       const { ConsumptionEngine } = require('@genesis/engine');
       const getCommodity = (id: string) => supplyService.productionEngine.commodities.get(id);
       const consumptionEngine = new ConsumptionEngine(
@@ -102,6 +131,34 @@ class BackendCitizenService {
         getCommodity,
         consumptionService.consumptionLedger
       );
+
+      if (resourceService?.engine?.resourceConsumptionEngine) {
+        consumptionEngine.setResourceConsumptionEngine(resourceService.engine.resourceConsumptionEngine);
+      }
+      if (marketService?.engine) {
+        consumptionEngine.setMarketEngine(marketService.engine);
+      }
+
+      // Water connection checker
+      consumptionEngine.setWaterConnectionChecker((citizen: any) => {
+        if (!citizen.householdId) return { connected: false };
+        const hh = this.engine.householdService.getHousehold(citizen.householdId);
+        if (!hh || !hh.locationId) return { connected: false };
+        const building = worldService.engine.buildingManager.getBuilding(hh.locationId);
+        if (!building) return { connected: false };
+        const isConnected = worldService.engine.buildingManager.hasWaterConnection(building.id);
+        
+        let regionId = 'DEFAULT';
+        try {
+          const district = worldService.engine.districtManager.getDistrict(building.districtId);
+          if (district?.cityId) {
+            const city = worldService.engine.cityManager.getCity(district.cityId);
+            if (city?.regionId) regionId = city.regionId;
+          }
+        } catch (_) {}
+
+        return { connected: isConnected, buildingId: building.id, regionId };
+      });
 
       // Region resolver from spatial world engine
       consumptionEngine.setRegionResolver((citizen: any) => {

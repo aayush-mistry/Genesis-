@@ -189,6 +189,14 @@ export class PerceptionService {
 
     const perception = this.generateSnapshot(citizenId);
 
+    let hasWaterConnection = false;
+    if (citizen.householdId) {
+      const hh = this.citizenService.householdService.getHousehold(citizen.householdId);
+      if (hh && hh.locationId) {
+        hasWaterConnection = this.worldEngine.buildingManager.hasWaterConnection(hh.locationId);
+      }
+    }
+
     return {
       citizenId,
       age: this.citizenService.getCitizenAge(citizen),
@@ -201,7 +209,8 @@ export class PerceptionService {
       simulationTime: new Date(), // Fallback, could be mapped from TimeEngine more precisely
       perception,
       currentRoutine: citizen.currentRoutine,
-      currentRoutineActivity: citizen.currentRoutineActivity
+      currentRoutineActivity: citizen.currentRoutineActivity,
+      hasWaterConnection
     };
   }
 }

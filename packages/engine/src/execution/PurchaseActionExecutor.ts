@@ -147,12 +147,14 @@ export class PurchaseActionExecutor extends BaseActionExecutor {
         return;
       }
 
+      const unit = productId === 'water' ? 'L' : 'kg';
+
       const transaction = this.marketEngine.processTransaction(
         citizen.id,
         sellerId,
         productId,
         quantity,
-        'kg',
+        unit,
         unitPrice,
         finalPrice,
         citizen.wallet.currency,
@@ -165,16 +167,16 @@ export class PurchaseActionExecutor extends BaseActionExecutor {
         if (citizen.householdId) {
            const household = this.storeRanker['inventoryManager'].getInventoryByOwner(citizen.householdId);
            if (household) {
-             this.storeRanker['inventoryManager'].transferItemQuantity(inventory.id, household.id, productId, quantity, 'kg');
+             this.storeRanker['inventoryManager'].transferItemQuantity(inventory.id, household.id, productId, quantity, unit);
            }
         } else {
            const citizenInv = this.storeRanker['inventoryManager'].getInventoryByOwner(citizen.id);
            if (citizenInv) {
-             this.storeRanker['inventoryManager'].transferItemQuantity(inventory.id, citizenInv.id, productId, quantity, 'kg');
+             this.storeRanker['inventoryManager'].transferItemQuantity(inventory.id, citizenInv.id, productId, quantity, unit);
            } else {
              // Create one if it doesn't exist
              const newInv = this.storeRanker['inventoryManager'].createInventory(`inv-${citizen.id}`, citizen.id, 100);
-             this.storeRanker['inventoryManager'].transferItemQuantity(inventory.id, newInv.id, productId, quantity, 'kg');
+             this.storeRanker['inventoryManager'].transferItemQuantity(inventory.id, newInv.id, productId, quantity, unit);
            }
         }
         this.lifecycleManager.transition(action, ActionState.COMPLETED, 'Purchase successful');

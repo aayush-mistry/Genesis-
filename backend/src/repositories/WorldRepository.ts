@@ -65,10 +65,15 @@ export class WorldRepository {
   }
 
   async createBuilding(data: any) {
+    const payload = { ...data };
+    if (payload.metadata && !payload.metadataJson) {
+      payload.metadataJson = typeof payload.metadata === 'string' ? payload.metadata : JSON.stringify(payload.metadata);
+      delete payload.metadata;
+    }
     return prisma.building.upsert({
-      where: { id: data.id },
-      update: data,
-      create: data
+      where: { id: payload.id },
+      update: payload,
+      create: payload
     });
   }
 
@@ -85,7 +90,12 @@ export class WorldRepository {
   }
 
   async updateBuilding(id: string, data: any) {
-    return prisma.building.update({ where: { id }, data });
+    const payload = { ...data };
+    if (payload.metadata && !payload.metadataJson) {
+      payload.metadataJson = typeof payload.metadata === 'string' ? payload.metadata : JSON.stringify(payload.metadata);
+      delete payload.metadata;
+    }
+    return prisma.building.update({ where: { id }, data: payload });
   }
 }
 

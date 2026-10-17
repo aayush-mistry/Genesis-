@@ -46,7 +46,10 @@ export class ActionExecutor {
     );
   }
 
+  public consumptionEngine?: import('../consumption/ConsumptionEngine').ConsumptionEngine;
+
   public setConsumptionEngine(consumptionEngine: import('../consumption/ConsumptionEngine').ConsumptionEngine): void {
+    this.consumptionEngine = consumptionEngine;
     this.executors.push(
       new ResourceInteractionExecutor(this.lifecycleManager, consumptionEngine)
     );

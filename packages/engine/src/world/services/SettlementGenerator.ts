@@ -128,6 +128,7 @@ export class SettlementGenerator {
         width: aptWidth,
         height: aptHeight,
         status: 'ACTIVE',
+        metadata: { hasWaterConnection: true },
         createdAt: new Date(),
         updatedAt: new Date()
       });
