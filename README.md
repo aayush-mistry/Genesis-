@@ -118,6 +118,7 @@ npm run build:frontend
   - T8.6: Resource-Aware Production & Economic Integration Audit (comprehensive end-to-end trace from agricultural yield calculators and water volumetric unit conversions to B2B procurement and financial ledgers).
   - T8.6.1: B2B Transaction Integrity Restoration (explicit `MarketEngine` dependency injection into `SupplyService` and `BusinessProcurementEngine`, preserving market routing and authoritative ledger creation across `reset()` cycles).
   - T8.6.2: Workplace Financial Persistence (`WorkplaceRepository.updateFinancials()`, authoritative tick-boundary synchronization of `revenue`, `expenses`, `profit`, and accounting history, with full cold-restart hydration).
+  - T8.6.3: Residential Water Infrastructure & Transaction Integrity (residential tap-water access connected to regional resources, exact $1\,\text{m}^3 = 1{,}000\,\text{L}$ conversion, municipal utility tariff billing, persistent idempotency across cold restarts, and atomic failure rollback compensation).
 
 ## Genesis Roadmap
 
@@ -187,7 +188,8 @@ Phase 8 ✅ Visualization & Advanced Economic Dynamics
 ├── T8.5 Resource Persistence & Conservation
 ├── T8.6 Economic Integration & Production Audit
 ├── T8.6.1 B2B Transaction Integrity Restoration
-└── T8.6.2 Workplace Financial Persistence
+├── T8.6.2 Workplace Financial Persistence
+└── T8.6.3 Residential Water Infrastructure & Transaction Integrity
 
 Phase 9 🔜 Social Framework & Relationships
 Phase 10 🔜 Optimization & Scale
@@ -223,6 +225,7 @@ Phase 10 🔜 Optimization & Scale
 | Resource Regeneration & Conservation | ✅ Implemented | Natural regeneration, capacity clamping, extraction difficulty, and authoritative SQLite persistence |
 | B2B Transaction Pipeline | ✅ Implemented | Authoritative market routing, wholesale pricing, and transaction ledger persistence across resets |
 | Workplace Financial Persistence | ✅ Implemented | Authoritative snapshot sync of workplace revenue, expenses, and profit to SQLite |
+| Residential Water & Utility Infrastructure | ✅ Implemented | Piped tap water access, regional resource conservation, domestic tariff billing, restart idempotency, and atomic compensation |
 | Taxes | 🔴 Not implemented | Slated for future phase |
 | Spatial Renderer | ✅ Implemented | Canvas-based rendering of the world |
 | Live Simulation UI | ✅ Implemented | Real-time visualization of citizens and environment |
@@ -942,6 +945,14 @@ Bridges in-memory business accounting to durable database storage:
 - **Idempotent Tick Boundaries:** Repeated tick persistence executes snapshot updates rather than relative increments, preventing double-counting or balance inflation.
 - **Cold-Restart Hydration:** `PersistenceService.bootstrap()` hydrates saved workplace metrics and period accounting histories, restoring exact business financial standing across server restarts.
 
+### T8.6.3: Residential Water Infrastructure & Transaction Integrity
+Connects household tap-water access to regional natural resources, citizen thirst fulfillment, and municipal utility accounting:
+- **Direct Regional Extraction & Exact Volumetric Conversion:** Household tap water draws directly from the region's renewable `WATER` pool via `ResourceManager.deductResource()`, enforcing exact physical volumetric conservation with the standard $1\,\text{m}^3 = 1{,}000\,\text{L}$ conversion factor ($0.001\,\text{m}^3/\text{L}$).
+- **Municipal Utility Tariff Billing:** Citizen tap-water consumption incurs a residential utility tariff ($0.05 currency/L), debited from the citizen wallet and credited directly to the municipal utility wallet (`utility-water-${regionId}`) through `MarketEngine.processTransaction()`.
+- **Persistent Restart-Safe Idempotency:** Historical transactions and consumption events are indexed and verified across cold restarts via `ConsumptionLedger.hasEvent(eventId)` and `MarketEngine.hasTransaction(transactionId)`. Replayed events or restarts are detected and safely skipped without duplicate billing, double-deduction of regional water, or double-satisfaction of thirst.
+- **Atomic Multi-Step Failure Compensation:** `ConsumptionEngine.consumeResidentialTapWater()` enforces all-or-nothing execution. If any downstream step fails (such as thirst satisfaction or record persistence) after regional extraction or financial billing has succeeded, compensating reversals (`refundDomesticWater`, `reverseTransaction`, and thirst rollback) restore all resource pools and citizen wallets to their exact pre-action balances.
+- **Decision Engine Integration:** Thirsty citizens evaluate residential tap water alongside retail beverages via `CandidateGenerator` generating `ActionType.CONSUME_WATER` actions, providing a resilient baseline survival utility when retail goods are unavailable or unaffordable.
+
 ---
 
 ## End-to-End Economic Feedback Architecture
@@ -1013,8 +1024,8 @@ While the closed economic feedback loop and authoritative intelligence are fully
 
 The repository maintains strict continuous integration standards to guarantee determinism and simulation health.
 
-- **Engine Test Suite (`@genesis/engine`):** 40 passing test suites with 248 verified tests (Time, Events, Decision, Spatial, Inventory, Banking, Production, Market Pricing, Economic Equilibrium, Agricultural Yield, Resource Regeneration, B2B Procurement, and Population Simulation).
-- **Backend Test Suite (`@genesis/backend`):** 12 authoritative integration suites (50 verified tests) executing sequentially against Prisma and SQLite, verifying demand intelligence, multi-stage supply aggregation, employment and payroll, market price dynamics, closed equilibrium loops, economic shortages/failures, long-run economic stability, population lifecycle, consumption history & forecasting, seasonal agricultural yield variation, B2B transaction integrity, and workplace financial persistence.
-- **Process Restart Recovery:** Deterministic cold-restart test (`Process A` → `Process B`) confirming complete hydration of world state, workplace wallets, inventory configurations, consumption records, and simulation time without drift or memory leaks.
+- **Engine Test Suite (`@genesis/engine`):** 41 passing test suites with 269 verified tests (Time, Events, Decision, Spatial, Inventory, Banking, Production, Market Pricing, Economic Equilibrium, Agricultural Yield, Resource Regeneration, B2B Procurement, Residential Water Infrastructure, and Population Simulation).
+- **Backend Test Suite (`@genesis/backend`):** 13 authoritative integration suites (51 verified tests) executing sequentially against Prisma and SQLite, verifying demand intelligence, multi-stage supply aggregation, employment and payroll, market price dynamics, closed equilibrium loops, economic shortages/failures, long-run economic stability, population lifecycle, consumption history & forecasting, seasonal agricultural yield variation, B2B transaction integrity, workplace financial persistence, and residential water persistence.
+- **Process Restart Recovery:** Deterministic cold-restart test (`Process A` → `Process B`) confirming complete hydration of world state, workplace wallets, municipal utility accounts, inventory configurations, consumption records, and simulation time without drift or memory leaks.
 - **Typecheck:** Clean 0-error `tsc` validation across `shared`, `packages/engine`, `backend`, and `frontend` workspaces.
 - **Production Build:** `npm run build` succeeds completely, compiling all TypeScript packages and bundling minified frontend production assets with Vite.
