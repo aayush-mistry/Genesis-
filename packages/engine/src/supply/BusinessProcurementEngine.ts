@@ -65,6 +65,16 @@ export class BusinessProcurementEngine {
     'water': [
       { minimumQuantity: 0, unitPrice: 2 },
       { minimumQuantity: 1000, unitPrice: 1.5 }
+    ],
+    'raw_fish': [
+      { minimumQuantity: 0, unitPrice: 15 },
+      { minimumQuantity: 50, unitPrice: 13 },
+      { minimumQuantity: 100, unitPrice: 11 }
+    ],
+    'timber': [
+      { minimumQuantity: 0, unitPrice: 20 },
+      { minimumQuantity: 50, unitPrice: 18 },
+      { minimumQuantity: 100, unitPrice: 16 }
     ]
   };
 
@@ -207,7 +217,7 @@ export class BusinessProcurementEngine {
     }
   }
 
-  private processRequirement(req: ProcurementRequirement, buyer: Workplace): void {
+  public processRequirement(req: ProcurementRequirement, buyer: Workplace): void {
     const suppliers = this.discoverSuppliers(buyer.regionId, req.productId);
     if (suppliers.length === 0) {
       req.status = 'FAILED';
@@ -224,6 +234,9 @@ export class BusinessProcurementEngine {
       return;
     }
 
+    const currentTime = this.timeEngine.getCurrentTime();
+    const cycleKey = `${currentTime.year}-${currentTime.month}-${currentTime.day}`;
+
     // Attempt Multi-supplier fulfillment
     let remainingQuantity = req.requestedQuantity;
     let fulfilled = false;
@@ -235,48 +248,100 @@ export class BusinessProcurementEngine {
       if (orderQuantity <= 0) continue;
 
       const seller = this.worldEngine.workplaceRepository.findById(rank.supplierId);
-      if (!seller) continue;
+      if (!seller || !seller.inventoryId) continue;
 
-      // Verify Wallet
-      if (buyer.wallet) {
-        // Calculate cost for this specific portion
-        const portionBulkPrice = this.calculateBulkPrice(req.productId, orderQuantity, seller.regionId);
-        const portionTransportCost = orderQuantity * rank.distance * 0.1; // Simple calculation
-        const totalLandedCost = (portionBulkPrice * orderQuantity) + portionTransportCost;
+      const txId = `B2B-PROC-${buyer.id}-${seller.id}-${req.productId}-${cycleKey}`;
+      const orderId = `ORDER-${buyer.id}-${seller.id}-${req.productId}-${cycleKey}`;
 
-        if (buyer.wallet.balance < totalLandedCost) {
-          continue; // Cannot afford this supplier, try next
+      // Check for existing order or transaction in this cycle (Idempotency)
+      const existingOrder = this.supplyChainEngine.getOrder(orderId);
+      if (existingOrder) {
+        if ([OrderStatus.CREATED, OrderStatus.CONFIRMED, OrderStatus.DISPATCHED, OrderStatus.DELIVERED].includes(existingOrder.status)) {
+          remainingQuantity -= existingOrder.quantity;
+          fulfilled = true;
+          this.logProcurement(req, rankings, rank, `Reconciled existing order ${orderId} (${existingOrder.status})`, orderId);
+          continue;
         }
+        // If order was FAILED, do not repeat in the same simulation cycle
+        continue;
+      }
 
-        // Process through MarketEngine
-        if (this.marketEngine) {
-          const type = (buyer.type === 'RETAIL' || buyer.type === 'SHOP') ? 'RETAIL_PROCUREMENT' : 'WHOLESALE_PURCHASE';
-          const tx = this.marketEngine.processTransaction(
-            buyer.id, seller.id, req.productId, orderQuantity, 'kg', portionBulkPrice, 
-            portionBulkPrice * orderQuantity, buyer.wallet.currency, type as any, buyer.regionId
-          );
-          if (!tx) continue;
-          
-          if (portionTransportCost > 0) {
-            this.marketEngine.processTransaction(
-              buyer.id, 'SYSTEM_TRANSPORT', null, null, null, null,
-              portionTransportCost, buyer.wallet.currency, 'TRANSPORT_EXPENSE' as any, buyer.regionId
-            );
-          }
-        } else {
-          // Deduct from wallet temporarily (Fallback)
-          buyer.wallet.balance -= totalLandedCost;
-          buyer.wallet.totalExpenses += totalLandedCost;
-          if (seller.wallet) {
-            seller.wallet.balance += (portionBulkPrice * orderQuantity);
-            seller.wallet.totalIncome += (portionBulkPrice * orderQuantity);
-          }
+      if (this.marketEngine) {
+        const existingTx = this.marketEngine.getTransaction(txId);
+        if (existingTx && !this.marketEngine.isTransactionReversed(txId)) {
+          remainingQuantity -= (existingTx.quantity || orderQuantity);
+          fulfilled = true;
+          continue;
         }
       }
 
-      // Create Order
-      const order = this.supplyChainEngine.createOrder(buyer.id, seller.id, req.productId, orderQuantity, 'kg');
-      
+      // 1. Verify and reserve the required producer inventory before finalizing payment
+      const reserved = this.inventoryManager.reserveItemQuantity(seller.inventoryId, req.productId, orderQuantity);
+      if (!reserved) {
+        continue;
+      }
+
+      const portionBulkPrice = this.calculateBulkPrice(req.productId, orderQuantity, seller.regionId);
+      const portionTransportCost = orderQuantity * rank.distance * 0.1;
+      const totalPurchasePrice = portionBulkPrice * orderQuantity;
+      const totalLandedCost = totalPurchasePrice + portionTransportCost;
+
+      // Check wallet balance
+      const buyerWallet = buyer.wallet || (this.marketEngine ? this.marketEngine.getWallet(buyer.id) : undefined);
+      if (buyerWallet && buyerWallet.balance < totalLandedCost) {
+        // Insufficient funds: release reservation immediately
+        this.inventoryManager.releaseReservedItem(seller.inventoryId, req.productId, orderQuantity);
+        continue;
+      }
+
+      // 2. Process payment
+      let paymentSuccess = false;
+      if (this.marketEngine) {
+        const type = (buyer.type === 'RETAIL' || buyer.type === 'SHOP') ? 'RETAIL_PROCUREMENT' : 'WHOLESALE_PURCHASE';
+        const tx = this.marketEngine.processTransaction(
+          buyer.id, seller.id, req.productId, orderQuantity, 'kg', portionBulkPrice, 
+          totalPurchasePrice, buyerWallet?.currency || 'GEN', type as any, buyer.regionId, txId
+        );
+        if (tx) {
+          paymentSuccess = true;
+          if (portionTransportCost > 0) {
+            const transportTxId = `TRANS-${buyer.id}-${seller.id}-${req.productId}-${cycleKey}`;
+            this.marketEngine.processTransaction(
+              buyer.id, 'SYSTEM_TRANSPORT', null, null, null, null,
+              portionTransportCost, buyerWallet?.currency || 'GEN', 'TRANSPORT_EXPENSE' as any, buyer.regionId, transportTxId
+            );
+          }
+        }
+      } else if (buyerWallet) {
+        buyerWallet.balance -= totalLandedCost;
+        buyerWallet.totalExpenses += totalLandedCost;
+        if (seller.wallet) {
+          seller.wallet.balance += totalPurchasePrice;
+          seller.wallet.totalIncome += totalPurchasePrice;
+        }
+        paymentSuccess = true;
+      }
+
+      if (!paymentSuccess) {
+        // Payment failed: release reservation and leave balances unchanged
+        this.inventoryManager.releaseReservedItem(seller.inventoryId, req.productId, orderQuantity);
+        continue;
+      }
+
+      // 3. Create Order with preReserved = true and deterministic orderId & txId
+      const order = this.supplyChainEngine.createOrder(
+        buyer.id, seller.id, req.productId, orderQuantity, 'kg', orderId, true, txId
+      );
+
+      // If order creation or dispatch failed, compensate
+      if (order.status === OrderStatus.FAILED) {
+        this.inventoryManager.releaseReservedItem(seller.inventoryId, req.productId, orderQuantity);
+        if (this.marketEngine) {
+          this.marketEngine.reverseTransaction(txId, `${txId}-REV-CREATION`, 'Order creation or dispatch failed');
+        }
+        continue;
+      }
+
       remainingQuantity -= orderQuantity;
       fulfilled = true;
 
@@ -285,7 +350,7 @@ export class BusinessProcurementEngine {
 
     if (remainingQuantity > 0) {
       req.requestedQuantity = remainingQuantity;
-      req.status = 'PARTIAL';
+      req.status = fulfilled ? 'PARTIAL' : 'FAILED';
       this.pendingRequirements.push(req);
     } else {
       req.status = 'FULFILLED';
@@ -445,5 +510,14 @@ export class BusinessProcurementEngine {
 
   public getHistory(): any[] {
     return this.procurementHistory;
+  }
+
+  public clear(): void {
+    this.procurementHistory = [];
+    this.pendingRequirements = [];
+  }
+
+  public reset(): void {
+    this.clear();
   }
 }

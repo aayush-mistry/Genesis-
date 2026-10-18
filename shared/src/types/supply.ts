@@ -27,6 +27,7 @@ export interface Order {
   createdAt: number; // Timestamp or SimulationTime representation
   expectedDelivery?: number;
   shipmentId?: string;
+  transactionId?: string;
 }
 
 export enum ShipmentStatus {

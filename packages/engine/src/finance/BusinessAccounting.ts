@@ -22,6 +22,26 @@ export class BusinessAccounting {
     this.updateProfit(workplace);
   }
 
+  public recordRevenueReversal(workplaceId: string, amount: number): void {
+    const workplace = this.worldEngine.workplaceRepository.findById(workplaceId);
+    if (!workplace) return;
+
+    if (workplace.revenue !== undefined) {
+      workplace.revenue = Math.max(0, workplace.revenue - amount);
+      this.updateProfit(workplace);
+    }
+  }
+
+  public recordExpenseReversal(workplaceId: string, amount: number): void {
+    const workplace = this.worldEngine.workplaceRepository.findById(workplaceId);
+    if (!workplace) return;
+
+    if (workplace.expenses !== undefined) {
+      workplace.expenses = Math.max(0, workplace.expenses - amount);
+      this.updateProfit(workplace);
+    }
+  }
+
   private updateProfit(workplace: Workplace): void {
     const revenue = workplace.revenue || 0;
     const expenses = workplace.expenses || 0;

@@ -345,4 +345,16 @@ export class MarketEngine {
       t => t.buyerId === entityId || t.sellerId === entityId
     );
   }
+
+  public clear(): void {
+    this.transactions.clear();
+    this.reversedTransactionIds.clear();
+    this.registeredWallets.clear();
+    this.regionalAdjustments.clear();
+  }
+
+  public reset(): void {
+    this.clear();
+  }
 }
+

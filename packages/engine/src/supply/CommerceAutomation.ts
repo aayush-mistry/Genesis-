@@ -17,6 +17,11 @@ interface RetailConfig {
 
 export class CommerceAutomation {
   private isInitialized = false;
+  public isEnabled = true;
+
+  public setEnabled(enabled: boolean): void {
+    this.isEnabled = enabled;
+  }
 
   // Simple hardcoded configurations for now
   private retailConfigs: Record<string, RetailConfig> = {
@@ -73,7 +78,9 @@ export class CommerceAutomation {
     this.eventScheduler.scheduleEvent(event);
   }
 
-  private runCommerceCycle(): void {
+  public runCommerceCycle(): void {
+    if (!this.isEnabled) return;
+
     const workplaces = this.worldEngine.workplaceRepository.findAll();
     const retailers = workplaces.filter(w => w.type === WorkplaceType.SHOP || w.type === WorkplaceType.BUSINESS);
     const wholesalers = workplaces.filter(w => w.type === WorkplaceType.WHOLESALE);
@@ -115,6 +122,8 @@ export class CommerceAutomation {
   }
 
   private handleWholesaleRestockNeeded(wholesaleId: string, productId: string, requestedQuantity: number): void {
+    if (!this.isEnabled) return;
+
     const wholesale = this.worldEngine.workplaceRepository.findById(wholesaleId);
     if (!wholesale || !wholesale.inventoryId) return;
 

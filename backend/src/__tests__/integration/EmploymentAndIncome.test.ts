@@ -216,6 +216,11 @@ describe('T7.8.3 - Employment and Income Dynamics', () => {
   });
 
   test('5. Insufficient funds creates persistent debt and partial payment', async () => {
+    // Advance simulation month to represent next legitimate payroll cycle
+    const t5 = timeService.engine.getCurrentTime();
+    t5.month = 3;
+    timeService.engine.setCurrentTime(t5);
+
     // Clear transactions and reset wallet balance
     await prisma.transactionRecord.deleteMany({});
     const memWp = worldService.engine.workplaceRepository.findById(wpId)!;
@@ -227,7 +232,7 @@ describe('T7.8.3 - Employment and Income Dynamics', () => {
     memCit.employmentRecord!.daysWorked = 30;
     memCit.employmentRecord!.expectedWorkingDays = 30;
     
-    // Clear previous debt and payment date to allow rerun in same month for testing
+    // Clear previous debt and payment date for new payroll cycle
     memCit.employmentRecord!.unpaidWages = 0;
     memCit.employmentRecord!.lastPaymentDate = null;
 
@@ -258,6 +263,11 @@ describe('T7.8.3 - Employment and Income Dynamics', () => {
   });
 
   test('6. Settles outstanding debt on next payroll and does not double-pay', async () => {
+    // Advance simulation month to represent next legitimate payroll cycle
+    const t6 = timeService.engine.getCurrentTime();
+    t6.month = 4;
+    timeService.engine.setCurrentTime(t6);
+
     const memWp = worldService.engine.workplaceRepository.findById(wpId)!;
     const memCit = citizenService.engine.getCitizen(citizenId)!;
     

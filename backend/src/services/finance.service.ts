@@ -3,6 +3,7 @@ import { worldService } from './world.service';
 import { marketService } from './market.service';
 import { eventService } from './event.service';
 import { timeService } from './time.service';
+import { citizenService } from './citizen.service';
 
 class FinanceService {
   public engine: FinancialEngine;
@@ -14,12 +15,12 @@ class FinanceService {
       eventService.scheduler,
       timeService.engine
     );
+    this.engine.productionCostCalculator.citizenProvider = (id) => citizenService.engine.getCitizen(id);
+    marketService.setProductionCostCalculator(this.engine.productionCostCalculator);
   }
   public initialize() {
-    // Note: citizenService is required here for salary calculations
-    import('./citizen.service').then(({ citizenService }) => {
-      this.engine.productionCostCalculator.citizenProvider = (id) => citizenService.engine.getCitizen(id);
-    });
+    this.engine.productionCostCalculator.citizenProvider = (id) => citizenService.engine.getCitizen(id);
+    marketService.setProductionCostCalculator(this.engine.productionCostCalculator);
 
     // Listen to completed transactions to persist them to the database
     eventService.scheduler.emitter.on('TransactionCompleted', async (tx) => {

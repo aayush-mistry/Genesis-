@@ -8,10 +8,12 @@ import { SpatialQueryService } from '../spatial/SpatialQueryService';
 import { TimeUtils } from '../utils/TimeUtils';
 import { randomUUID } from 'crypto';
 import { EventRegistry } from '../events/EventRegistry';
+import { MarketEngine } from '../market/MarketEngine';
 
 export class SupplyChainEngine {
   private orders: Map<string, Order> = new Map();
   private shipments: Map<string, Shipment> = new Map();
+  private marketEngine?: MarketEngine;
 
   // Speed for goods shipments. e.g. trucks
   public static readonly TRUCK_SPEED_UNITS_PER_HOUR = 80;
@@ -28,22 +30,49 @@ export class SupplyChainEngine {
     });
   }
 
-  public createOrder(buyerId: string, sellerId: string, productId: string, quantity: number, unit: string): Order {
+  public setMarketEngine(engine: MarketEngine): void {
+    this.marketEngine = engine;
+  }
+
+  public getMarketEngine(): MarketEngine | undefined {
+    return this.marketEngine;
+  }
+
+  public clear(): void {
+    this.orders.clear();
+    this.shipments.clear();
+  }
+
+  public createOrder(
+    buyerId: string,
+    sellerId: string,
+    productId: string,
+    quantity: number,
+    unit: string,
+    orderId?: string,
+    preReserved: boolean = false,
+    transactionId?: string
+  ): Order {
+    if (orderId && this.orders.has(orderId)) {
+      return this.orders.get(orderId)!;
+    }
+
     const order: Order = {
-      orderId: randomUUID(),
+      orderId: orderId || randomUUID(),
       buyerId,
       sellerId,
       productId,
       quantity,
       unit,
       status: OrderStatus.CREATED,
-      createdAt: TimeUtils.toSeconds(this.timeEngine.getCurrentTime())
+      createdAt: TimeUtils.toSeconds(this.timeEngine.getCurrentTime()),
+      transactionId
     };
 
     this.orders.set(order.orderId, order);
     
     // Attempt to auto-confirm if seller has enough inventory
-    this.processOrder(order.orderId);
+    this.processOrder(order.orderId, preReserved);
 
     return order;
   }
@@ -74,17 +103,17 @@ export class SupplyChainEngine {
     return this.shipments.get(shipmentId);
   }
 
-  private processOrder(orderId: string): void {
+  private processOrder(orderId: string, preReserved: boolean = false): void {
     const order = this.orders.get(orderId);
     if (!order || !(order.status === OrderStatus.CREATED || order.status === OrderStatus.PENDING)) return;
 
     const seller = this.worldEngine.workplaceRepository.findById(order.sellerId);
     if (!seller || !seller.inventoryId) {
-      order.status = OrderStatus.FAILED;
+      this.failOrderAndRefund(order, 'Seller workplace or inventory missing');
       return;
     }
 
-    const reserved = this.inventoryManager.reserveItemQuantity(seller.inventoryId, order.productId, order.quantity);
+    const reserved = preReserved || this.inventoryManager.reserveItemQuantity(seller.inventoryId, order.productId, order.quantity);
     if (reserved) {
       order.status = OrderStatus.CONFIRMED;
       this.dispatchShipmentForOrder(order);
@@ -99,7 +128,7 @@ export class SupplyChainEngine {
           quantity: order.quantity
         });
       } else {
-        order.status = OrderStatus.FAILED;
+        this.failOrderAndRefund(order, 'Insufficient seller inventory to fulfill order');
       }
     }
   }
@@ -109,14 +138,14 @@ export class SupplyChainEngine {
     const buyer = this.worldEngine.workplaceRepository.findById(order.buyerId);
     
     if (!seller || !buyer || !seller.inventoryId || !buyer.inventoryId) {
-      order.status = OrderStatus.FAILED;
+      this.failOrderAndRefund(order, 'Seller or buyer workplace/inventory missing at dispatch');
       return;
     }
 
     // Move goods from total/reserved in seller's inventory out into "transit"
     const consumed = this.inventoryManager.consumeReservedItem(seller.inventoryId, order.productId, order.quantity);
     if (!consumed) {
-      order.status = OrderStatus.FAILED;
+      this.failOrderAndRefund(order, 'Unable to consume reserved inventory at dispatch');
       return;
     }
 
@@ -171,17 +200,17 @@ export class SupplyChainEngine {
     });
   }
 
-  private handleShipmentArrival(metadata: { shipmentId: string, orderId: string }): void {
+  public handleShipmentArrival(metadata: { shipmentId: string, orderId: string }): void {
     const { shipmentId, orderId } = metadata;
     const shipment = this.shipments.get(shipmentId);
     const order = this.orders.get(orderId);
     
     if (!shipment || !order) return;
+    if (shipment.status !== ShipmentStatus.IN_TRANSIT) return;
 
     const buyer = this.worldEngine.workplaceRepository.findById(shipment.destinationId);
     if (!buyer || !buyer.inventoryId) {
-      shipment.status = ShipmentStatus.FAILED;
-      order.status = OrderStatus.FAILED;
+      this.failShipmentAndRecover(shipment, order, 'Destination workplace or inventory missing');
       return;
     }
 
@@ -202,9 +231,70 @@ export class SupplyChainEngine {
       this.retryPendingOrdersForSeller(buyer.id);
 
     } else {
-      shipment.status = ShipmentStatus.FAILED;
-      order.status = OrderStatus.FAILED;
-      // Goods are lost or need return mechanism (not implemented for now)
+      this.failShipmentAndRecover(shipment, order, 'Buyer inventory at capacity or unable to accept delivery');
+    }
+  }
+
+  private failOrderAndRefund(order: Order, reason: string): void {
+    order.status = OrderStatus.FAILED;
+    const seller = this.worldEngine.workplaceRepository.findById(order.sellerId);
+    if (seller && seller.inventoryId) {
+      this.inventoryManager.releaseReservedItem(seller.inventoryId, order.productId, order.quantity);
+    }
+    if (order.transactionId && this.marketEngine) {
+      this.marketEngine.reverseTransaction(order.transactionId, `${order.transactionId}-REV-DISPATCH`, reason);
+      const transportTxId = order.transactionId.replace('B2B-PROC', 'TRANS');
+      if (this.marketEngine.getTransaction(transportTxId)) {
+        this.marketEngine.reverseTransaction(transportTxId, `${transportTxId}-REV-DISPATCH`, reason);
+      }
+    }
+  }
+
+  private failShipmentAndRecover(shipment: Shipment, order: Order, reason: string): void {
+    shipment.status = ShipmentStatus.FAILED;
+    order.status = OrderStatus.FAILED;
+
+    // Return goods safely to seller warehouse so goods are not destroyed
+    const seller = this.worldEngine.workplaceRepository.findById(shipment.originId);
+    if (seller && seller.inventoryId) {
+      const returned = this.inventoryManager.addItemQuantity(seller.inventoryId, shipment.productId, shipment.quantity, shipment.unit);
+      if (!returned) {
+        // Force restore into seller's inventory if capacity reached in transit
+        const inv = this.inventoryManager.getInventory(seller.inventoryId);
+        if (inv) {
+          if (!inv.items[shipment.productId]) {
+            inv.items[shipment.productId] = {
+              productId: shipment.productId,
+              totalQuantity: 0,
+              reservedQuantity: 0,
+              availableQuantity: 0,
+              unit: shipment.unit,
+              batches: []
+            };
+          }
+          const item = inv.items[shipment.productId];
+          if (!item.batches) {
+            item.batches = [];
+          }
+          item.batches.push({
+            quantity: shipment.quantity,
+            acquiredAt: Date.now(),
+            status: 'FRESH'
+          });
+          item.totalQuantity += shipment.quantity;
+          inv.storageCapacity = Math.max(inv.storageCapacity, Object.values(inv.items).reduce((s, x) => s + x.totalQuantity, 0));
+          item.availableQuantity = item.totalQuantity - item.reservedQuantity;
+        }
+      }
+    }
+
+    // Compensate buyer and reverse payment
+    if (order.transactionId && this.marketEngine) {
+      this.marketEngine.reverseTransaction(order.transactionId, `${order.transactionId}-REV-ARRIVAL`, reason);
+      const transportTxId = order.transactionId.replace('B2B-PROC', 'TRANS');
+      if (this.marketEngine.getTransaction(transportTxId)) {
+        this.marketEngine.reverseTransaction(transportTxId, `${transportTxId}-REV-ARRIVAL`, reason);
+      }
     }
   }
 

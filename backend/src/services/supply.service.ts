@@ -20,6 +20,9 @@ class SupplyService {
     if (this.businessProcurementEngine) {
       this.businessProcurementEngine.setMarketEngine(engine);
     }
+    if (this.supplyChainEngine) {
+      this.supplyChainEngine.setMarketEngine(engine);
+    }
   }
 
   public getMarketEngine(): MarketEngine | undefined {
@@ -130,7 +133,8 @@ class SupplyService {
     });
 
     this.productionEngine.initialize();
-    this.commerceAutomation.initialize();
+    // Disable legacy CommerceAutomation to prevent unpaid parallel inventory transfers (GAP-1)
+    this.commerceAutomation.setEnabled(false);
     this.businessProcurementEngine.initialize();
 
     // Note: Inventory and wallet initialization for workplaces has been moved to setupWorkplaceInventories()
@@ -192,8 +196,17 @@ class SupplyService {
             wp.inventoryConfiguration = {
               'wheat': { reorderPoint: 50, targetStock: 200 },
               'iron_ore': { reorderPoint: 20, targetStock: 100 },
-              'water': { reorderPoint: 100, targetStock: 500 }
+              'water': { reorderPoint: 100, targetStock: 500 },
+              'raw_fish': { reorderPoint: 30, targetStock: 150 },
+              'timber': { reorderPoint: 20, targetStock: 100 }
             };
+          } else {
+            if (!wp.inventoryConfiguration['raw_fish']) {
+              wp.inventoryConfiguration['raw_fish'] = { reorderPoint: 30, targetStock: 150 };
+            }
+            if (!wp.inventoryConfiguration['timber']) {
+              wp.inventoryConfiguration['timber'] = { reorderPoint: 20, targetStock: 100 };
+            }
           }
         }
 
@@ -238,6 +251,7 @@ class SupplyService {
       eventService.scheduler,
       timeService.engine
     );
+    this.commerceAutomation.setEnabled(false);
     this.businessProcurementEngine = new BusinessProcurementEngine(
       worldService.engine,
       this.inventoryManager,
@@ -249,6 +263,7 @@ class SupplyService {
     );
     if (this.marketEngine) {
       this.businessProcurementEngine.setMarketEngine(this.marketEngine);
+      this.supplyChainEngine.setMarketEngine(this.marketEngine);
     }
     this.initialize();
   }

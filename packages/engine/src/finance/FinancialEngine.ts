@@ -28,6 +28,20 @@ export class FinancialEngine {
     this.eventScheduler.emitter.on('TransactionCompleted', (tx: TransactionRecord) => {
       this.ledger.recordTransaction(tx);
       
+      // Handle compensating transaction reversals
+      if (tx.referenceType === 'TRANSACTION_REVERSAL' && tx.referenceId) {
+        const origTx = this.ledger.getTransaction(tx.referenceId) || (this.marketEngine ? this.marketEngine.getTransaction(tx.referenceId) : undefined);
+        if (origTx) {
+          if (origTx.transactionType === 'PURCHASE' || origTx.transactionType === 'SALE' || origTx.transactionType === 'RETAIL_PROCUREMENT' || origTx.transactionType === 'WHOLESALE_PURCHASE') {
+            this.accounting.recordRevenueReversal(origTx.sellerId, origTx.totalPrice);
+            this.accounting.recordExpenseReversal(origTx.buyerId, origTx.totalPrice);
+          } else if (origTx.transactionType === 'WAGE' || origTx.transactionType === 'TRANSPORT_EXPENSE') {
+            this.accounting.recordExpenseReversal(origTx.buyerId, origTx.totalPrice);
+          }
+        }
+        return;
+      }
+
       // Update accounting
       if (tx.transactionType === 'PURCHASE' || tx.transactionType === 'SALE' || tx.transactionType === 'RETAIL_PROCUREMENT' || tx.transactionType === 'WHOLESALE_PURCHASE') {
         this.accounting.recordRevenue(tx.sellerId, tx.totalPrice, tx);

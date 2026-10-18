@@ -215,7 +215,9 @@ export class PersistenceService {
             inventoryConfiguration: ['SHOP', 'BUSINESS', 'WHOLESALE'].includes(wp.type) ? {
               'wheat': { reorderPoint: 50, targetStock: 200 },
               'iron_ore': { reorderPoint: 20, targetStock: 100 },
-              'water': { reorderPoint: 100, targetStock: 500 }
+              'water': { reorderPoint: 100, targetStock: 500 },
+              'raw_fish': { reorderPoint: 30, targetStock: 150 },
+              'timber': { reorderPoint: 20, targetStock: 100 }
             } : undefined
           };
           const wWallet = (wp.walletId ? walletMap.get(wp.id) : undefined) || walletMap.get(wp.id);
