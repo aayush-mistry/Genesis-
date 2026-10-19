@@ -86,5 +86,6 @@ export interface Citizen {
     endDate: import('./time').SimulationTime | null;
     lastPaymentDate: import('./time').SimulationTime | null;
     unpaidWages?: number;
+    lastWorkDate?: { year: number; month: number; day: number } | null;
   };
 }

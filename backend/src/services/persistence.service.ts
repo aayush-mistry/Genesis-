@@ -473,9 +473,23 @@ export class PersistenceService {
       }
     }
   
-    async persistTickBoundary(dirtyCollections: any) {
+    async persistTickBoundary(dirtyCollections?: any) {
       const { supplyService } = await import('./supply.service');
       const { worldService } = await import('./world.service');
+
+      // Persist authoritative simulation time and speed
+      try {
+        const { timeService } = await import('./time.service');
+        const world = worldService.engine.worldManager.getWorld();
+        const existingState = await simulationRepository.getSimulationState();
+        const activeWorldId = world?.id ?? existingState?.activeWorldId ?? null;
+        const currentTime = timeService.engine.getCurrentTime();
+        const currentSpeed = timeService.engine.getSpeed();
+        await simulationRepository.upsertSimulationState(currentTime, currentSpeed, activeWorldId);
+      } catch (err) {
+        console.error('[PersistenceService] Error persisting simulation state in persistTickBoundary:', err);
+        throw err;
+      }
 
       // Helper for inventory persistence
       const syncInventory = async (inventory: any) => {

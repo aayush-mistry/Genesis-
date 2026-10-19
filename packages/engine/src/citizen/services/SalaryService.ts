@@ -137,7 +137,8 @@ export class SalaryService {
         startDate: TimeUtils.clone(this.timeEngine.getCurrentTime()),
         endDate: null,
         lastPaymentDate: null,
-        unpaidWages: 0
+        unpaidWages: 0,
+        lastWorkDate: null
       };
     }
 

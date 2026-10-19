@@ -88,9 +88,14 @@ export class PriceFormationService {
 
       // Bound ratio smoothly:
       // If inventoryRatio = 1.0 -> factor = 1.0
-      // If inventoryRatio = 0.0 -> factor rises towards maxPriceMultiplier with damping
-      // If inventoryRatio = 3.0 -> factor falls towards minPriceMultiplier with damping
-      const rawFactor = 1.0 + (1.0 - inventoryRatio) * this.config.dampingFactor;
+      // If inventoryRatio = 0.0 -> factor reaches maxPriceMultiplier
+      // If inventoryRatio > 1.0 -> factor falls towards minPriceMultiplier with damping
+      let rawFactor = 1.0;
+      if (inventoryRatio >= 1.0) {
+        rawFactor = 1.0 - (inventoryRatio - 1.0) * this.config.dampingFactor;
+      } else {
+        rawFactor = 1.0 + (1.0 - inventoryRatio) * (this.config.maxPriceMultiplier - 1.0);
+      }
       scarcitySurplusFactor = Math.min(this.config.maxPriceMultiplier, Math.max(this.config.minPriceMultiplier, rawFactor));
     }
 
