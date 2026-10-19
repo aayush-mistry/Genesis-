@@ -41,6 +41,10 @@ export class MinHeap {
     this.heap = [];
   }
 
+  public has(id: string): boolean {
+    return this.heap.some(e => e.id === id);
+  }
+
   public getEvents(): SimulationEvent[] {
     // Return a shallow copy of the heap array (not guaranteed strictly sorted, just heap ordered)
     return [...this.heap];

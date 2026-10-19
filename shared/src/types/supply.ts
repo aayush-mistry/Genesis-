@@ -58,4 +58,5 @@ export interface Shipment {
   departureTime?: number;
   estimatedArrival?: number;
   status: ShipmentStatus;
+  orderId?: string;
 }

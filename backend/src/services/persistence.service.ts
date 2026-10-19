@@ -392,6 +392,40 @@ export class PersistenceService {
             await prisma.household.deleteMany({ where: { id: hh.id } });
           }
         }
+
+        // 4.5 Load and Hydrate Supply Chain State (Orders & Shipments)
+        const { commerceRepository } = await import('../repositories/CommerceRepository');
+        const { worldService } = await import('./world.service');
+        const dbOrders = await commerceRepository.listAllOrders();
+        supplyService.supplyChainEngine.loadOrders(dbOrders);
+        console.log(`[PersistenceService] Hydrated ${dbOrders.length} orders into SupplyChainEngine.`);
+
+        const dbShipments = await commerceRepository.listAllShipments();
+        supplyService.supplyChainEngine.loadShipments(dbShipments);
+        console.log(`[PersistenceService] Hydrated ${dbShipments.length} shipments into SupplyChainEngine.`);
+
+        // Validate references for active in-transit shipments
+        const inTransitShipments = supplyService.supplyChainEngine.getAllActiveShipments();
+        for (const shipment of inTransitShipments) {
+          const associatedOrder = Array.from(supplyService.supplyChainEngine.getAllOrders())
+            .find(o => o.shipmentId === shipment.shipmentId || (shipment.orderId && o.orderId === shipment.orderId));
+          
+          if (!associatedOrder) {
+            console.error(`[PersistenceService] Inconsistent supply chain state: In-transit shipment ${shipment.shipmentId} has no associated order.`);
+          }
+
+          const originWorkplace = worldService.engine.workplaceRepository.findById(shipment.originId);
+          const destinationWorkplace = worldService.engine.workplaceRepository.findById(shipment.destinationId);
+
+          if (!originWorkplace && !destinationWorkplace) {
+            console.warn(`[PersistenceService] In-transit shipment ${shipment.shipmentId} references missing seller ${shipment.originId} and destination ${shipment.destinationId}. Recovery will be handled explicitly.`);
+          }
+        }
+
+        // 4.6 Load Transactions into MarketEngine
+        const dbTransactions = await prisma.transactionRecord.findMany();
+        marketService.engine.loadTransactions(dbTransactions as any[]);
+        console.log(`[PersistenceService] Hydrated ${dbTransactions.length} transactions into MarketEngine.`);
         
         // 5. Load Pending Events
         const { eventService } = await import('./event.service');
@@ -402,9 +436,47 @@ export class PersistenceService {
         
         for (const event of pendingEvents) {
           try {
-            eventService.scheduler.scheduleEvent(event, true); // skipPersistence = true
+            if (!eventService.scheduler.getUpcomingEvents().some(e => e.id === event.id)) {
+              eventService.scheduler.scheduleEvent(event, true); // skipPersistence = true
+            }
           } catch (err) {
             console.error(`[PersistenceService] Error hydrating event ${event.id}:`, err);
+          }
+        }
+
+        // Ensure every in-transit shipment has a scheduled arrival event without duplicating
+        const upcomingEvents = eventService.scheduler.getUpcomingEvents();
+        for (const shipment of inTransitShipments) {
+          const eventId = `shipment-${shipment.shipmentId}`;
+          const alreadyScheduled = upcomingEvents.some(e => e.id === eventId);
+          if (!alreadyScheduled) {
+            const associatedOrder = Array.from(supplyService.supplyChainEngine.getAllOrders())
+              .find(o => o.shipmentId === shipment.shipmentId || (shipment.orderId && o.orderId === shipment.orderId));
+            
+            const arrivalSeconds = shipment.estimatedArrival || (shipment.departureTime ? shipment.departureTime + 3600 : 0);
+            const { TimeUtils } = await import('@genesis/engine');
+            const arrivalTime = TimeUtils.fromSeconds(arrivalSeconds);
+            const currentTime = timeService.engine.getCurrentTime();
+
+            eventService.scheduler.scheduleEvent({
+              id: eventId,
+              name: 'Shipment Arrival',
+              description: `Shipment ${shipment.shipmentId} arrives at ${shipment.destinationId}`,
+              priority: 'Normal',
+              status: 'Scheduled',
+              createdTime: shipment.departureTime ? TimeUtils.fromSeconds(shipment.departureTime) : TimeUtils.clone(currentTime),
+              scheduledTime: arrivalTime,
+              sourceModule: 'SupplyChainEngine',
+              targetModule: 'SupplyChainEngine',
+              cancelFlag: false,
+              retryCount: 0,
+              metadata: {
+                shipmentId: shipment.shipmentId,
+                orderId: associatedOrder?.orderId || shipment.orderId || ''
+              },
+              handlerName: 'SupplyChainEngine.handleShipmentArrival'
+            }, true);
+            console.log(`[PersistenceService] Reconstructed missing arrival event for shipment ${shipment.shipmentId}.`);
           }
         }
 
@@ -719,6 +791,55 @@ export class PersistenceService {
         }
       } catch (err) {
         console.error('[PersistenceService] Error persisting utility wallets in persistTickBoundary:', err);
+      }
+
+      // Sync Transactions from MarketEngine
+      try {
+        const { marketService } = await import('./market.service');
+        const transactions = marketService.engine.getAllTransactions();
+        for (const tx of transactions) {
+          await prisma.transactionRecord.upsert({
+            where: { transactionId: tx.transactionId },
+            create: {
+              transactionId: tx.transactionId,
+              timestamp: tx.timestamp,
+              buyerId: tx.buyerId,
+              sellerId: tx.sellerId,
+              productId: tx.productId ?? null,
+              quantity: tx.quantity ?? null,
+              unit: tx.unit ?? null,
+              unitPrice: tx.unitPrice ?? null,
+              totalPrice: tx.totalPrice,
+              currency: tx.currency,
+              transactionType: tx.transactionType,
+              regionId: tx.regionId,
+              referenceId: tx.referenceId ?? null,
+              referenceType: tx.referenceType ?? null
+            },
+            update: {
+              referenceId: tx.referenceId ?? null,
+              referenceType: tx.referenceType ?? null
+            }
+          });
+        }
+      } catch (err) {
+        console.error('[PersistenceService] Error persisting transactions in persistTickBoundary:', err);
+      }
+
+      // Sync Supply Chain State (Orders and Shipments)
+      try {
+        await supplyService.supplyChainEngine.flushPersistence();
+        const { commerceRepository } = await import('../repositories/CommerceRepository');
+        const allOrders = supplyService.supplyChainEngine.getAllOrders();
+        for (const order of allOrders) {
+          await commerceRepository.upsertOrder(order);
+        }
+        const allShipments = supplyService.supplyChainEngine.getAllShipments();
+        for (const shipment of allShipments) {
+          await commerceRepository.upsertShipment(shipment);
+        }
+      } catch (err) {
+        console.error('[PersistenceService] Error persisting orders and shipments in persistTickBoundary:', err);
       }
     }
 }

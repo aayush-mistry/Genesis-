@@ -21,6 +21,7 @@ export * from './execution';
 export * from './inventory/InventoryManager';
 export * from './production';
 export * from './supply/SupplyChainEngine';
+export * from './supply/SupplyChainStorageAdapter';
 export * from './supply/CommerceAutomation';
 export * from './supply/BusinessProcurementEngine';
 export * from './consumption';

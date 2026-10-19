@@ -6,6 +6,7 @@ import { resourceService } from './resource.service';
 import { environmentService } from './environment.service';
 import { spatialService } from './spatial.service';
 import { Commodity, ProductCategory } from '@genesis/shared';
+import { commerceRepository } from '../repositories/CommerceRepository';
 
 class SupplyService {
   public inventoryManager: InventoryManager;
@@ -44,7 +45,8 @@ class SupplyService {
       eventService.scheduler,
       timeService.engine,
       this.inventoryManager,
-      spatialService.engine.queryService
+      spatialService.engine.queryService,
+      commerceRepository
     );
     this.commerceAutomation = new CommerceAutomation(
       worldService.engine,
@@ -241,7 +243,8 @@ class SupplyService {
       eventService.scheduler,
       timeService.engine,
       this.inventoryManager,
-      spatialService.engine.queryService
+      spatialService.engine.queryService,
+      commerceRepository
     );
     this.commerceAutomation = new CommerceAutomation(
       worldService.engine,

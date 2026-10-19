@@ -340,6 +340,10 @@ export class MarketEngine {
     return this.transactions.get(id);
   }
 
+  public getAllTransactions(): TransactionRecord[] {
+    return Array.from(this.transactions.values());
+  }
+
   public getTransactionsByEntity(entityId: string): TransactionRecord[] {
     return Array.from(this.transactions.values()).filter(
       t => t.buyerId === entityId || t.sellerId === entityId

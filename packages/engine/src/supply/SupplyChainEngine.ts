@@ -9,11 +9,14 @@ import { TimeUtils } from '../utils/TimeUtils';
 import { randomUUID } from 'crypto';
 import { EventRegistry } from '../events/EventRegistry';
 import { MarketEngine } from '../market/MarketEngine';
+import { SupplyChainStorageAdapter } from './SupplyChainStorageAdapter';
 
 export class SupplyChainEngine {
   private orders: Map<string, Order> = new Map();
   private shipments: Map<string, Shipment> = new Map();
   private marketEngine?: MarketEngine;
+  private storageAdapter?: SupplyChainStorageAdapter;
+  private pendingStorageOps: Promise<any>[] = [];
 
   // Speed for goods shipments. e.g. trucks
   public static readonly TRUCK_SPEED_UNITS_PER_HOUR = 80;
@@ -23,10 +26,12 @@ export class SupplyChainEngine {
     private eventScheduler: EventScheduler,
     private timeEngine: TimeEngine,
     private inventoryManager: InventoryManager,
-    private spatialQueryService: SpatialQueryService
+    private spatialQueryService: SpatialQueryService,
+    storageAdapter?: SupplyChainStorageAdapter
   ) {
+    this.storageAdapter = storageAdapter;
     EventRegistry.register('SupplyChainEngine.handleShipmentArrival', async (event) => {
-      this.handleShipmentArrival(event.metadata as { shipmentId: string, orderId: string });
+      await this.handleShipmentArrival(event.metadata as { shipmentId: string, orderId: string });
     });
   }
 
@@ -38,9 +43,58 @@ export class SupplyChainEngine {
     return this.marketEngine;
   }
 
+  public setStorageAdapter(adapter: SupplyChainStorageAdapter): void {
+    this.storageAdapter = adapter;
+  }
+
+  public getStorageAdapter(): SupplyChainStorageAdapter | undefined {
+    return this.storageAdapter;
+  }
+
+  public async flushPersistence(): Promise<void> {
+    const ops = [...this.pendingStorageOps];
+    this.pendingStorageOps = [];
+    await Promise.all(ops);
+  }
+
+  private trackStorageOp(op: Promise<any> | void): void {
+    if (!op || typeof (op as any).then !== 'function') return;
+    const p = (op as Promise<any>).catch(err => {
+      console.error('[SupplyChainEngine] Storage adapter error:', err);
+    });
+    this.pendingStorageOps.push(p);
+  }
+
   public clear(): void {
     this.orders.clear();
     this.shipments.clear();
+    this.pendingStorageOps = [];
+  }
+
+  public loadOrders(orders: Order[]): void {
+    for (const order of orders) {
+      this.orders.set(order.orderId, order);
+    }
+  }
+
+  public loadShipments(shipments: Shipment[]): void {
+    for (const shipment of shipments) {
+      this.shipments.set(shipment.shipmentId, shipment);
+    }
+  }
+
+  public getAllOrders(): Order[] {
+    return Array.from(this.orders.values());
+  }
+
+  public getAllShipments(): Shipment[] {
+    return Array.from(this.shipments.values());
+  }
+
+  public getAllActiveOrders(): Order[] {
+    return Array.from(this.orders.values()).filter(o =>
+      [OrderStatus.CREATED, OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.DISPATCHED].includes(o.status)
+    );
   }
 
   public createOrder(
@@ -51,7 +105,10 @@ export class SupplyChainEngine {
     unit: string,
     orderId?: string,
     preReserved: boolean = false,
-    transactionId?: string
+    transactionId?: string,
+    unitPrice?: number,
+    totalPrice?: number,
+    currency?: string
   ): Order {
     if (orderId && this.orders.has(orderId)) {
       return this.orders.get(orderId)!;
@@ -64,6 +121,9 @@ export class SupplyChainEngine {
       productId,
       quantity,
       unit,
+      unitPrice,
+      totalPrice,
+      currency,
       status: OrderStatus.CREATED,
       createdAt: TimeUtils.toSeconds(this.timeEngine.getCurrentTime()),
       transactionId
@@ -73,6 +133,10 @@ export class SupplyChainEngine {
     
     // Attempt to auto-confirm if seller has enough inventory
     this.processOrder(order.orderId, preReserved);
+
+    if (this.storageAdapter) {
+      this.trackStorageOp(this.storageAdapter.saveOrder(order));
+    }
 
     return order;
   }
@@ -121,6 +185,9 @@ export class SupplyChainEngine {
       // If seller is Wholesale, we pend the order and try to restock
       if (seller.type === 'WHOLESALE') {
         order.status = OrderStatus.PENDING;
+        if (this.storageAdapter) {
+          this.trackStorageOp(this.storageAdapter.updateOrderStatus(order.orderId, order.status));
+        }
         this.eventScheduler.emitter.emit('WholesaleRestockNeeded', {
           orderId: order.orderId,
           wholesaleId: seller.id,
@@ -170,7 +237,8 @@ export class SupplyChainEngine {
       transportationMode: TransportationMode.ROAD,
       departureTime: currentSeconds,
       estimatedArrival: arrivalSeconds,
-      status: ShipmentStatus.IN_TRANSIT
+      status: ShipmentStatus.IN_TRANSIT,
+      orderId: order.orderId
     };
 
     this.shipments.set(shipment.shipmentId, shipment);
@@ -178,6 +246,14 @@ export class SupplyChainEngine {
     order.status = OrderStatus.DISPATCHED;
     order.shipmentId = shipment.shipmentId;
     order.expectedDelivery = arrivalSeconds;
+
+    if (this.storageAdapter) {
+      this.trackStorageOp(this.storageAdapter.saveShipment(shipment));
+      this.trackStorageOp(this.storageAdapter.updateOrderStatus(order.orderId, order.status, {
+        shipmentId: shipment.shipmentId,
+        expectedDelivery: arrivalSeconds
+      }));
+    }
 
     // Schedule arrival event
     this.eventScheduler.scheduleEvent({
@@ -200,17 +276,26 @@ export class SupplyChainEngine {
     });
   }
 
-  public handleShipmentArrival(metadata: { shipmentId: string, orderId: string }): void {
+  public async handleShipmentArrival(metadata: { shipmentId: string, orderId: string }): Promise<void> {
     const { shipmentId, orderId } = metadata;
     const shipment = this.shipments.get(shipmentId);
     const order = this.orders.get(orderId);
     
-    if (!shipment || !order) return;
-    if (shipment.status !== ShipmentStatus.IN_TRANSIT) return;
+    if (!shipment) {
+      throw new Error(`Inconsistent supply chain state: Shipment ${shipmentId} not found at arrival`);
+    }
+    if (!order) {
+      throw new Error(`Inconsistent supply chain state: Order ${orderId} missing for arriving shipment ${shipmentId}`);
+    }
+    if (shipment.status !== ShipmentStatus.IN_TRANSIT) {
+      // Idempotency: already processed (delivered or failed)
+      return;
+    }
 
     const buyer = this.worldEngine.workplaceRepository.findById(shipment.destinationId);
     if (!buyer || !buyer.inventoryId) {
       this.failShipmentAndRecover(shipment, order, 'Destination workplace or inventory missing');
+      await this.flushPersistence();
       return;
     }
 
@@ -220,6 +305,12 @@ export class SupplyChainEngine {
     if (added) {
       shipment.status = ShipmentStatus.DELIVERED;
       order.status = OrderStatus.DELIVERED;
+
+      if (this.storageAdapter) {
+        this.trackStorageOp(this.storageAdapter.updateShipmentStatus(shipment.shipmentId, shipment.status));
+        this.trackStorageOp(this.storageAdapter.updateOrderStatus(order.orderId, order.status));
+      }
+
       this.eventScheduler.emitter.emit('ShipmentDelivered', {
         shipmentId: shipment.shipmentId,
         orderId: order.orderId,
@@ -233,10 +324,16 @@ export class SupplyChainEngine {
     } else {
       this.failShipmentAndRecover(shipment, order, 'Buyer inventory at capacity or unable to accept delivery');
     }
+
+    await this.flushPersistence();
   }
 
   private failOrderAndRefund(order: Order, reason: string): void {
     order.status = OrderStatus.FAILED;
+    if (this.storageAdapter) {
+      this.trackStorageOp(this.storageAdapter.updateOrderStatus(order.orderId, order.status));
+    }
+
     const seller = this.worldEngine.workplaceRepository.findById(order.sellerId);
     if (seller && seller.inventoryId) {
       this.inventoryManager.releaseReservedItem(seller.inventoryId, order.productId, order.quantity);
@@ -253,6 +350,11 @@ export class SupplyChainEngine {
   private failShipmentAndRecover(shipment: Shipment, order: Order, reason: string): void {
     shipment.status = ShipmentStatus.FAILED;
     order.status = OrderStatus.FAILED;
+
+    if (this.storageAdapter) {
+      this.trackStorageOp(this.storageAdapter.updateShipmentStatus(shipment.shipmentId, shipment.status));
+      this.trackStorageOp(this.storageAdapter.updateOrderStatus(order.orderId, order.status));
+    }
 
     // Return goods safely to seller warehouse so goods are not destroyed
     const seller = this.worldEngine.workplaceRepository.findById(shipment.originId);
@@ -286,6 +388,8 @@ export class SupplyChainEngine {
           item.availableQuantity = item.totalQuantity - item.reservedQuantity;
         }
       }
+    } else {
+      throw new Error(`Inconsistent supply chain state: Failed shipment ${shipment.shipmentId} cannot return goods because seller ${shipment.originId} or inventory is missing`);
     }
 
     // Compensate buyer and reverse payment

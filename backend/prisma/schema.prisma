@@ -494,6 +494,7 @@ model Order {
   expectedDelivery Int?
   
   shipmentId       String?
+  transactionId    String?
   
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -517,6 +518,7 @@ model Shipment {
   estimatedArrival   Int?
   
   status             String
+  orderId            String?
   
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt

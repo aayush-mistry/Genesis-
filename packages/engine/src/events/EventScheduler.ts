@@ -121,6 +121,7 @@ export class EventScheduler {
     const start = performance.now();
     
     if (event.cancelFlag || event.status === 'Cancelled') return;
+    if (this.queue.has(event.id)) return;
     
     this.recordStateTransition(event, 'Scheduled', event.createdTime);
     
@@ -244,6 +245,7 @@ export class EventScheduler {
    */
   public clearEvents(): void {
     this.queue.clear();
+    this.history = [];
     this.stats.queuedEvents = 0;
     this.logActivity(`Queue Cleared`);
   }

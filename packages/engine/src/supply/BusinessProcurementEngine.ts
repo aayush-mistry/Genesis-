@@ -330,7 +330,8 @@ export class BusinessProcurementEngine {
 
       // 3. Create Order with preReserved = true and deterministic orderId & txId
       const order = this.supplyChainEngine.createOrder(
-        buyer.id, seller.id, req.productId, orderQuantity, 'kg', orderId, true, txId
+        buyer.id, seller.id, req.productId, orderQuantity, 'kg', orderId, true, txId,
+        portionBulkPrice, totalPurchasePrice, buyerWallet?.currency || 'GEN'
       );
 
       // If order creation or dispatch failed, compensate
