@@ -211,7 +211,16 @@ export class PersistenceService {
             profit: wp.profit,
             accounting: wp.accountingHistoryJson ? { history: JSON.parse(wp.accountingHistoryJson) } : undefined,
             wallet: undefined,
-            positions: [],
+            positions: (wp.positions && wp.positions.length > 0)
+              ? wp.positions.map((p: any) => ({
+                  id: p.id,
+                  workplaceId: p.workplaceId,
+                  type: p.type,
+                  requiredSkills: p.requiredSkillsJson ? JSON.parse(p.requiredSkillsJson) : {},
+                  occupantId: p.occupantId || null,
+                  schedule: { startTime: p.scheduleStartHour ?? 9, endTime: p.scheduleEndHour ?? 17 }
+                }))
+              : [],
             inventoryConfiguration: ['SHOP', 'BUSINESS', 'WHOLESALE'].includes(wp.type) ? {
               'wheat': { reorderPoint: 50, targetStock: 200 },
               'iron_ore': { reorderPoint: 20, targetStock: 100 },
@@ -220,6 +229,20 @@ export class PersistenceService {
               'timber': { reorderPoint: 20, targetStock: 100 }
             } : undefined
           };
+
+          // If workplace had capacity > 0 but no positions stored in DB, synthesize fallback positions
+          if (workplaceObj.positions.length === 0 && wp.capacity > 0) {
+            for (let i = 0; i < wp.capacity; i++) {
+              workplaceObj.positions.push({
+                id: `${wp.id}-pos-${i}`,
+                workplaceId: wp.id,
+                type: wp.type,
+                requiredSkills: {},
+                occupantId: null,
+                schedule: { startTime: 9, endTime: 17 }
+              });
+            }
+          }
           const wWallet = (wp.walletId ? walletMap.get(wp.id) : undefined) || walletMap.get(wp.id);
           if (wWallet) {
             workplaceObj.wallet = {
@@ -376,6 +399,24 @@ export class PersistenceService {
               citizenService.engine.householdService.addMember(dbCitizen.householdId, dbCitizen.id);
             } else if (dbCitizen.status === 'ACTIVE') {
               citizenService.engine.placementService.trackUnhoused(dbCitizen.id);
+            }
+
+            // Reconcile employment position occupancy in memory
+            if (memCitizen.workplaceId && memCitizen.employmentStatus === 'EMPLOYED') {
+              const { worldService } = await import('./world.service');
+              const wp = worldService.engine.workplaceRepository.findById(memCitizen.workplaceId);
+              if (wp && wp.positions) {
+                const alreadyAssigned = wp.positions.some(p => p.occupantId === memCitizen.id);
+                if (!alreadyAssigned) {
+                  const vacPos = wp.positions.find(p => !p.occupantId && (!memCitizen.jobType || p.type === memCitizen.jobType))
+                    || wp.positions.find(p => !p.occupantId);
+                  if (vacPos) {
+                    vacPos.occupantId = memCitizen.id;
+                  }
+                }
+                wp.occupiedPositions = wp.positions.filter(p => p.occupantId !== null).length;
+                wp.vacancies = Math.max(0, wp.capacity - wp.occupiedPositions);
+              }
             }
             hydratedCount++;
           } catch (err) {
@@ -760,6 +801,29 @@ export class PersistenceService {
           );
         } catch (_) {
           // Workplace not yet in database or table uninitialized in partial test fixtures
+        }
+
+        // Synchronize JobPositions to database
+        if (workplace.positions && workplace.positions.length > 0) {
+          for (const pos of workplace.positions) {
+            try {
+              await prisma.jobPosition.upsert({
+                where: { id: pos.id },
+                update: {
+                  occupantId: pos.occupantId || null
+                },
+                create: {
+                  id: pos.id,
+                  workplaceId: workplace.id,
+                  type: pos.type || (workplace as any).type || 'GENERAL_LABOR',
+                  requiredSkillsJson: JSON.stringify(pos.requiredSkills || {}),
+                  occupantId: pos.occupantId || null,
+                  scheduleStartHour: pos.schedule?.startTime ?? 9,
+                  scheduleEndHour: pos.schedule?.endTime ?? 17
+                }
+              });
+            } catch (_) {}
+          }
         }
       }
 

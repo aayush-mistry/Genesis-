@@ -5,7 +5,7 @@ import { OccupationService } from './OccupationService';
 import { WorkplaceGenerator } from '../../world/services/WorkplaceGenerator';
 
 export interface DemographicEvent {
-  type: 'BIRTH' | 'DEATH' | 'IMMIGRATION' | 'HOUSING_ASSIGNED';
+  type: 'BIRTH' | 'DEATH' | 'IMMIGRATION' | 'HOUSING_ASSIGNED' | 'JOB_ASSIGNED';
   citizen: Citizen;
   parent?: Citizen;
 }
@@ -41,6 +41,22 @@ export class PopulationSimulator {
     this.onTimeTick = this.onTimeTick.bind(this);
   }
 
+  public getOccupationService(): OccupationService | undefined {
+    return this.occupationService;
+  }
+
+  public setOccupationService(occupationService: OccupationService): void {
+    this.occupationService = occupationService;
+  }
+
+  public getWorkplaceGenerator(): WorkplaceGenerator | undefined {
+    return this.workplaceGenerator;
+  }
+
+  public setWorkplaceGenerator(workplaceGenerator: WorkplaceGenerator): void {
+    this.workplaceGenerator = workplaceGenerator;
+  }
+
   /**
    * Initializes the world with the given number of citizens.
    */
@@ -64,9 +80,13 @@ export class PopulationSimulator {
       this.citizenService.createCitizen(gender, locationId, birthDate);
     }
 
-    if (this.workplaceGenerator && this.occupationService) {
-      console.log(`[PopulationSimulator] Generating workplaces and assigning jobs...`);
+    if (this.workplaceGenerator) {
+      console.log(`[PopulationSimulator] Generating workplaces...`);
       this.workplaceGenerator.generateWorkplaces();
+    }
+
+    if (this.occupationService) {
+      console.log(`[PopulationSimulator] Assigning jobs...`);
       this.occupationService.runJobAssignment();
     }
   }
@@ -172,6 +192,16 @@ export class PopulationSimulator {
     for (const citizen of newlyPlaced) {
       if (this.onDemographicEvent) {
         this.onDemographicEvent({ type: 'HOUSING_ASSIGNED', citizen });
+      }
+    }
+
+    // 5. Dynamic Job Assignment
+    if (this.occupationService) {
+      const assignedCitizens = this.occupationService.runJobAssignment();
+      for (const citizen of assignedCitizens) {
+        if (this.onDemographicEvent) {
+          this.onDemographicEvent({ type: 'JOB_ASSIGNED', citizen });
+        }
       }
     }
   }

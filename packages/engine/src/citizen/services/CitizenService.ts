@@ -474,8 +474,8 @@ export class CitizenService {
           const position = workplace.positions.find(p => p.occupantId === citizenId);
           if (position) {
             position.occupantId = null;
-            workplace.occupiedPositions--;
-            workplace.vacancies++;
+            workplace.occupiedPositions = Math.max(0, workplace.occupiedPositions - 1);
+            workplace.vacancies = Math.min(workplace.capacity, workplace.vacancies + 1);
             this.worldEngine.workplaceRepository.update(workplace);
           }
         }
@@ -483,6 +483,9 @@ export class CitizenService {
         citizen.workplaceId = null;
         citizen.jobType = null;
         citizen.jobSchedule = null;
+        if (citizen.employmentRecord) {
+          citizen.employmentRecord.endDate = { ...this.timeEngine.getCurrentTime() };
+        }
       }
 
       // Release household membership & unhoused tracking

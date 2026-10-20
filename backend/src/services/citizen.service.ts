@@ -1,4 +1,4 @@
-import { CitizenService, InMemoryCitizenRepository, PopulationSimulator, HouseholdService } from '@genesis/engine';
+import { CitizenService, InMemoryCitizenRepository, PopulationSimulator, HouseholdService, OccupationService } from '@genesis/engine';
 import { worldService } from './world.service';
 import { timeService } from './time.service';
 import { eventService } from './event.service';
@@ -7,6 +7,7 @@ import { supplyService } from './supply.service';
 
 class BackendCitizenService {
   public engine: CitizenService;
+  public occupationService: OccupationService;
   public simulator: PopulationSimulator;
   public dirtyCitizenIds: Set<string> = new Set();
   public dirtyHouseholdIds: Set<string> = new Set();
@@ -22,10 +23,14 @@ class BackendCitizenService {
       spatialService.engine.queryService,
       householdService
     );
+    this.occupationService = new OccupationService(
+      this.engine,
+      worldService.engine.workplaceRepository
+    );
     this.simulator = new PopulationSimulator(
       this.engine, 
       timeService.engine,
-      undefined,
+      this.occupationService,
       undefined,
       () => {
         const cities = worldService.engine.cityManager.getAllCities();
@@ -72,10 +77,14 @@ class BackendCitizenService {
       spatialService.engine.queryService,
       householdService
     );
+    this.occupationService = new OccupationService(
+      this.engine,
+      worldService.engine.workplaceRepository
+    );
     this.simulator = new PopulationSimulator(
       this.engine, 
       timeService.engine,
-      undefined,
+      this.occupationService,
       undefined,
       () => {
         const cities = worldService.engine.cityManager.getAllCities();
@@ -84,6 +93,12 @@ class BackendCitizenService {
         return regions.length > 0 ? regions[0].id : null;
       }
     );
+    this.simulator.onDemographicEvent = (evt) => {
+      this.dirtyCitizenIds.add(evt.citizen.id);
+      if (evt.citizen.householdId) {
+        this.dirtyHouseholdIds.add(evt.citizen.householdId);
+      }
+    };
     this.dirtyCitizenIds.clear();
     this.dirtyHouseholdIds.clear();
   }

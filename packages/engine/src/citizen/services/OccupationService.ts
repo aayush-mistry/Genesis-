@@ -1,4 +1,4 @@
-import { Citizen, EmploymentStatus, JobPosition, JobType, SkillType, Workplace } from '@genesis/shared';
+import { Citizen, CitizenStatus, EmploymentStatus, JobPosition, JobType, SkillType, Workplace } from '@genesis/shared';
 import { CitizenService } from './CitizenService';
 import { WorkplaceRepository } from '../../world/repositories/WorkplaceRepository';
 
@@ -9,9 +9,23 @@ export class OccupationService {
   ) {}
 
   /**
-   * Updates employment status based on age.
+   * Updates employment status based on age and status.
    */
   public evaluateCitizenEligibility(citizen: Citizen): void {
+    if (citizen.status === CitizenStatus.DECEASED) {
+      if (citizen.workplaceId) {
+        this.leaveJob(citizen);
+      }
+      return;
+    }
+
+    if (!citizen.birthDate) {
+      if (!citizen.workplaceId && citizen.employmentStatus !== EmploymentStatus.STUDENT && citizen.employmentStatus !== EmploymentStatus.RETIRED) {
+        citizen.employmentStatus = EmploymentStatus.UNEMPLOYED;
+      }
+      return;
+    }
+
     const age = this.citizenService.getCitizenAge(citizen);
 
     if (age < 18) {
@@ -46,8 +60,8 @@ export class OccupationService {
       const position = workplace.positions.find(p => p.occupantId === citizen.id);
       if (position) {
         position.occupantId = null;
-        workplace.occupiedPositions--;
-        workplace.vacancies++;
+        workplace.occupiedPositions = Math.max(0, workplace.occupiedPositions - 1);
+        workplace.vacancies = Math.min(workplace.capacity, workplace.vacancies + 1);
         this.workplaceRepository.update(workplace);
       }
     }
@@ -55,30 +69,65 @@ export class OccupationService {
     citizen.workplaceId = null;
     citizen.jobType = null;
     citizen.jobSchedule = null;
-    citizen.employmentStatus = EmploymentStatus.UNEMPLOYED;
+    if (citizen.status !== CitizenStatus.DECEASED) {
+      citizen.employmentStatus = EmploymentStatus.UNEMPLOYED;
+    }
+    if (citizen.employmentRecord) {
+      const currentTime = (this.citizenService as any).timeEngine?.getCurrentTime?.();
+      citizen.employmentRecord.endDate = currentTime ? { ...currentTime } : null;
+    }
   }
 
   /**
    * Assigns an eligible citizen to a specific job position.
    */
   public assignJob(citizen: Citizen, workplace: Workplace, position: JobPosition): void {
+    if (citizen.status === CitizenStatus.DECEASED) {
+      throw new Error('Cannot assign job to non-active or deceased citizen');
+    }
+
+    if (citizen.birthDate) {
+      const age = this.citizenService.getCitizenAge(citizen);
+      if (age < 18 || age >= 75) {
+        throw new Error('Citizen is not of working age');
+      }
+    }
+
+    if (citizen.workplaceId) {
+      throw new Error('Citizen is already employed');
+    }
+
     if (position.occupantId) {
       throw new Error('Position is already occupied');
     }
 
-    if (workplace.vacancies <= 0) {
+    if (workplace.vacancies <= 0 || workplace.occupiedPositions >= workplace.capacity) {
       throw new Error('Workplace has no vacancies');
     }
 
     position.occupantId = citizen.id;
-    workplace.occupiedPositions++;
-    workplace.vacancies--;
+    workplace.occupiedPositions = Math.min(workplace.capacity, workplace.occupiedPositions + 1);
+    workplace.vacancies = Math.max(0, workplace.vacancies - 1);
     this.workplaceRepository.update(workplace);
 
     citizen.workplaceId = workplace.id;
     citizen.jobType = position.type;
     citizen.jobSchedule = position.schedule;
     citizen.employmentStatus = EmploymentStatus.EMPLOYED;
+
+    const currentTime = (this.citizenService as any).timeEngine?.getCurrentTime?.() || { year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0 };
+    if (!citizen.employmentRecord || citizen.employmentRecord.endDate) {
+      citizen.employmentRecord = {
+        daysWorked: 30,
+        expectedWorkingDays: 30,
+        performanceScore: 1.0,
+        startDate: { ...currentTime },
+        endDate: null,
+        lastPaymentDate: null,
+        unpaidWages: citizen.employmentRecord?.unpaidWages || 0,
+        lastWorkDate: null
+      };
+    }
   }
 
   /**
@@ -112,16 +161,19 @@ export class OccupationService {
    * Deterministically assigns all vacant positions across all workplaces
    * to eligible unemployed citizens.
    */
-  public runJobAssignment(): void {
+  public runJobAssignment(): Citizen[] {
     const citizens = this.citizenService.listCitizens();
+    const assignedCitizens: Citizen[] = [];
     
     // 1. Evaluate all eligibility
     for (const citizen of citizens) {
       this.evaluateCitizenEligibility(citizen);
     }
 
-    // 2. Gather eligible candidates
-    const eligibleCitizens = citizens.filter(c => c.employmentStatus === EmploymentStatus.UNEMPLOYED);
+    // 2. Gather eligible candidates: active, unemployed citizens of working age
+    const eligibleCitizens = citizens.filter(
+      c => c.status === CitizenStatus.ACTIVE && c.employmentStatus === EmploymentStatus.UNEMPLOYED && !c.workplaceId
+    );
 
     // 3. Gather all vacant positions
     const workplaces = this.workplaceRepository.findAll();
@@ -142,9 +194,12 @@ export class OccupationService {
 
     // 4. Assign positions
     for (const { workplace, position } of allVacantPositions) {
-      // Find all candidates that meet the minimum requirements
+      // Re-verify position vacancy and workplace capacity
+      if (position.occupantId || workplace.vacancies <= 0) continue;
+
+      // Find all candidates that meet the minimum requirements and are still unemployed
       const candidatesWithScores = eligibleCitizens
-        .filter(c => c.employmentStatus === EmploymentStatus.UNEMPLOYED)
+        .filter(c => c.status === CitizenStatus.ACTIVE && c.employmentStatus === EmploymentStatus.UNEMPLOYED && !c.workplaceId)
         .map(c => ({ citizen: c, score: this.calculateSuitability(c, position) }))
         .filter(c => c.score > 0);
 
@@ -159,7 +214,10 @@ export class OccupationService {
 
         const bestCandidate = candidatesWithScores[0].citizen;
         this.assignJob(bestCandidate, workplace, position);
+        assignedCitizens.push(bestCandidate);
       }
     }
+
+    return assignedCitizens;
   }
 }
