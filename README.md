@@ -119,6 +119,11 @@ npm run build:frontend
   - T8.6.1: B2B Transaction Integrity Restoration (explicit `MarketEngine` dependency injection into `SupplyService` and `BusinessProcurementEngine`, preserving market routing and authoritative ledger creation across `reset()` cycles).
   - T8.6.2: Workplace Financial Persistence (`WorkplaceRepository.updateFinancials()`, authoritative tick-boundary synchronization of `revenue`, `expenses`, `profit`, and accounting history, with full cold-restart hydration).
   - T8.6.3: Residential Water Infrastructure & Transaction Integrity (residential tap-water access connected to regional resources, exact $1\,\text{m}^3 = 1{,}000\,\text{L}$ conversion, municipal utility tariff billing, persistent idempotency across cold restarts, and atomic failure rollback compensation).
+  - T8.6.4: Supply Chain In-Flight Shipment Persistence (`CommerceRepository` and Prisma `Shipment` synchronization, discrete delivery status transitions, scheduled transit event restoration, and deterministic cold-restart resumption).
+  - T8.6.5.1: Producer Revenue Lifecycle & Accounting Integrity (`BusinessAccounting.creditRevenue`, B2B wholesale transaction settlement, and accurate P&L double-entry ledger balancing).
+  - T8.6.5.2: Workday-Tracked Payroll, Time Persistence & Scarcity Sensitivity (`RoutineActionExecutor` daily shift idempotency, `lastWorkedDay` tracking preventing duplicate same-day wage inflation, simulation clock boundary persistence, and bounded scarcity sensitivity).
+  - T8.6.5.3: Dynamic Labor Market & Workforce Sustainability (`PopulationSimulator` demographic integration with `OccupationService`, dynamic vacancy liberation upon death/retirement, continuous employment assignment for adult citizens/immigrants, and durable labor market state persistence).
+  - T8.6.5.4: Reliable Consumption Persistence & Demand Integrity (non-blocking asynchronous consumption write tracking via `pendingWrites` and explicit `flush()`, tick boundary persistence synchronization, eviction of failed writes from in-memory ledger, deceased citizen exclusion from active demand intelligence, and zero unearned wage policy for newly hired workers).
 
 ## Genesis Roadmap
 
@@ -189,7 +194,12 @@ Phase 8 ✅ Visualization & Advanced Economic Dynamics
 ├── T8.6 Economic Integration & Production Audit
 ├── T8.6.1 B2B Transaction Integrity Restoration
 ├── T8.6.2 Workplace Financial Persistence
-└── T8.6.3 Residential Water Infrastructure & Transaction Integrity
+├── T8.6.3 Residential Water Infrastructure & Transaction Integrity
+├── T8.6.4 Supply Chain Shipment Persistence
+├── T8.6.5.1 Producer Revenue Lifecycle & Integrity
+├── T8.6.5.2 Workday Tracking Payroll & Scarcity Sensitivity
+├── T8.6.5.3 Dynamic Labor Market & Workforce Sustainability
+└── T8.6.5.4 Consumption Persistence & Demand Integrity
 
 Phase 9 🔜 Social Framework & Relationships
 Phase 10 🔜 Optimization & Scale
@@ -226,6 +236,11 @@ Phase 10 🔜 Optimization & Scale
 | B2B Transaction Pipeline | ✅ Implemented | Authoritative market routing, wholesale pricing, and transaction ledger persistence across resets |
 | Workplace Financial Persistence | ✅ Implemented | Authoritative snapshot sync of workplace revenue, expenses, and profit to SQLite |
 | Residential Water & Utility Infrastructure | ✅ Implemented | Piped tap water access, regional resource conservation, domestic tariff billing, restart idempotency, and atomic compensation |
+| Supply Chain In-Flight Persistence | ✅ Implemented | In-flight shipments survive cold restart with scheduled delivery events intact |
+| Producer Revenue & P&L Integrity | ✅ Implemented | Wholesale transactions credit seller revenue to business accounts and ledgers |
+| Workday-Tracked Payroll | ✅ Implemented | Daily shift tracking, same-day duplicate prevention, and zero unearned initial wages |
+| Dynamic Labor Market | ✅ Implemented | Demographic adaptation, automated vacancy filling, and death/retirement vacancy liberation |
+| Reliable Consumption Persistence | ✅ Implemented | Asynchronous write tracking, boundary flush, failed eviction, and living-only demand |
 | Taxes | 🔴 Not implemented | Slated for future phase |
 | Spatial Renderer | ✅ Implemented | Canvas-based rendering of the world |
 | Live Simulation UI | ✅ Implemented | Real-time visualization of citizens and environment |
@@ -953,6 +968,38 @@ Connects household tap-water access to regional natural resources, citizen thirs
 - **Atomic Multi-Step Failure Compensation:** `ConsumptionEngine.consumeResidentialTapWater()` enforces all-or-nothing execution. If any downstream step fails (such as thirst satisfaction or record persistence) after regional extraction or financial billing has succeeded, compensating reversals (`refundDomesticWater`, `reverseTransaction`, and thirst rollback) restore all resource pools and citizen wallets to their exact pre-action balances.
 - **Decision Engine Integration:** Thirsty citizens evaluate residential tap water alongside retail beverages via `CandidateGenerator` generating `ActionType.CONSUME_WATER` actions, providing a resilient baseline survival utility when retail goods are unavailable or unaffordable.
 
+### T8.6.4: Supply Chain In-Flight Shipment Persistence & Cold-Restart Recovery
+Preserves goods moving across spatial road networks across simulation cycles and process reboots:
+- **Prisma Shipment Model Synchronization:** `CommerceRepository` synchronizes freight shipments between producers, wholesalers, and retail outlets, tracking `shipmentId`, `orderId`, `originId`, `destinationId`, `departureTime`, `estimatedArrival`, `status`, and serialized cargo payload.
+- **Discrete Transit Lifecycle:** Shipments advance reliably through explicit state transitions (`PENDING` $\to$ `IN_TRANSIT` $\to$ `DELIVERED` / `CANCELLED`), guaranteeing that goods are not duplicated in transit or lost between storage depots.
+- **Cold-Restart Event Resumption:** `PersistenceService.bootstrap()` hydrates unfulfilled in-transit shipments into `SupplyChainEngine`, reconstructing arrival callbacks in `EventScheduler` with exact remaining travel times calculated from authoritative simulation clock values.
+
+### T8.6.5.1: Producer Revenue Lifecycle & Accounting Integrity
+Closes the commercial double-entry loop between B2B procurement purchasing and producer business accounts:
+- **Direct Revenue Crediting:** `BusinessAccounting.creditRevenue()` connects wholesale procurement purchase completions directly to the selling producer's enterprise ledger.
+- **P&L Statement Alignment:** Resolves discrepancies between customer procurement disbursements and producer revenue recognition, ensuring operating profit reflects actual deliveries without unrecorded earnings or phantom losses.
+- **Authoritative Double-Entry Flow:** Market clearing debits the buyer's wallet, credits the seller's wallet, records immutable `TransactionRecord` rows, and logs corresponding entries in the seller's period P&L statement.
+
+### T8.6.5.2: Workday-Tracked Payroll, Simulation Time Persistence & Scarcity Dynamics
+Establishes reliable labor accounting, clock durability, and market pricing responsiveness:
+- **Idempotent Workday Tracking:** `RoutineActionExecutor` tracks scheduled shift completions on the citizen's `employmentRecord` via `lastWorkedDay`. Multiple ticks or repeated work shifts executed on the same simulation day cannot inflate the accrued `daysWorked`.
+- **Authoritative Time Persistence:** `SimulationState` synchronizes global simulation clock ticks to SQLite at tick boundaries, ensuring the engine resumes on cold restarts without clock rollback or leap forward.
+- **Bounded Scarcity Pricing Sensitivity:** `PriceFormationService` calibrates sensitivity bounds to ensure essential commodities respond smoothly to local supply deficits without hyperinflationary price spikes or runaway market breakdown.
+
+### T8.6.5.3: Dynamic Labor Market & Demographic Workforce Adaptation
+Connects ongoing demographic events (births, maturation, migration, deaths) to the occupational economy:
+- **Demographic-to-Workforce Integration:** `PopulationSimulator` coordinates with `OccupationService`, automatically evaluating employment assignments during periodic demographic sweeps.
+- **Automated Vacancy Liberation:** When an employed citizen dies or reaches retirement age (75+), their workplace position is freed, immediately decrementing `occupiedPositions` and restoring available `vacancies` for living candidates.
+- **Ongoing Labor Re-Assignment:** As youth reach working age (18+) or new immigrants settle in the region, `OccupationService.runJobAssignment()` matches qualified job seekers to open vacancies based on skill suitability, age eligibility, and spatial proximity.
+- **Durable Workforce Persistence:** Employment allocations, job position mappings, and workplace vacancy states are persisted across tick boundaries and fully rehydrated upon server restart.
+
+### T8.6.5.4: Reliable Consumption Persistence & Demand Integrity
+Eliminates asynchronous persistence dropouts and prevents unearned economic distributions:
+- **Asynchronous Persistence Tracking & Flush Boundary:** `ConsumptionService` tracks all in-flight Prisma persistence operations in a tracked `pendingWrites: Set<Promise<any>>` and provides an explicit `flush()` method. `PersistenceService.persistTickBoundary()` awaits `consumptionService.flush()`, eliminating persistence race conditions during tick cycles and server teardowns.
+- **In-Memory Failed Write Eviction:** When a database write fails, the affected consumption record is immediately evicted from the in-memory `ConsumptionLedger` and recorded in `failedWrites`, preventing the simulation engine from falsely assuming unpersisted events are durable.
+- **Demand Integrity (Deceased Citizen Exclusion):** `CivilizationDemandService.getDemandIntelligence()` excludes deceased citizens (`status: { not: CitizenStatus.DECEASED }`) from active physiological consumption calculations, while accurately preserving food and water demand for living dependents, children, and students.
+- **Zero Unearned Initial Wages Policy:** Newly hired workers initialize with `daysWorked: 0` instead of a full-month default. Participation compensation formula ($daysWorked / expectedWorkingDays$) requires workers to accrue actual shifts before earning salary payouts.
+
 ---
 
 ## End-to-End Economic Feedback Architecture
@@ -1024,8 +1071,8 @@ While the closed economic feedback loop and authoritative intelligence are fully
 
 The repository maintains strict continuous integration standards to guarantee determinism and simulation health.
 
-- **Engine Test Suite (`@genesis/engine`):** 41 passing test suites with 269 verified tests (Time, Events, Decision, Spatial, Inventory, Banking, Production, Market Pricing, Economic Equilibrium, Agricultural Yield, Resource Regeneration, B2B Procurement, Residential Water Infrastructure, and Population Simulation).
-- **Backend Test Suite (`@genesis/backend`):** 13 authoritative integration suites (51 verified tests) executing sequentially against Prisma and SQLite, verifying demand intelligence, multi-stage supply aggregation, employment and payroll, market price dynamics, closed equilibrium loops, economic shortages/failures, long-run economic stability, population lifecycle, consumption history & forecasting, seasonal agricultural yield variation, B2B transaction integrity, workplace financial persistence, and residential water persistence.
-- **Process Restart Recovery:** Deterministic cold-restart test (`Process A` → `Process B`) confirming complete hydration of world state, workplace wallets, municipal utility accounts, inventory configurations, consumption records, and simulation time without drift or memory leaks.
+- **Engine Test Suite (`@genesis/engine`):** 45 passing test suites with 300 verified tests (Time, Events, Decision, Spatial, Inventory, Banking, Production, Market Pricing, Economic Equilibrium, Agricultural Yield, Resource Regeneration, B2B Procurement, Residential Water Infrastructure, Workday Tracking Payroll, Dynamic Labor Market, and Population Simulation).
+- **Backend Test Suite (`@genesis/backend`):** 17 authoritative integration suites (74 verified tests) executing sequentially against Prisma and SQLite, verifying demand intelligence, multi-stage supply aggregation, employment and payroll, market price dynamics, closed equilibrium loops, economic shortages/failures, long-run economic stability, population lifecycle, consumption history & forecasting, seasonal agricultural yield variation, B2B transaction integrity, workplace financial persistence, residential water persistence, supply chain shipment cold-restart persistence, simulation time persistence, dynamic labor market persistence, and reliable consumption persistence & demand integrity.
+- **Process Restart Recovery:** Deterministic cold-restart tests (`Process A` → `Process B` → `Process C`) confirming complete hydration of world state, workplace wallets, municipal utility accounts, inventory configurations, in-flight shipments, consumption records, and simulation time without drift or memory leaks.
 - **Typecheck:** Clean 0-error `tsc` validation across `shared`, `packages/engine`, `backend`, and `frontend` workspaces.
 - **Production Build:** `npm run build` succeeds completely, compiling all TypeScript packages and bundling minified frontend production assets with Vite.

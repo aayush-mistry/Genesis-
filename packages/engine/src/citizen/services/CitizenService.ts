@@ -479,14 +479,14 @@ export class CitizenService {
             this.worldEngine.workplaceRepository.update(workplace);
           }
         }
-        citizen.employmentStatus = EmploymentStatus.UNEMPLOYED;
-        citizen.workplaceId = null;
-        citizen.jobType = null;
-        citizen.jobSchedule = null;
         if (citizen.employmentRecord) {
           citizen.employmentRecord.endDate = { ...this.timeEngine.getCurrentTime() };
         }
       }
+      citizen.employmentStatus = EmploymentStatus.UNEMPLOYED;
+      citizen.workplaceId = null;
+      citizen.jobType = null;
+      citizen.jobSchedule = null;
 
       // Release household membership & unhoused tracking
       if (citizen.householdId) {
