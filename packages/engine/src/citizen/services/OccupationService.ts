@@ -118,7 +118,7 @@ export class OccupationService {
     const currentTime = (this.citizenService as any).timeEngine?.getCurrentTime?.() || { year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0 };
     if (!citizen.employmentRecord || citizen.employmentRecord.endDate) {
       citizen.employmentRecord = {
-        daysWorked: 30,
+        daysWorked: 0,
         expectedWorkingDays: 30,
         performanceScore: 1.0,
         startDate: { ...currentTime },

@@ -267,20 +267,6 @@ class WorldService {
       await workplaceRepository.createManyWorkplaces(wpData.slice(i, i + 50));
     }
 
-    const posData = allWorkplaces.flatMap(wp => (wp.positions || []).map(p => ({
-      id: p.id,
-      workplaceId: wp.id,
-      type: p.type,
-      requiredSkillsJson: JSON.stringify(p.requiredSkills || {}),
-      occupantId: p.occupantId || null,
-      scheduleStartHour: p.schedule?.startTime ?? 9,
-      scheduleEndHour: p.schedule?.endTime ?? 17
-    })));
-
-    for (let i = 0; i < posData.length; i += 50) {
-      await prisma.jobPosition.createMany({ data: posData.slice(i, i + 50) });
-    }
-
     // FIX: Clear temporary 1-person households and their references to avoid foreign key constraints
     citizenService.engine.householdService.clear();
     const finalCitizens = citizenService.engine.listCitizens();
@@ -313,6 +299,20 @@ class WorldService {
 
     for (let i = 0; i < cData.length; i += 50) {
       await citizenRepository.createManyCitizens(cData.slice(i, i + 50));
+    }
+
+    const posData = allWorkplaces.flatMap(wp => (wp.positions || []).map(p => ({
+      id: p.id,
+      workplaceId: wp.id,
+      type: p.type,
+      requiredSkillsJson: JSON.stringify(p.requiredSkills || {}),
+      occupantId: p.occupantId || null,
+      scheduleStartHour: p.schedule?.startTime ?? 9,
+      scheduleEndHour: p.schedule?.endTime ?? 17
+    })));
+
+    for (let i = 0; i < posData.length; i += 50) {
+      await prisma.jobPosition.createMany({ data: posData.slice(i, i + 50) });
     }
 
     console.log('[WorldService] Generating Terrains and Resources...');

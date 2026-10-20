@@ -56,6 +56,19 @@ export class ConsumptionLedger {
   }
 
   /**
+   * Evict a record from the in-memory ledger (used when downstream persistence fails).
+   * Returns true if the record was found and removed, false otherwise.
+   */
+  public evict(eventId: string): boolean {
+    if (!eventId || !this.seenEventIds.has(eventId)) {
+      return false;
+    }
+    this.seenEventIds.delete(eventId);
+    this.records = this.records.filter(r => r.eventId !== eventId);
+    return true;
+  }
+
+  /**
    * Subscribe to new consumption records.
    */
   public onRecord(listener: (record: ConsumptionRecord) => void): () => void {

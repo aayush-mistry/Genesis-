@@ -35,6 +35,9 @@ export class BackendConsumptionService {
   public consumptionLedger: ConsumptionLedger;
   public forecastingEngine: DemandForecastingEngine;
   private isInitialized = false;
+  private pendingWrites: Set<Promise<any>> = new Set();
+  private failedWrites: Array<{ eventId: string; error: any; record: ConsumptionRecord }> = [];
+  private durablyPersistedEventIds: Set<string> = new Set();
 
   constructor() {
     this.consumptionLedger = new ConsumptionLedger();
@@ -52,9 +55,28 @@ export class BackendConsumptionService {
     this.isInitialized = true;
 
     // Listen to in-memory ledger events and persist them durably to SQLite via Prisma
-    this.consumptionLedger.onRecord(async (record: ConsumptionRecord) => {
+    this.consumptionLedger.onRecord((record: ConsumptionRecord) => {
+      this.enqueuePersistence(record);
+    });
+
+    // Wire forecasting engine into BusinessProcurementEngine
+    import('./supply.service').then(({ supplyService }) => {
+      if (supplyService && supplyService.businessProcurementEngine) {
+        supplyService.businessProcurementEngine.setDemandForecaster(this.forecastingEngine);
+      }
+    });
+
+    console.log('[Consumption Service] Initialized with durable ledger and forecasting engine');
+  }
+
+  /**
+   * Enqueues an asynchronous persistence operation to SQLite via Prisma.
+   * Tracks in-flight promises and evicts from the in-memory ledger if persistence fails.
+   */
+  public enqueuePersistence(record: ConsumptionRecord): Promise<any> {
+    const writePromise = (async () => {
       try {
-        await consumptionRepository.recordConsumption({
+        const result = await consumptionRepository.recordConsumption({
           eventId: record.eventId,
           timestamp: record.timestamp,
           simulationDay: record.simulationDay,
@@ -69,19 +91,76 @@ export class BackendConsumptionService {
           worldId: record.worldId,
           regionId: record.regionId
         });
+        if (result) {
+          this.durablyPersistedEventIds.add(record.eventId);
+        }
+        return result;
       } catch (err) {
-        console.error('[ConsumptionService] Failed to persist consumption record:', err);
+        console.error(`[ConsumptionService] Failed to persist consumption record ${record.eventId}:`, err);
+        // Evict from in-memory ledger so system does not believe it was durably saved
+        this.consumptionLedger.evict(record.eventId);
+        this.failedWrites.push({ eventId: record.eventId, error: err, record });
+        return { ok: false, error: err, eventId: record.eventId };
       }
+    })();
+
+    this.pendingWrites.add(writePromise);
+    writePromise.finally(() => {
+      this.pendingWrites.delete(writePromise);
     });
 
-    // Wire forecasting engine into BusinessProcurementEngine
-    import('./supply.service').then(({ supplyService }) => {
-      if (supplyService && supplyService.businessProcurementEngine) {
-        supplyService.businessProcurementEngine.setDemandForecaster(this.forecastingEngine);
-      }
-    });
+    return writePromise;
+  }
 
-    console.log('[Consumption Service] Initialized with durable ledger and forecasting engine');
+  /**
+   * Awaits all pending consumption persistence writes and surfaces any errors.
+   */
+  public async flush(): Promise<void> {
+    while (this.pendingWrites.size > 0) {
+      const currentBatch = Array.from(this.pendingWrites);
+      await Promise.all(currentBatch);
+    }
+
+    if (this.failedWrites.length > 0) {
+      const failures = [...this.failedWrites];
+      this.failedWrites = [];
+      const err = new Error(
+        `[ConsumptionService] Persistence flush failed for ${failures.length} write(s): ${failures.map(f => f.error?.message || String(f.error)).join('; ')}`
+      );
+      (err as any).errors = failures.map(f => f.error);
+      throw err;
+    }
+  }
+
+  /**
+   * Returns true if the event has been successfully written to durable database storage.
+   */
+  public isDurable(eventId: string): boolean {
+    return this.durablyPersistedEventIds.has(eventId);
+  }
+
+  /**
+   * Number of pending persistence operations currently in flight.
+   */
+  public getPendingCount(): number {
+    return this.pendingWrites.size;
+  }
+
+  /**
+   * Returns list of failed persistence writes since last flush.
+   */
+  public getFailedWrites(): Array<{ eventId: string; error: any; record: ConsumptionRecord }> {
+    return [...this.failedWrites];
+  }
+
+  /**
+   * Resets ledger, in-flight tracking, and durability cache.
+   */
+  public reset(): void {
+    this.consumptionLedger.clear();
+    this.pendingWrites.clear();
+    this.failedWrites = [];
+    this.durablyPersistedEventIds.clear();
   }
 
   /**
@@ -107,31 +186,21 @@ export class BackendConsumptionService {
     }));
 
     this.consumptionLedger.loadRecords(mapped);
+    for (const r of mapped) {
+      this.durablyPersistedEventIds.add(r.eventId);
+    }
     console.log(`[Consumption Service] Hydrated ${mapped.length} consumption records from persistence.`);
     return mapped.length;
   }
 
   /**
    * Records a consumption event both in-memory and in persistent storage.
+   * Awaits durable completion before returning.
    */
   public async recordConsumption(record: ConsumptionRecord): Promise<boolean> {
     const accepted = this.consumptionLedger.record(record);
     if (accepted) {
-      await consumptionRepository.recordConsumption({
-        eventId: record.eventId,
-        timestamp: record.timestamp,
-        simulationDay: record.simulationDay,
-        simulationHour: record.simulationHour,
-        consumerId: record.consumerId,
-        householdId: record.householdId,
-        sourceInventoryId: record.sourceInventoryId,
-        commodityId: record.commodityId,
-        quantity: record.quantity,
-        unit: record.unit,
-        context: record.context,
-        worldId: record.worldId,
-        regionId: record.regionId
-      });
+      await this.flush();
       return true;
     }
     return false;

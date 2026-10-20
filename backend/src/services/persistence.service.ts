@@ -905,6 +905,15 @@ export class PersistenceService {
       } catch (err) {
         console.error('[PersistenceService] Error persisting orders and shipments in persistTickBoundary:', err);
       }
+
+      // Flush Consumption Ledger Persistence
+      try {
+        const { consumptionService } = await import('./consumption.service');
+        await consumptionService.flush();
+      } catch (err) {
+        console.error('[PersistenceService] Error flushing consumption persistence in persistTickBoundary:', err);
+        throw err;
+      }
     }
 }
 

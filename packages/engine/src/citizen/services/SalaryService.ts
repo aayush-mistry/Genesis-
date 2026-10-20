@@ -128,10 +128,10 @@ export class SalaryService {
     const workplace = this.worldEngine.workplaceRepository.findById(citizen.workplaceId);
     if (!workplace || !workplace.wallet) return;
 
-    // Initialize employment record if missing
+    // Initialize employment record if missing (legacy tests compatibility)
     if (!citizen.employmentRecord) {
       citizen.employmentRecord = {
-        daysWorked: 30, // Default to a full month if missing
+        daysWorked: 30, // Default to a full month if missing for unmanaged legacy citizens
         expectedWorkingDays: 30,
         performanceScore: 1.0,
         startDate: TimeUtils.clone(this.timeEngine.getCurrentTime()),

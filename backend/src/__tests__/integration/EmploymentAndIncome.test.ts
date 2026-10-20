@@ -196,6 +196,10 @@ describe('T7.8.3 - Employment and Income Dynamics', () => {
 
     // Trigger payroll run manually for testing
     // To process salary, citizen must have been employed for 30 days. We bypass wait.
+    const memCit = citizenService.engine.getCitizen(citizenId)!;
+    if (memCit.employmentRecord) {
+      memCit.employmentRecord.daysWorked = 30;
+    }
     await citizenService.engine.salaryService!.runPayrollCycle();
 
     // Since we mocked time, it should have paid salary and emitted TransactionCompleted

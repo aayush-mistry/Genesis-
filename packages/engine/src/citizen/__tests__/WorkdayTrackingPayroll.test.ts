@@ -385,4 +385,53 @@ describe('T8.6.5.1 Task 2 — Work-Day Tracking and Payroll Participation', () =
     expect(hydrated.expectedWorkingDays).toBe(30);
     expect(hydrated.lastWorkDate).toEqual({ year: 1, month: 1, day: 3 });
   });
+
+  it('10. Newly hired worker initialized via OccupationService starts with daysWorked: 0 and receives 0 unearned wages upon immediate payroll cycle', async () => {
+    const { workplace } = setupEmployedCitizenAndWorkplace();
+    const { OccupationService } = await import('../services/OccupationService');
+    const occupationService = new OccupationService(citizenService, worldEngine.workplaceRepository);
+    const time = timeEngine.getCurrentTime();
+    
+    const newCitizen: Citizen = {
+      id: 'cit-new-hire',
+      name: 'Alice Newhire',
+      gender: CitizenGender.FEMALE,
+      birthDate: { ...time, year: time.year - 25 },
+      createdAt: { ...time },
+      status: CitizenStatus.ACTIVE,
+      locationId: null,
+      vitalState: { hunger: 0, thirst: 0, energy: 100, health: 100, lastUpdatedSimulationTime: { year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0 } },
+      wallet: { id: 'w-newhire', ownerId: 'cit-new-hire', balance: 100, currency: 'INR', totalIncome: 0, totalExpenses: 0 },
+      movementState: MovementState.IDLE,
+      activeRoute: null,
+      skills: [],
+      employmentStatus: EmploymentStatus.UNEMPLOYED,
+      workplaceId: null,
+      jobType: null,
+      jobSchedule: null,
+      personality: defaultPersonality
+    };
+    citizenRepository.create(newCitizen);
+
+    const pos = {
+      id: 'pos-open-1',
+      type: JobType.CRAFTSMAN,
+      workplaceId: workplace.id,
+      occupantId: null
+    };
+    workplace.positions.push(pos as any);
+
+    occupationService.assignJob(newCitizen, workplace as any, pos as any);
+
+    // Verify initial employment record has 0 days worked
+    expect(newCitizen.employmentRecord).toBeDefined();
+    expect(newCitizen.employmentRecord?.daysWorked).toBe(0);
+    expect(newCitizen.employmentStatus).toBe(EmploymentStatus.EMPLOYED);
+
+    // If payroll cycle executes immediately, worker should receive 0 unearned wages
+    const initialBalance = newCitizen.wallet.balance;
+    await salaryService.runPayrollCycle();
+    expect(newCitizen.wallet.balance).toBe(initialBalance);
+  });
 });
+

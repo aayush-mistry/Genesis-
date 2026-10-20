@@ -1,6 +1,6 @@
 import { prisma } from '../repositories/prisma';
 import { supplyService } from './supply.service';
-import { ProductCategory } from '@genesis/shared';
+import { CitizenStatus, ProductCategory } from '@genesis/shared';
 import { timeService } from './time.service';
 
 export class CivilizationDemandService {
@@ -27,13 +27,21 @@ export class CivilizationDemandService {
     const foodProductIds = Array.from(foodCommodities.keys());
     const waterProductIds = Array.from(waterCommodities.keys());
 
-    // 1. Calculate Current Unmet Need from Authoritative Citizen State
-    const citizens = await prisma.citizen.findMany({ select: { vitalStateJson: true } });
+    // 1. Calculate Current Unmet Need from Authoritative Living Citizen State
+    const citizens = await prisma.citizen.findMany({
+      where: {
+        status: {
+          not: CitizenStatus.DECEASED
+        }
+      },
+      select: { vitalStateJson: true, status: true }
+    });
     
     let totalUnmetHunger = 0;
     let totalUnmetThirst = 0;
 
     for (const c of citizens) {
+      if (c.status === CitizenStatus.DECEASED) continue;
       if (c.vitalStateJson) {
         try {
           const vitals = JSON.parse(c.vitalStateJson);
