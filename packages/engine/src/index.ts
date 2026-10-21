@@ -19,6 +19,7 @@ export * from './perception/PerceptionConfig';
 export * from './perception/PerceptionService';
 export * from './execution';
 export * from './inventory/InventoryManager';
+export * from './inventory/SpoilageLedger';
 export * from './production';
 export * from './supply/SupplyChainEngine';
 export * from './supply/SupplyChainStorageAdapter';

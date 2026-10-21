@@ -64,6 +64,22 @@ export class BusinessAccounting {
     (workplace as any).currentPeriodProductionCosts += costResult.totalCost;
   }
 
+  public recordSpoilageLoss(workplaceId: string, amount: number, spoilageRecord?: import('@genesis/shared').SpoilageRecord): void {
+    const workplace = this.worldEngine.workplaceRepository.findById(workplaceId);
+    if (!workplace) return;
+
+    if (!workplace.accounting) {
+      workplace.accounting = { history: [] };
+    }
+
+    if (!(workplace as any).currentPeriodSpoilageLosses) {
+      (workplace as any).currentPeriodSpoilageLosses = 0;
+    }
+    if (amount > 0) {
+      (workplace as any).currentPeriodSpoilageLosses += amount;
+    }
+  }
+
   public closeAccountingPeriod(workplaceId: string, periodStart: number, periodEnd: number): void {
     const workplace = this.worldEngine.workplaceRepository.findById(workplaceId);
     if (!workplace) return;
@@ -82,7 +98,8 @@ export class BusinessAccounting {
       procurementExpenses: 0,
       transportExpenses: 0,
       productionCosts: (workplace as any).currentPeriodProductionCosts || 0,
-      operatingCosts: 0
+      operatingCosts: 0,
+      spoilageLosses: (workplace as any).currentPeriodSpoilageLosses || 0
     });
 
     // Reset current period
@@ -90,5 +107,6 @@ export class BusinessAccounting {
     workplace.expenses = 0;
     workplace.profit = 0;
     (workplace as any).currentPeriodProductionCosts = 0;
+    (workplace as any).currentPeriodSpoilageLosses = 0;
   }
 }

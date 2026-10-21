@@ -1,4 +1,4 @@
-import { InventoryManager, ProductionEngine, SupplyChainEngine, CommerceAutomation, BusinessProcurementEngine, EventRegistry, TimeUtils, WHEAT_CROP_DEFINITION, MarketEngine } from '@genesis/engine';
+import { InventoryManager, ProductionEngine, SupplyChainEngine, CommerceAutomation, BusinessProcurementEngine, EventRegistry, TimeUtils, WHEAT_CROP_DEFINITION, MarketEngine, SpoilageLedger } from '@genesis/engine';
 import { worldService } from './world.service';
 import { eventService } from './event.service';
 import { timeService } from './time.service';
@@ -10,6 +10,7 @@ import { commerceRepository } from '../repositories/CommerceRepository';
 
 class SupplyService {
   public inventoryManager: InventoryManager;
+  public spoilageLedger: SpoilageLedger;
   public productionEngine: ProductionEngine;
   public supplyChainEngine: SupplyChainEngine;
   public commerceAutomation: CommerceAutomation;
@@ -32,6 +33,10 @@ class SupplyService {
 
   constructor() {
     this.inventoryManager = new InventoryManager();
+    this.spoilageLedger = new SpoilageLedger();
+    this.inventoryManager.setSpoilageLedger(this.spoilageLedger);
+    this.setupValuationResolver();
+
     this.productionEngine = new ProductionEngine(
       worldService.engine,
       eventService.scheduler,
@@ -67,7 +72,49 @@ class SupplyService {
     );
     
     EventRegistry.register('SupplyService.removeExpiredItems', async () => {
-      this.inventoryManager.removeExpiredItems(TimeUtils.toSeconds(timeService.engine.getCurrentTime()));
+      const currentTimeSec = TimeUtils.toSeconds(timeService.engine.getCurrentTime());
+      const spoiledRecords = this.inventoryManager.removeExpiredItems(currentTimeSec);
+      for (const record of spoiledRecords) {
+        eventService.scheduler.emitter.emit('InventorySpoiled', record);
+      }
+      this.supplyChainEngine.recoverStalledOrders(currentTimeSec);
+    });
+
+    EventRegistry.register('SupplyService.recoverStalledOrders', async () => {
+      const currentTimeSec = TimeUtils.toSeconds(timeService.engine.getCurrentTime());
+      this.supplyChainEngine.recoverStalledOrders(currentTimeSec);
+    });
+  }
+
+  private setupValuationResolver(): void {
+    this.inventoryManager.setValuationResolver((productId: string, ownerId: string, quantity: number) => {
+      // 1. Check historical purchase transactions for this buyer and product
+      if (this.marketEngine) {
+        const txs = this.marketEngine.getTransactionsByEntity(ownerId);
+        const purchaseTx = txs
+          .filter((t: any) => t.buyerId === ownerId && t.productId === productId && t.unitPrice !== null && t.unitPrice !== undefined)
+          .sort((a: any, b: any) => b.timestamp - a.timestamp)[0];
+        if (purchaseTx && purchaseTx.unitPrice !== null && purchaseTx.unitPrice !== undefined) {
+          return {
+            unitPrice: purchaseTx.unitPrice,
+            totalLoss: parseFloat((purchaseTx.unitPrice * quantity).toFixed(2)),
+            valuationMethod: 'HISTORICAL_TRANSACTION'
+          };
+        }
+      }
+
+      // 2. Check registered commodity base price
+      const commodity = this.productionEngine?.commodities?.get(productId);
+      if (commodity && typeof commodity.basePrice === 'number' && commodity.basePrice > 0) {
+        return {
+          unitPrice: commodity.basePrice,
+          totalLoss: parseFloat((commodity.basePrice * quantity).toFixed(2)),
+          valuationMethod: 'COMMODITY_BASE'
+        };
+      }
+
+      // 3. Valuation unavailable
+      return null;
     });
   }
 
@@ -229,6 +276,9 @@ class SupplyService {
     } else {
       (this.inventoryManager as any).inventories?.clear();
     }
+    this.spoilageLedger = new SpoilageLedger();
+    this.inventoryManager.setSpoilageLedger(this.spoilageLedger);
+    this.setupValuationResolver();
     
     this.productionEngine = new ProductionEngine(
       worldService.engine,

@@ -21,6 +21,10 @@ export class SupplyChainEngine {
   // Speed for goods shipments. e.g. trucks
   public static readonly TRUCK_SPEED_UNITS_PER_HOUR = 80;
 
+  // Default timeout for wholesale orders in simulation seconds: 3 simulation days (72 hours)
+  public static readonly DEFAULT_WHOLESALE_ORDER_TIMEOUT_SECONDS = 3 * 86400;
+  private orderTimeoutSeconds: number = SupplyChainEngine.DEFAULT_WHOLESALE_ORDER_TIMEOUT_SECONDS;
+
   constructor(
     private worldEngine: WorldEngine,
     private eventScheduler: EventScheduler,
@@ -33,6 +37,17 @@ export class SupplyChainEngine {
     EventRegistry.register('SupplyChainEngine.handleShipmentArrival', async (event) => {
       await this.handleShipmentArrival(event.metadata as { shipmentId: string, orderId: string });
     });
+    EventRegistry.register('SupplyChainEngine.recoverStalledOrders', async () => {
+      this.recoverStalledOrders();
+    });
+  }
+
+  public setOrderTimeoutSeconds(seconds: number): void {
+    this.orderTimeoutSeconds = Math.max(1, seconds);
+  }
+
+  public getOrderTimeoutSeconds(): number {
+    return this.orderTimeoutSeconds;
   }
 
   public setMarketEngine(engine: MarketEngine): void {
@@ -292,6 +307,48 @@ export class SupplyChainEngine {
       return;
     }
 
+    // Safety guard against late arrival: if order was cancelled (e.g. timed out) or failed
+    if (order.status === OrderStatus.CANCELLED || order.status === OrderStatus.FAILED) {
+      shipment.status = ShipmentStatus.CANCELLED;
+      if (this.storageAdapter) {
+        this.trackStorageOp(this.storageAdapter.updateShipmentStatus(shipment.shipmentId, shipment.status));
+      }
+
+      // Safely return goods to seller warehouse so goods are not destroyed
+      const seller = this.worldEngine.workplaceRepository.findById(shipment.originId);
+      if (seller && seller.inventoryId) {
+        const returned = this.inventoryManager.addItemQuantity(seller.inventoryId, shipment.productId, shipment.quantity, shipment.unit);
+        if (!returned) {
+          const inv = this.inventoryManager.getInventory(seller.inventoryId);
+          if (inv) {
+            if (!inv.items[shipment.productId]) {
+              inv.items[shipment.productId] = {
+                productId: shipment.productId,
+                totalQuantity: 0,
+                reservedQuantity: 0,
+                availableQuantity: 0,
+                unit: shipment.unit,
+                batches: []
+              };
+            }
+            const item = inv.items[shipment.productId];
+            if (!item.batches) item.batches = [];
+            item.batches.push({
+              quantity: shipment.quantity,
+              acquiredAt: TimeUtils.toSeconds(this.timeEngine.getCurrentTime()),
+              status: 'FRESH'
+            });
+            item.totalQuantity += shipment.quantity;
+            inv.storageCapacity = Math.max(inv.storageCapacity, Object.values(inv.items).reduce((s, x) => s + x.totalQuantity, 0));
+            item.availableQuantity = item.totalQuantity - item.reservedQuantity;
+          }
+        }
+      }
+      // Note: Payment was already reversed when the order was cancelled/timed out. Do NOT duplicate refunds!
+      await this.flushPersistence();
+      return;
+    }
+
     const buyer = this.worldEngine.workplaceRepository.findById(shipment.destinationId);
     if (!buyer || !buyer.inventoryId) {
       this.failShipmentAndRecover(shipment, order, 'Destination workplace or inventory missing');
@@ -410,5 +467,86 @@ export class SupplyChainEngine {
     for (const po of pendingOrders) {
       this.processOrder(po.orderId);
     }
+  }
+
+  /**
+   * Evaluates whether an order is eligible for timeout recovery.
+   * Only PENDING orders that have exceeded the timeout window without an active shipment
+   * or previously reversed transaction are eligible.
+   */
+  public isOrderEligibleForTimeout(order: Order, currentTimeSeconds: number): boolean {
+    if (order.status !== OrderStatus.PENDING) {
+      return false;
+    }
+    // Orders with an active shipment have already shipped
+    if (order.shipmentId) {
+      return false;
+    }
+    // If payment was already reversed, do not timeout again
+    if (order.transactionId && this.marketEngine?.isTransactionReversed(order.transactionId)) {
+      return false;
+    }
+    const orderAge = currentTimeSeconds - order.createdAt;
+    return orderAge >= this.orderTimeoutSeconds;
+  }
+
+  /**
+   * Scans all active orders and safely cancels wholesale orders stalled in PENDING state.
+   * Returns the list of newly cancelled orders.
+   */
+  public recoverStalledOrders(currentTimeSeconds?: number): Order[] {
+    const currentSimSeconds = currentTimeSeconds ?? TimeUtils.toSeconds(this.timeEngine.getCurrentTime());
+    const timedOutOrders: Order[] = [];
+
+    for (const order of this.orders.values()) {
+      if (this.isOrderEligibleForTimeout(order, currentSimSeconds)) {
+        this.cancelTimedOutOrder(order, `Order timed out after ${currentSimSeconds - order.createdAt}s in PENDING state`);
+        timedOutOrders.push(order);
+      }
+    }
+
+    return timedOutOrders;
+  }
+
+  /**
+   * Safely cancels a timed-out order, releasing reservations and reversing transactions once.
+   */
+  public cancelTimedOutOrder(order: Order, reason: string): void {
+    if (order.status !== OrderStatus.PENDING) {
+      return;
+    }
+
+    order.status = OrderStatus.CANCELLED;
+    if (this.storageAdapter) {
+      this.trackStorageOp(this.storageAdapter.updateOrderStatus(order.orderId, order.status));
+    }
+
+    // 1. Release reserved seller inventory if applicable
+    const seller = this.worldEngine.workplaceRepository.findById(order.sellerId);
+    if (seller && seller.inventoryId) {
+      this.inventoryManager.releaseReservedItem(seller.inventoryId, order.productId, order.quantity);
+    }
+
+    // 2. Reverse associated transaction idempotently
+    if (order.transactionId && this.marketEngine) {
+      const revTxId = `${order.transactionId}-REV-TIMEOUT`;
+      if (!this.marketEngine.isTransactionReversed(order.transactionId)) {
+        this.marketEngine.reverseTransaction(order.transactionId, revTxId, reason);
+      }
+      const transportTxId = order.transactionId.replace('B2B-PROC', 'TRANS');
+      if (this.marketEngine.getTransaction(transportTxId) && !this.marketEngine.isTransactionReversed(transportTxId)) {
+        this.marketEngine.reverseTransaction(transportTxId, `${transportTxId}-REV-TIMEOUT`, reason);
+      }
+    }
+
+    // 3. Emit event
+    this.eventScheduler.emitter.emit('OrderTimedOut', {
+      orderId: order.orderId,
+      buyerId: order.buyerId,
+      sellerId: order.sellerId,
+      productId: order.productId,
+      quantity: order.quantity,
+      reason
+    });
   }
 }

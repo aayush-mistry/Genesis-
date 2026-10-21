@@ -169,7 +169,7 @@ export class PersistenceService {
           take: 10000,
           orderBy: { timestamp: 'desc' }
         });
-        marketService.engine.loadTransactions(dbTransactions.map(tx => ({
+        const mappedTransactions = dbTransactions.map(tx => ({
           transactionId: tx.transactionId,
           timestamp: tx.timestamp,
           buyerId: tx.buyerId,
@@ -185,7 +185,36 @@ export class PersistenceService {
           description: tx.description ?? undefined,
           referenceId: tx.referenceId ?? undefined,
           referenceType: tx.referenceType ?? undefined
-        })));
+        }));
+
+        marketService.engine.loadTransactions(mappedTransactions);
+
+        // Also hydrate into financeService.engine.ledger
+        const { financeService } = await import('./finance.service');
+        for (const tx of mappedTransactions) {
+          financeService.engine.ledger.recordTransaction(tx);
+        }
+
+        // Hydrate spoilage transactions into supplyService.spoilageLedger
+        const { supplyService } = await import('./supply.service');
+        if (supplyService?.spoilageLedger) {
+          const spoilageTxs = mappedTransactions.filter(tx => tx.referenceType === 'INVENTORY_SPOILAGE');
+          supplyService.spoilageLedger.loadRecords(spoilageTxs.map(tx => ({
+            id: tx.referenceId || tx.transactionId.replace('TX-', ''),
+            inventoryId: `inv-${tx.buyerId}`,
+            ownerId: tx.buyerId,
+            productId: tx.productId || 'unknown',
+            quantity: tx.quantity || 0,
+            unit: tx.unit || 'unit',
+            batchAcquiredAt: 0,
+            batchExpiryAt: tx.timestamp,
+            timestamp: tx.timestamp,
+            unitPrice: tx.unitPrice ?? null,
+            totalLoss: tx.totalPrice,
+            valuationUnavailable: tx.unitPrice === null || tx.unitPrice === undefined,
+            valuationMethod: (tx.unitPrice !== null && tx.unitPrice !== undefined) ? 'HISTORICAL_TRANSACTION' : 'UNAVAILABLE'
+          })));
+        }
       } catch (err) {
         console.error('[PersistenceService] Error hydrating transaction records into MarketEngine:', err);
       }
@@ -885,6 +914,38 @@ export class PersistenceService {
               referenceType: tx.referenceType ?? null
             }
           });
+        }
+
+        // Also sync transactions from FinancialEngine.ledger (includes spoilage & production transactions)
+        const { financeService } = await import('./finance.service');
+        if (financeService?.engine?.ledger) {
+          const finTxs = financeService.engine.ledger.getAllTransactions();
+          for (const tx of finTxs) {
+            await prisma.transactionRecord.upsert({
+              where: { transactionId: tx.transactionId },
+              create: {
+                transactionId: tx.transactionId,
+                timestamp: tx.timestamp,
+                buyerId: tx.buyerId,
+                sellerId: tx.sellerId,
+                productId: tx.productId ?? null,
+                quantity: tx.quantity ?? null,
+                unit: tx.unit ?? null,
+                unitPrice: tx.unitPrice ?? null,
+                totalPrice: tx.totalPrice,
+                currency: tx.currency,
+                transactionType: tx.transactionType,
+                regionId: tx.regionId,
+                referenceId: tx.referenceId ?? null,
+                referenceType: tx.referenceType ?? null,
+                description: tx.description ?? null
+              },
+              update: {
+                referenceId: tx.referenceId ?? null,
+                referenceType: tx.referenceType ?? null
+              }
+            });
+          }
         }
       } catch (err) {
         console.error('[PersistenceService] Error persisting transactions in persistTickBoundary:', err);

@@ -78,6 +78,41 @@ export class FinancialEngine {
       // actual PURCHASE (materials) and WAGE (labor) cash deductions.
       this.accounting.recordProductionMetrics(eventData.producerId, costResult);
     });
+
+    this.eventScheduler.emitter.on('InventorySpoiled', (spoilageRecord: import('@genesis/shared').SpoilageRecord) => {
+      const txId = `TX-${spoilageRecord.id}`;
+      if (this.ledger.getTransaction(txId)) {
+        return; // Idempotent
+      }
+
+      const workplace = this.worldEngine.workplaceRepository.findById(spoilageRecord.ownerId);
+
+      const spoilageTx: TransactionRecord = {
+        transactionId: txId,
+        timestamp: spoilageRecord.timestamp,
+        buyerId: spoilageRecord.ownerId,
+        sellerId: 'SYSTEM_SPOILAGE',
+        productId: spoilageRecord.productId,
+        quantity: spoilageRecord.quantity,
+        unit: spoilageRecord.unit,
+        unitPrice: spoilageRecord.unitPrice,
+        totalPrice: spoilageRecord.totalLoss ?? 0,
+        currency: 'GEN',
+        transactionType: TransactionType.INVENTORY_SPOILAGE,
+        regionId: workplace?.regionId || 'UNKNOWN',
+        description: spoilageRecord.valuationUnavailable
+          ? `Inventory Spoilage Loss (Valuation Unavailable): ${spoilageRecord.quantity} ${spoilageRecord.unit} of ${spoilageRecord.productId}`
+          : `Inventory Spoilage Loss: ${spoilageRecord.quantity} ${spoilageRecord.unit} of ${spoilageRecord.productId} at ${spoilageRecord.unitPrice} per ${spoilageRecord.unit}`,
+        referenceId: spoilageRecord.id,
+        referenceType: 'INVENTORY_SPOILAGE'
+      };
+
+      this.ledger.recordTransaction(spoilageTx);
+
+      if (spoilageRecord.totalLoss && spoilageRecord.totalLoss > 0) {
+        this.accounting.recordSpoilageLoss(spoilageRecord.ownerId, spoilageRecord.totalLoss, spoilageRecord);
+      }
+    });
   }
 }
 

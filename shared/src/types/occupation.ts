@@ -107,6 +107,7 @@ export interface Workplace {
       transportExpenses: number;
       productionCosts: number;
       operatingCosts: number;
+      spoilageLosses?: number;
     }>;
   };
   inventoryConfiguration?: Record<string, { reorderPoint: number; targetStock: number }>;

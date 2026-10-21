@@ -54,6 +54,51 @@ class FinanceService {
       }
     });
 
+    eventService.scheduler.emitter.on('InventorySpoiled', async (record: import('@genesis/shared').SpoilageRecord) => {
+      try {
+        console.log(`[Finance Service] Processing InventorySpoiled event: ${record.id}`);
+        const { prisma } = await import('../repositories/prisma');
+        const txId = `TX-${record.id}`;
+
+        let regionId = record.regionId;
+        if (!regionId) {
+          const wp = worldService.engine.workplaceRepository.findById(record.ownerId);
+          if (wp && wp.regionId) {
+            regionId = wp.regionId;
+          }
+        }
+
+        const created = await prisma.transactionRecord.create({
+          data: {
+            transactionId: txId,
+            timestamp: record.timestamp,
+            buyerId: record.ownerId,
+            sellerId: 'SYSTEM_SPOILAGE',
+            productId: record.productId,
+            quantity: record.quantity,
+            unit: record.unit,
+            unitPrice: record.unitPrice,
+            totalPrice: record.totalLoss ?? 0,
+            currency: 'GEN',
+            transactionType: 'INVENTORY_SPOILAGE',
+            regionId: regionId || 'UNKNOWN',
+            description: record.valuationUnavailable
+              ? `Spoilage Loss (Valuation Unavailable): ${record.quantity} ${record.unit} of ${record.productId}`
+              : `Spoilage Loss: ${record.quantity} ${record.unit} of ${record.productId} at ${record.unitPrice} per ${record.unit}`,
+            referenceId: record.id,
+            referenceType: 'INVENTORY_SPOILAGE'
+          }
+        });
+        console.log(`[Finance Service] Persisted spoilage transaction: ${created.transactionId}`);
+      } catch (error: any) {
+        if (error.code === 'P2002') {
+          console.log(`[Finance Service] Spoilage transaction TX-${record.id} already exists (idempotency caught).`);
+        } else {
+          console.error('[Finance Service] Failed to persist spoilage transaction:', error);
+        }
+      }
+    });
+
     console.log('[Finance Service] Initialized');
   }
 }

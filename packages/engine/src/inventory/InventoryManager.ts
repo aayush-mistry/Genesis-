@@ -1,7 +1,28 @@
-import { Inventory, InventoryItem, InventoryBatch, InventoryBatchStatus } from '@genesis/shared';
+import { Inventory, InventoryItem, InventoryBatch, InventoryBatchStatus, SpoilageRecord } from '@genesis/shared';
+import { SpoilageLedger } from './SpoilageLedger';
+
+export type ValuationResolver = (productId: string, ownerId: string, quantity: number) => {
+  unitPrice: number | null;
+  totalLoss: number | null;
+  valuationMethod: 'BATCH_COST' | 'HISTORICAL_TRANSACTION' | 'COMMODITY_BASE' | 'UNAVAILABLE';
+} | null;
 
 export class InventoryManager {
   private inventories: Map<string, Inventory> = new Map();
+  private spoilageLedger?: SpoilageLedger;
+  private valuationResolver?: ValuationResolver;
+
+  public setSpoilageLedger(ledger: SpoilageLedger): void {
+    this.spoilageLedger = ledger;
+  }
+
+  public getSpoilageLedger(): SpoilageLedger | undefined {
+    return this.spoilageLedger;
+  }
+
+  public setValuationResolver(resolver: ValuationResolver): void {
+    this.valuationResolver = resolver;
+  }
 
   public createInventory(id: string, ownerId: string, storageCapacity: number): Inventory {
     if (this.inventories.has(id)) {
@@ -42,7 +63,8 @@ export class InventoryManager {
     quantity: number, 
     unit: string, 
     acquiredAt: number = 0, 
-    expiryAt?: number
+    expiryAt?: number,
+    unitCost?: number
   ): boolean {
     const inventory = this.inventories.get(inventoryId);
     if (!inventory) return false;
@@ -80,7 +102,8 @@ export class InventoryManager {
       quantity,
       acquiredAt,
       expiryAt,
-      status: 'FRESH' as InventoryBatchStatus
+      status: 'FRESH' as InventoryBatchStatus,
+      unitCost
     });
 
     item.totalQuantity += quantity;
@@ -188,7 +211,8 @@ export class InventoryManager {
             quantity: transferredQuantity,
             acquiredAt: batch.acquiredAt,
             expiryAt: batch.expiryAt,
-            status: batch.status
+            status: batch.status,
+            unitCost: batch.unitCost
           });
         }
       }
@@ -288,29 +312,78 @@ export class InventoryManager {
      return true;
   }
   
-  public removeExpiredItems(currentTime: number): void {
+  public removeExpiredItems(currentTime: number): SpoilageRecord[] {
+    const spoilageRecords: SpoilageRecord[] = [];
+
     for (const inventory of this.inventories.values()) {
       for (const productId of Object.keys(inventory.items)) {
         const item = inventory.items[productId];
-        if (!item.batches) continue;
+        if (!item.batches || item.batches.length === 0) continue;
         
         let expiredQuantity = 0;
-        
-        item.batches = item.batches.filter(batch => {
+        const remainingBatches: InventoryBatch[] = [];
+
+        for (const batch of item.batches) {
           if (batch.expiryAt !== undefined && currentTime >= batch.expiryAt) {
             batch.status = 'EXPIRED' as InventoryBatchStatus;
-            expiredQuantity += batch.quantity;
-            return false; // Remove expired batch
+            const removedQty = batch.quantity;
+            expiredQuantity += removedQty;
+
+            const batchIdentifier = batch.id || `${batch.acquiredAt}-${batch.expiryAt}`;
+            const recordId = `SPOIL-${inventory.id}-${productId}-${batchIdentifier}`;
+
+            // Resolve valuation if available
+            let unitPrice: number | null = batch.unitCost !== undefined && batch.unitCost !== null
+              ? batch.unitCost
+              : null;
+            let totalLoss: number | null = unitPrice !== null ? unitPrice * removedQty : null;
+            let valuationMethod: 'BATCH_COST' | 'HISTORICAL_TRANSACTION' | 'COMMODITY_BASE' | 'UNAVAILABLE' = 
+              unitPrice !== null ? 'BATCH_COST' : 'UNAVAILABLE';
+            let valuationUnavailable = unitPrice === null;
+
+            if (valuationUnavailable && this.valuationResolver) {
+              const resolved = this.valuationResolver(productId, inventory.ownerId, removedQty);
+              if (resolved && resolved.unitPrice !== null && resolved.unitPrice !== undefined) {
+                unitPrice = resolved.unitPrice;
+                totalLoss = resolved.totalLoss ?? (unitPrice * removedQty);
+                valuationMethod = resolved.valuationMethod;
+                valuationUnavailable = false;
+              }
+            }
+
+            const record: SpoilageRecord = {
+              id: recordId,
+              inventoryId: inventory.id,
+              ownerId: inventory.ownerId,
+              productId,
+              quantity: removedQty,
+              unit: item.unit,
+              batchAcquiredAt: batch.acquiredAt,
+              batchExpiryAt: batch.expiryAt,
+              batchId: batch.id,
+              timestamp: currentTime,
+              unitPrice,
+              totalLoss,
+              valuationUnavailable,
+              valuationMethod,
+              createdAt: new Date()
+            };
+
+            if (this.spoilageLedger) {
+              this.spoilageLedger.record(record);
+            }
+
+            spoilageRecords.push(record);
+          } else {
+            remainingBatches.push(batch);
           }
-          return true;
-        });
-        
+        }
+
+        item.batches = remainingBatches;
+
         if (expiredQuantity > 0) {
-          // If expired goods were reserved, this might cause an issue. We assume expired goods were not reserved 
-          // or we just deduct from total.
           item.totalQuantity = Math.max(0, item.totalQuantity - expiredQuantity);
           
-          // Adjust reserved if necessary
           if (item.reservedQuantity > item.totalQuantity) {
             item.reservedQuantity = item.totalQuantity;
           }
@@ -323,6 +396,91 @@ export class InventoryManager {
         }
       }
     }
+
+    return spoilageRecords;
+  }
+
+  public spoilBatchQuantity(
+    inventoryId: string, 
+    productId: string, 
+    batchIndex: number, 
+    quantity: number, 
+    currentTime: number
+  ): SpoilageRecord | null {
+    const inventory = this.inventories.get(inventoryId);
+    if (!inventory) return null;
+
+    const item = inventory.items[productId];
+    if (!item || !item.batches || batchIndex < 0 || batchIndex >= item.batches.length) return null;
+
+    const batch = item.batches[batchIndex];
+    if (quantity <= 0 || batch.quantity <= 0) return null;
+
+    const removedQty = Math.min(quantity, batch.quantity);
+    batch.quantity -= removedQty;
+
+    const isFullBatch = batch.quantity <= 0;
+    if (isFullBatch) {
+      batch.status = 'EXPIRED';
+      item.batches.splice(batchIndex, 1);
+    }
+
+    item.totalQuantity = Math.max(0, item.totalQuantity - removedQty);
+    if (item.reservedQuantity > item.totalQuantity) {
+      item.reservedQuantity = item.totalQuantity;
+    }
+    this.updateAvailable(item);
+
+    if (item.totalQuantity <= 0) {
+      delete inventory.items[productId];
+    }
+
+    const batchIdentifier = batch.id || `${batch.acquiredAt}-${batch.expiryAt ?? 'noexp'}`;
+    const recordId = isFullBatch 
+      ? `SPOIL-${inventory.id}-${productId}-${batchIdentifier}`
+      : `SPOIL-${inventory.id}-${productId}-${batchIdentifier}-P${currentTime}`;
+
+    let unitPrice: number | null = batch.unitCost !== undefined && batch.unitCost !== null
+      ? batch.unitCost
+      : null;
+    let totalLoss: number | null = unitPrice !== null ? unitPrice * removedQty : null;
+    let valuationMethod: 'BATCH_COST' | 'HISTORICAL_TRANSACTION' | 'COMMODITY_BASE' | 'UNAVAILABLE' = 
+      unitPrice !== null ? 'BATCH_COST' : 'UNAVAILABLE';
+    let valuationUnavailable = unitPrice === null;
+
+    if (valuationUnavailable && this.valuationResolver) {
+      const resolved = this.valuationResolver(productId, inventory.ownerId, removedQty);
+      if (resolved && resolved.unitPrice !== null && resolved.unitPrice !== undefined) {
+        unitPrice = resolved.unitPrice;
+        totalLoss = resolved.totalLoss ?? (unitPrice * removedQty);
+        valuationMethod = resolved.valuationMethod;
+        valuationUnavailable = false;
+      }
+    }
+
+    const record: SpoilageRecord = {
+      id: recordId,
+      inventoryId: inventory.id,
+      ownerId: inventory.ownerId,
+      productId,
+      quantity: removedQty,
+      unit: item?.unit || 'unit',
+      batchAcquiredAt: batch.acquiredAt,
+      batchExpiryAt: batch.expiryAt ?? currentTime,
+      batchId: batch.id,
+      timestamp: currentTime,
+      unitPrice,
+      totalLoss,
+      valuationUnavailable,
+      valuationMethod,
+      createdAt: new Date()
+    };
+
+    if (this.spoilageLedger) {
+      this.spoilageLedger.record(record);
+    }
+
+    return record;
   }
 
   public getUsableQuantity(inventoryId: string, productId: string, currentTime: number): number {
