@@ -8,7 +8,7 @@ import { citizenService } from '../citizen.service';
 import { marketService } from '../market.service';
 import { financeService } from '../finance.service';
 import { spatialService } from '../spatial.service';
-import { ConsumptionEngine, TimeUtils } from '@genesis/engine';
+import { ConsumptionEngine } from '@genesis/engine';
 import { WorkplaceType } from '@genesis/shared';
 
 describe('T8.2 — Consumption History, Demand Forecasting & Procurement Integration', () => {
@@ -528,7 +528,7 @@ describe('T8.2 — Consumption History, Demand Forecasting & Procurement Integra
 
   it('9. Historical records and forecast behavior survive a cold restart', async () => {
     // 1. Persist known consumption records into SQLite via repository
-    await new Promise(r => setTimeout(r, 100));
+    await consumptionService.flush();
     await prisma.consumptionRecord.deleteMany({});
     const daySec = 86400;
 

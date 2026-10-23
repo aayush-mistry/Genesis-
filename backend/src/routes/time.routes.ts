@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { timeService } from '../services/time.service';
+import { persistenceService } from '../services/persistence.service';
 
 export const timeRoutes: FastifyPluginAsync = async (server: FastifyInstance) => {
   const engine = timeService.engine;
@@ -22,6 +23,7 @@ export const timeRoutes: FastifyPluginAsync = async (server: FastifyInstance) =>
 
   server.post('/time/pause', async (_request, _reply) => {
     engine.pause();
+    await persistenceService.flush();
     return { success: true, state: engine.getState() };
   });
 
@@ -32,6 +34,7 @@ export const timeRoutes: FastifyPluginAsync = async (server: FastifyInstance) =>
 
   server.post('/time/reset', async (_request, _reply) => {
     engine.reset();
+    await persistenceService.flush();
     return { success: true, state: engine.getState(), time: engine.getCurrentTime() };
   });
 

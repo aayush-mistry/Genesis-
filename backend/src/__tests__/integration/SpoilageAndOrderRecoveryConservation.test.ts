@@ -5,7 +5,6 @@ import { eventService } from '../../services/event.service';
 import { supplyService } from '../../services/supply.service';
 import { marketService } from '../../services/market.service';
 import { financeService } from '../../services/finance.service';
-import { persistenceService } from '../../services/persistence.service';
 import { spatialService } from '../../services/spatial.service';
 import { worldRepository } from '../../repositories/WorldRepository';
 import { workplaceRepository } from '../../repositories/WorkplaceRepository';
@@ -311,9 +310,14 @@ describe('Project Genesis — T8.6.5.5: Cross-System Conservation & Cold-Restart
     expect(workplace.wallet!.balance).toBe(5000);
 
     // Verify database TransactionRecord was created
-    const dbTx = await prisma.transactionRecord.findUnique({
-      where: { transactionId: expectedTxId }
-    });
+    let dbTx = null;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      dbTx = await prisma.transactionRecord.findUnique({
+        where: { transactionId: expectedTxId }
+      });
+      if (dbTx) break;
+      await new Promise(r => setTimeout(r, 50));
+    }
     expect(dbTx).not.toBeNull();
     expect(dbTx!.transactionType).toBe('INVENTORY_SPOILAGE');
     expect(dbTx!.totalPrice).toBe(1000);

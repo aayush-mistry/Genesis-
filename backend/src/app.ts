@@ -28,11 +28,11 @@ export async function buildApp() {
   app.setErrorHandler((error, request, reply) => errorHandler(error, request, reply));
 
   // Root routes to prevent 404s when accessed directly via browser
-  app.get('/', async (request, reply) => {
+  app.get('/', async (_request, _reply) => {
     return { status: 'OK', service: 'Genesis Backend API', message: 'API is running. Please access the frontend at http://localhost:5173 during development.' };
   });
 
-  app.get('/favicon.ico', async (request, reply) => {
+  app.get('/favicon.ico', async (_request, reply) => {
     reply.code(204).send(); // No content for favicon
   });
 
@@ -71,6 +71,17 @@ export async function buildApp() {
   await import('./services/consumption.service').then(m => m.consumptionService.initialize());
   
   await import('./services/SpatialBackfillMigration').then(m => m.SpatialBackfillMigration.runMigration());
+
+  // Register runtime persistence after all domain engines and migrations are complete
+  const { timeService } = await import('./services/time.service');
+  persistenceService.startRuntimePersistence(timeService.engine);
+
+  // Hook into Fastify onClose lifecycle for graceful shutdown flush and Prisma disconnect
+  app.addHook('onClose', async () => {
+    await persistenceService.shutdown();
+    const { prisma } = await import('./repositories/prisma');
+    await prisma.$disconnect();
+  });
 
   return app;
 }

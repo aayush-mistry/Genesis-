@@ -10,8 +10,31 @@ import {
 import { prisma } from '../repositories/prisma';
 import { citizenService } from './citizen.service';
 import { supplyService } from './supply.service';
+import { timeService } from './time.service';
 
 export class PersistenceService {
+  private isPersisting: boolean = false;
+  private pendingWriteQueued: boolean = false;
+  private activePersistencePromise: Promise<void> | null = null;
+  private pendingDirtyCitizens: Set<string> = new Set();
+  private pendingDirtyHouseholds: Set<string> = new Set();
+  private timeEngine: any = null;
+  private timeSubscriber: ((time: any) => void) | null = null;
+  private cadenceTicks: number = 10;
+  private tickCounter: number = 0;
+  private lastPersistedTick: number = 0;
+  private lastPersistedDay: number | null = null;
+  private lastError: Error | null = null;
+  private isShuttingDown: boolean = false;
+  private stats = {
+    persistedCount: 0,
+    failedCount: 0,
+    coalescedCount: 0,
+    lastPersistedTime: null as any,
+    lastPersistedAtMs: null as number | null,
+    lastDurationMs: null as number | null,
+  };
+
   async bootstrap() {
     console.log('[PersistenceService] Bootstrapping Genesis engines from database...');
     
@@ -568,7 +591,9 @@ export class PersistenceService {
                 if (meta.cycleId) {
                   supplyService.productionEngine.recordCompletedCycle(meta.cycleId);
                 }
-              } catch (_) {}
+              } catch (_err) {
+                /* ignore json parse failure */
+              }
             }
           }
           console.log(`[PersistenceService] Hydrated ${completedEvents.length} completed production cycles.`);
@@ -594,7 +619,9 @@ export class PersistenceService {
                 if (meta.intervalId) {
                   resourceService.engine.recordProcessedInterval(meta.intervalId);
                 }
-              } catch (_) {}
+              } catch (_err) {
+                /* ignore json parse failure */
+              }
             }
           }
           console.log(`[PersistenceService] Hydrated ${completedRegenEvents.length} completed resource regeneration intervals.`);
@@ -712,8 +739,23 @@ export class PersistenceService {
         return !!dbHh;
       };
 
-      if (dirtyCollections && dirtyCollections.households) {
-        const hhList = Array.from(dirtyCollections.households) as string[];
+      let dirtyHouseholds: Set<string> | string[] | undefined = dirtyCollections?.households;
+      let dirtyCitizens: Set<string> | string[] | undefined = dirtyCollections?.citizens;
+
+      if (!dirtyCollections) {
+        // Auto-drain from citizenService dirty tracking if not explicitly provided
+        try {
+          const { citizenService } = await import('./citizen.service');
+          const drained = citizenService.getAndClearDirtyCollections();
+          dirtyHouseholds = drained.households;
+          dirtyCitizens = drained.citizens;
+        } catch (_err) {
+          /* ignore error draining dirty collections */
+        }
+      }
+
+      if (dirtyHouseholds) {
+        const hhList = Array.from(dirtyHouseholds) as string[];
         for (const hhId of hhList) {
           const inMemHh = citizenService.engine.householdService.getHousehold(hhId);
           if (inMemHh) {
@@ -724,8 +766,8 @@ export class PersistenceService {
         }
       }
 
-      if (dirtyCollections && dirtyCollections.citizens) {
-        const citizenList = Array.from(dirtyCollections.citizens) as string[];
+      if (dirtyCitizens) {
+        const citizenList = Array.from(dirtyCitizens) as string[];
         for (const citizenId of citizenList) {
           const citizen = citizenService.engine.getCitizen(citizenId);
           if (citizen) {
@@ -851,7 +893,9 @@ export class PersistenceService {
                   scheduleEndHour: pos.schedule?.endTime ?? 17
                 }
               });
-            } catch (_) {}
+            } catch (_err) {
+              /* ignore position creation error */
+            }
           }
         }
       }
@@ -973,6 +1017,222 @@ export class PersistenceService {
         await consumptionService.flush();
       } catch (err) {
         console.error('[PersistenceService] Error flushing consumption persistence in persistTickBoundary:', err);
+        throw err;
+      }
+    }
+
+    /**
+     * Start runtime persistence subscription on the simulation TimeEngine.
+     * Guaranteed to be idempotent: duplicate calls are safely ignored with a warning.
+     */
+    public startRuntimePersistence(engine?: any, cadenceTicks?: number): void {
+      if (this.timeSubscriber !== null) {
+        console.warn('[PersistenceService] Runtime persistence is already started. Skipping duplicate registration.');
+        return;
+      }
+
+      let targetEngine = engine;
+      if (!targetEngine) {
+        targetEngine = timeService.engine;
+      }
+
+      if (!targetEngine) {
+        console.error('[PersistenceService] Cannot start runtime persistence: TimeEngine not provided or found.');
+        return;
+      }
+
+      this.timeEngine = targetEngine;
+      if (cadenceTicks !== undefined && cadenceTicks > 0) {
+        this.cadenceTicks = cadenceTicks;
+      } else if (process.env.PERSISTENCE_CADENCE_TICKS) {
+        const parsed = parseInt(process.env.PERSISTENCE_CADENCE_TICKS, 10);
+        if (!isNaN(parsed) && parsed > 0) this.cadenceTicks = parsed;
+      }
+
+      this.isShuttingDown = false;
+      this.timeSubscriber = (time: any) => {
+        if (this.isShuttingDown) return;
+        this.tickCounter++;
+        const dayChanged = this.lastPersistedDay !== null && time && time.day !== this.lastPersistedDay;
+        const cadenceReached = (this.tickCounter - this.lastPersistedTick) >= this.cadenceTicks;
+
+        if (cadenceReached || dayChanged) {
+          this.triggerPersistence().catch((err) => {
+            console.error('[PersistenceService] Error in scheduled persistence tick:', err);
+          });
+        }
+      };
+
+      targetEngine.subscribe(this.timeSubscriber);
+      console.log(`[PersistenceService] Runtime persistence active (cadence: ${this.cadenceTicks} ticks or day boundary).`);
+    }
+
+    /**
+     * Stop runtime persistence subscription.
+     */
+    public stopRuntimePersistence(): void {
+      if (this.timeEngine && this.timeSubscriber) {
+        try {
+          this.timeEngine.unsubscribe(this.timeSubscriber);
+        } catch (_err) {
+          /* ignore unsubscribe error */
+        }
+        this.timeSubscriber = null;
+      }
+    }
+
+    /**
+     * Returns true if runtime persistence is currently listening to time ticks.
+     */
+    public isRuntimeActive(): boolean {
+      return this.timeSubscriber !== null && !this.isShuttingDown;
+    }
+
+    /**
+     * Configure runtime persistence tick cadence.
+     */
+    public setCadenceTicks(ticks: number): void {
+      if (ticks > 0) {
+        this.cadenceTicks = ticks;
+      }
+    }
+
+    public getCadenceTicks(): number {
+      return this.cadenceTicks;
+    }
+
+    public getLastError(): Error | null {
+      return this.lastError;
+    }
+
+    public getStats() {
+      return {
+        ...this.stats,
+        isPersisting: this.isPersisting,
+        pendingWriteQueued: this.pendingWriteQueued,
+        isRuntimeActive: this.isRuntimeActive(),
+        cadenceTicks: this.cadenceTicks,
+        tickCounter: this.tickCounter,
+        lastPersistedTick: this.lastPersistedTick
+      };
+    }
+
+    /**
+     * Serialized, non-overlapping persistence trigger.
+     * If a persist operation is currently in progress, requests are coalesced into pendingWriteQueued.
+     */
+    public async triggerPersistence(_force: boolean = false, dirtyCollections?: any): Promise<void> {
+      // Auto-drain or merge dirty collections
+      try {
+        const { citizenService } = await import('./citizen.service');
+        const drained = citizenService.getAndClearDirtyCollections();
+        for (const id of drained.citizens) this.pendingDirtyCitizens.add(id);
+        for (const id of drained.households) this.pendingDirtyHouseholds.add(id);
+      } catch (_err) {
+        /* ignore auto-drain error */
+      }
+
+      if (dirtyCollections?.citizens) {
+        for (const id of dirtyCollections.citizens) this.pendingDirtyCitizens.add(id);
+      }
+      if (dirtyCollections?.households) {
+        for (const id of dirtyCollections.households) this.pendingDirtyHouseholds.add(id);
+      }
+
+      if (this.isPersisting) {
+        this.pendingWriteQueued = true;
+        this.stats.coalescedCount++;
+        return this.activePersistencePromise!;
+      }
+
+      this.isPersisting = true;
+      this.pendingWriteQueued = false;
+
+      this.activePersistencePromise = (async () => {
+        try {
+          do {
+            this.pendingWriteQueued = false;
+            const citizensToPersist = new Set(this.pendingDirtyCitizens);
+            const householdsToPersist = new Set(this.pendingDirtyHouseholds);
+            this.pendingDirtyCitizens.clear();
+            this.pendingDirtyHouseholds.clear();
+
+            const start = performance.now();
+            try {
+              await this.persistTickBoundary({
+                citizens: citizensToPersist,
+                households: householdsToPersist
+              });
+              this.lastPersistedTick = this.tickCounter;
+              if (this.timeEngine) {
+                const curTime = this.timeEngine.getCurrentTime();
+                this.lastPersistedDay = curTime.day;
+                this.stats.lastPersistedTime = curTime;
+              }
+              this.stats.persistedCount++;
+              this.stats.lastPersistedAtMs = Date.now();
+              this.stats.lastDurationMs = performance.now() - start;
+              this.lastError = null;
+            } catch (err: any) {
+              // Restore unpersisted dirty collections to retry on subsequent run
+              for (const id of citizensToPersist) this.pendingDirtyCitizens.add(id);
+              for (const id of householdsToPersist) this.pendingDirtyHouseholds.add(id);
+              this.lastError = err instanceof Error ? err : new Error(String(err));
+              this.stats.failedCount++;
+              throw err;
+            }
+          } while (this.pendingWriteQueued && !this.isShuttingDown);
+        } finally {
+          this.isPersisting = false;
+          this.activePersistencePromise = null;
+        }
+      })();
+
+      return this.activePersistencePromise;
+    }
+
+    /**
+     * Flush all pending in-memory state to SQLite immediately and wait for completion.
+     * Guaranteed not to report success if writing fails.
+     */
+    public async flush(): Promise<void> {
+      try {
+        const { citizenService } = await import('./citizen.service');
+        const drained = citizenService.getAndClearDirtyCollections();
+        for (const id of drained.citizens) this.pendingDirtyCitizens.add(id);
+        for (const id of drained.households) this.pendingDirtyHouseholds.add(id);
+      } catch (_err) {
+        /* ignore auto-drain error */
+      }
+
+      if (this.isPersisting && this.activePersistencePromise) {
+        this.pendingWriteQueued = true;
+        try {
+          await this.activePersistencePromise;
+        } catch (_err) {
+          /* ignore error here since lastError is checked below */
+        }
+      } else {
+        await this.triggerPersistence(true);
+      }
+
+      if (this.lastError) {
+        throw this.lastError;
+      }
+    }
+
+    /**
+     * Graceful shutdown: Stop new schedules, await in-flight writes, flush latest state.
+     */
+    public async shutdown(): Promise<void> {
+      console.log('[PersistenceService] Initiating graceful persistence shutdown...');
+      this.isShuttingDown = true;
+      this.stopRuntimePersistence();
+      try {
+        await this.flush();
+        console.log('[PersistenceService] Graceful persistence shutdown complete. Authoritative state persisted.');
+      } catch (err) {
+        console.error('[PersistenceService] Fatal error during shutdown flush:', err);
         throw err;
       }
     }
