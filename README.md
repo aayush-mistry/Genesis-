@@ -124,6 +124,8 @@ npm run build:frontend
   - T8.6.5.2: Workday-Tracked Payroll, Time Persistence & Scarcity Sensitivity (`RoutineActionExecutor` daily shift idempotency, `lastWorkedDay` tracking preventing duplicate same-day wage inflation, simulation clock boundary persistence, and bounded scarcity sensitivity).
   - T8.6.5.3: Dynamic Labor Market & Workforce Sustainability (`PopulationSimulator` demographic integration with `OccupationService`, dynamic vacancy liberation upon death/retirement, continuous employment assignment for adult citizens/immigrants, and durable labor market state persistence).
   - T8.6.5.4: Reliable Consumption Persistence & Demand Integrity (non-blocking asynchronous consumption write tracking via `pendingWrites` and explicit `flush()`, tick boundary persistence synchronization, eviction of failed writes from in-memory ledger, deceased citizen exclusion from active demand intelligence, and zero unearned wage policy for newly hired workers).
+  - T8.6.5.5: Cross-System Conservation, Spoilage & Stalled Order Recovery (perishable inventory expiration tracking, auditable `INVENTORY_SPOILAGE` transactions, P&L loss tracking without duplicate cash debits, timeout recovery for stalled wholesale orders with buyer refund, and idempotent late-arrival safety).
+  - T8.6.6.1: Live Production Persistence Lifecycle & Graceful Shutdown (runtime `TimeEngine` persistence subscription with cadence/day boundaries, serialized write coalescing, auto-draining dirty demographics, immediate flush on pause/reset, and OS signal `SIGINT`/`SIGTERM` graceful Fastify termination).
 
 ## Genesis Roadmap
 
@@ -199,7 +201,9 @@ Phase 8 ✅ Visualization & Advanced Economic Dynamics
 ├── T8.6.5.1 Producer Revenue Lifecycle & Integrity
 ├── T8.6.5.2 Workday Tracking Payroll & Scarcity Sensitivity
 ├── T8.6.5.3 Dynamic Labor Market & Workforce Sustainability
-└── T8.6.5.4 Consumption Persistence & Demand Integrity
+├── T8.6.5.4 Consumption Persistence & Demand Integrity
+├── T8.6.5.5 Spoilage, Order Recovery & Cross-System Conservation
+└── T8.6.6.1 Live Production Persistence Lifecycle & Graceful Shutdown
 
 Phase 9 🔜 Social Framework & Relationships
 Phase 10 🔜 Optimization & Scale
@@ -241,6 +245,9 @@ Phase 10 🔜 Optimization & Scale
 | Workday-Tracked Payroll | ✅ Implemented | Daily shift tracking, same-day duplicate prevention, and zero unearned initial wages |
 | Dynamic Labor Market | ✅ Implemented | Demographic adaptation, automated vacancy filling, and death/retirement vacancy liberation |
 | Reliable Consumption Persistence | ✅ Implemented | Asynchronous write tracking, boundary flush, failed eviction, and living-only demand |
+| Inventory Spoilage & Conservation | ✅ Implemented | Expiration deduction, auditable spoilage records, and P&L accounting without cash distortion |
+| Stalled Order Recovery | ✅ Implemented | Automatic timeout cancellation, buyer refund, procurement unblocking, and late-arrival safety |
+| Live Production Persistence | ✅ Implemented | Runtime tick cadence, serialized write coalescing, pause/reset flush, and graceful shutdown |
 | Taxes | 🔴 Not implemented | Slated for future phase |
 | Spatial Renderer | ✅ Implemented | Canvas-based rendering of the world |
 | Live Simulation UI | ✅ Implemented | Real-time visualization of citizens and environment |
@@ -1000,6 +1007,22 @@ Eliminates asynchronous persistence dropouts and prevents unearned economic dist
 - **Demand Integrity (Deceased Citizen Exclusion):** `CivilizationDemandService.getDemandIntelligence()` excludes deceased citizens (`status: { not: CitizenStatus.DECEASED }`) from active physiological consumption calculations, while accurately preserving food and water demand for living dependents, children, and students.
 - **Zero Unearned Initial Wages Policy:** Newly hired workers initialize with `daysWorked: 0` instead of a full-month default. Participation compensation formula ($daysWorked / expectedWorkingDays$) requires workers to accrue actual shifts before earning salary payouts.
 
+### T8.6.5.5: Cross-System Conservation, Spoilage & Stalled Order Recovery
+Prevents phantom goods accumulation and financial deadlocks across physical and wholesale trade networks:
+- **Perishable Inventory Spoilage Removal:** `InventoryManager.removeExpiredItems()` sweeps perishable product batches against the authoritative simulation clock, atomically deducting spoiled items from physical stock.
+- **Auditable System Spoilage Transactions:** Generates non-cash `INVENTORY_SPOILAGE` transaction records (with seller `SYSTEM_SPOILAGE`), logging the exact spoiled quantity, unit valuation, and reference batch ID directly to SQLite.
+- **Accurate P&L Spoilage Losses:** `BusinessAccounting` records the total inventory loss into `spoilageLosses`, impacting enterprise profitability without erroneously debiting cash from workplace wallets.
+- **Stalled Wholesale Order Recovery:** `SupplyChainEngine.recoverStalledOrders()` identifies unfulfilled `PENDING` orders that have exceeded the procurement timeout threshold, automatically transitioning them to `CANCELLED`, issuing an exact refund to the buyer's wallet, and unblocking subsequent automated procurement cycles.
+- **Idempotent Late-Arrival Handling:** If a shipment on an already-cancelled order arrives late at its destination, physical goods are returned to inventory without executing duplicate financial payouts or duplicate refunds.
+
+### T8.6.6.1: Live Production Persistence Lifecycle & Graceful Shutdown
+Guarantees uninterrupted simulation state continuity, non-blocking background writes, and clean operating system lifecycle management:
+- **Runtime Clock Subscription & Cadence:** `PersistenceService.startRuntimePersistence()` binds directly to `TimeEngine` ticks, triggering scheduled persistence writes at configurable tick cadences (default 10 ticks or `PERSISTENCE_CADENCE_TICKS`) as well as simulation day boundaries.
+- **Serialized Write Coalescing:** `PersistenceService.triggerPersistence()` serializes concurrent persistence requests into a single active promise pipeline. Rapid successive ticks coalesce pending writes (`pendingWriteQueued`), eliminating overlapping SQLite transactions and disk I/O contention.
+- **Automatic Demographic Dirty Draining:** Transparently flushes dirty collections from `CitizenService` (`getAndClearDirtyCollections()`) into SQLite during persistence ticks, ensuring citizen vital states, coordinates, and household demographic updates persist without manual tick arguments.
+- **Immediate Pause & Reset State Flush:** Intercepts `/api/v1/time/pause` and `/api/v1/time/reset` endpoints to invoke `persistenceService.flush()`, guaranteeing immediate on-disk state durability before simulation clock state freezes.
+- **Graceful Fastify & OS Signal Teardown:** Connects to Fastify's `onClose` hook and handles OS process signals (`SIGINT`, `SIGTERM`), awaiting all in-flight persistence promises, writing a final authoritative state flush, and cleanly disconnecting Prisma clients before exit.
+
 ---
 
 ## End-to-End Economic Feedback Architecture
@@ -1071,8 +1094,9 @@ While the closed economic feedback loop and authoritative intelligence are fully
 
 The repository maintains strict continuous integration standards to guarantee determinism and simulation health.
 
-- **Engine Test Suite (`@genesis/engine`):** 45 passing test suites with 300 verified tests (Time, Events, Decision, Spatial, Inventory, Banking, Production, Market Pricing, Economic Equilibrium, Agricultural Yield, Resource Regeneration, B2B Procurement, Residential Water Infrastructure, Workday Tracking Payroll, Dynamic Labor Market, and Population Simulation).
-- **Backend Test Suite (`@genesis/backend`):** 17 authoritative integration suites (74 verified tests) executing sequentially against Prisma and SQLite, verifying demand intelligence, multi-stage supply aggregation, employment and payroll, market price dynamics, closed equilibrium loops, economic shortages/failures, long-run economic stability, population lifecycle, consumption history & forecasting, seasonal agricultural yield variation, B2B transaction integrity, workplace financial persistence, residential water persistence, supply chain shipment cold-restart persistence, simulation time persistence, dynamic labor market persistence, and reliable consumption persistence & demand integrity.
+- **Engine Test Suite (`@genesis/engine`):** 47 passing test suites with 315 verified tests (Time, Events, Decision, Spatial, Inventory, Banking, Production, Market Pricing, Economic Equilibrium, Agricultural Yield, Resource Regeneration, B2B Procurement, Residential Water Infrastructure, Workday Tracking Payroll, Dynamic Labor Market, and Population Simulation).
+- **Backend Test Suite (`@genesis/backend`):** 28 authoritative integration suites (132 verified tests) executing sequentially with `jest --runInBand` against Prisma and SQLite, verifying demand intelligence, multi-stage supply aggregation, employment and payroll, market price dynamics, closed equilibrium loops, economic shortages/failures, long-run economic stability, population lifecycle, consumption history & forecasting, seasonal agricultural yield variation, B2B transaction integrity, workplace financial persistence, residential water persistence, supply chain shipment cold-restart persistence, simulation time persistence, dynamic labor market persistence, reliable consumption persistence & demand integrity, spoilage & order recovery conservation, and live production persistence lifecycle.
+- **Frontend Test Suite (`@genesis/frontend`):** 11 passing test suites with 14 verified tests executing via Vitest covering canvas dashboard components, inspection views, resource widgets, and routing.
 - **Process Restart Recovery:** Deterministic cold-restart tests (`Process A` → `Process B` → `Process C`) confirming complete hydration of world state, workplace wallets, municipal utility accounts, inventory configurations, in-flight shipments, consumption records, and simulation time without drift or memory leaks.
 - **Typecheck:** Clean 0-error `tsc` validation across `shared`, `packages/engine`, `backend`, and `frontend` workspaces.
 - **Production Build:** `npm run build` succeeds completely, compiling all TypeScript packages and bundling minified frontend production assets with Vite.
