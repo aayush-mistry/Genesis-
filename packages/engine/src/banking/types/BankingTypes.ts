@@ -57,5 +57,9 @@ export interface IBankingRepository {
     getCreditHistory(ownerId: string): Promise<any>;
     createOrUpdateCreditHistory(ownerId: string, score: number, eventStr: string): Promise<any>;
 
+    getWalletByOwner?(ownerId: string): Promise<any>;
+    getWalletById?(id: string): Promise<any>;
+
     executeTransaction<T>(fn: (tx: any) => Promise<T>): Promise<T>;
 }
+

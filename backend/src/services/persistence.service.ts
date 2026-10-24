@@ -173,8 +173,10 @@ export class PersistenceService {
       const wallets = await financialRepository.listWallets();
       const walletMap = new Map(wallets.map(w => [w.ownerId, w]));
       const { marketService } = await import('./market.service');
+      const banks = await prisma.bank.findMany();
+      const bankIds = new Set(banks.map(b => b.id));
       for (const w of wallets) {
-        if (w.ownerId.startsWith('utility-')) {
+        if (w.ownerId.startsWith('utility-') || w.ownerId.startsWith('bank-') || bankIds.has(w.ownerId)) {
           marketService.engine.registerWallet({
             id: w.id,
             ownerId: w.ownerId,

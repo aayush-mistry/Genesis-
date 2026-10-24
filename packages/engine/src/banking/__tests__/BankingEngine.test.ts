@@ -13,7 +13,18 @@ class TestBankingRepository implements IBankingRepository {
     async updateBankStats(id: string, updates: any): Promise<any> { return prisma.bank.update({ where: { id }, data: updates }); }
     async createAccount(data: any): Promise<any> { return prisma.bankAccount.create({ data }); }
     async getAccountByOwner(ownerId: string): Promise<any> { return prisma.bankAccount.findFirst({ where: { ownerId } }); }
-    async getAccountById(accountId: string): Promise<any> { return prisma.bankAccount.findUnique({ where: { accountId } }); }
+    async getAccountById(accountId: string): Promise<any> {
+        return prisma.bankAccount.findFirst({
+            where: {
+                OR: [
+                    { id: accountId },
+                    { accountId: accountId }
+                ]
+            }
+        });
+    }
+    async getWalletByOwner(ownerId: string): Promise<any> { return prisma.wallet.findUnique({ where: { ownerId } }); }
+    async getWalletById(id: string): Promise<any> { return prisma.wallet.findUnique({ where: { id } }); }
     async createLoanApplication(data: any): Promise<any> { return prisma.loanApplication.create({ data }); }
     async getLoanApplication(id: string): Promise<any> { return prisma.loanApplication.findUnique({ where: { id } }); }
     async updateLoanApplication(id: string, data: any): Promise<any> { return prisma.loanApplication.update({ where: { id }, data }); }

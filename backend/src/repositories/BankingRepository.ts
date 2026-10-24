@@ -42,7 +42,22 @@ export class BankingRepository {
     }
 
     async getAccountById(accountId: string): Promise<BankAccount | null> {
-        return prisma.bankAccount.findUnique({ where: { accountId } });
+        return prisma.bankAccount.findFirst({
+            where: {
+                OR: [
+                    { id: accountId },
+                    { accountId: accountId }
+                ]
+            }
+        });
+    }
+
+    async getWalletByOwner(ownerId: string): Promise<any> {
+        return prisma.wallet.findUnique({ where: { ownerId } });
+    }
+
+    async getWalletById(id: string): Promise<any> {
+        return prisma.wallet.findUnique({ where: { id } });
     }
 
     // ==========================================
