@@ -1,4 +1,5 @@
 export * from './scoring/ScoreUtils';
+export * from './scoring/StoreRanker';
 export * from './DecisionEvaluator';
 export * from './DecisionSelector';
 export * from './DecisionEngine';

@@ -194,9 +194,29 @@ class BackendCitizenService {
       });
 
       this.engine.actionExecutor.setConsumptionEngine(consumptionEngine);
+
+      if (marketService?.engine && supplyService?.inventoryManager) {
+        const { StoreRanker } = require('@genesis/engine');
+        const storeRanker = new StoreRanker(marketService.engine, supplyService.inventoryManager);
+        this.engine.actionExecutor.setMarketEngine(
+          marketService.engine,
+          storeRanker,
+          spatialService.engine.queryService
+        );
+      }
     });
 
     console.log('[Citizen Engine] Initialized and Simulator started');
+  }
+
+  public setupMarketEngine(marketEngine: any): void {
+    const { StoreRanker } = require('@genesis/engine');
+    const storeRanker = new StoreRanker(marketEngine, supplyService.inventoryManager);
+    this.engine.actionExecutor.setMarketEngine(
+      marketEngine,
+      storeRanker,
+      spatialService.engine.queryService
+    );
   }
 }
 

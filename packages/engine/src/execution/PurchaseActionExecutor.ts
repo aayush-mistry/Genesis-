@@ -25,12 +25,20 @@ export class PurchaseActionExecutor extends BaseActionExecutor {
   public start(context: ActionExecutorContext): void {
     const { citizen, action } = context;
 
+    action.metadata = action.metadata || {};
     const productId = action.metadata?.productId || 'wheat';
-    const quantity = action.metadata?.targetQuantity || 1;
+    const quantity = action.metadata?.targetQuantity ?? action.metadata?.quantity ?? 1;
+
+    // Ensure deterministic transaction ID before first execution
+    if (!action.metadata.transactionId) {
+      action.metadata.transactionId = action.actionId
+        ? `TX-PURCHASE-${action.actionId}`
+        : `TX-PURCHASE-${citizen.id}-${productId}-${action.target?.id || 'store'}-${TimeUtils.toSeconds(context.currentTime)}`;
+    }
 
     if (!action.target || !action.target.id) {
       // Store Discovery
-      const citizenCoords = (this.spatialQueryService as any).worldEngine.getEntityCoordinates(citizen.locationId || '');
+      const citizenCoords = (this.spatialQueryService as any).worldEngine?.getEntityCoordinates(citizen.locationId || '');
       if (!citizenCoords) {
         this.lifecycleManager.transition(action, ActionState.FAILED, 'Invalid citizen location');
         return;
@@ -64,7 +72,6 @@ export class PurchaseActionExecutor extends BaseActionExecutor {
       }
 
       action.target = { type: 'BUILDING', id: rankedStores[0].id };
-      action.metadata = action.metadata || {};
       action.metadata.sellerId = rankedStores[0].sellerId || rankedStores[0].id;
     }
 
@@ -88,6 +95,10 @@ export class PurchaseActionExecutor extends BaseActionExecutor {
   public tick(context: ActionExecutorContext): void {
     const { citizen, action } = context;
 
+    if (action.state === ActionState.COMPLETED || action.state === ActionState.CANCELLED) {
+      return;
+    }
+
     if (action.state === ActionState.TRAVELING) {
       if (citizen.locationId === action.target?.id) {
         this.lifecycleManager.transition(action, ActionState.SHOPPING, 'Arrived at store');
@@ -96,16 +107,44 @@ export class PurchaseActionExecutor extends BaseActionExecutor {
       }
     }
 
-    if (action.state === ActionState.SHOPPING || action.state === ActionState.IN_PROGRESS) {
+    if (action.state === ActionState.SHOPPING || action.state === ActionState.IN_PROGRESS || action.state === ActionState.STARTED) {
       this.lifecycleManager.transition(action, ActionState.PURCHASING, 'Proceeding to checkout');
     }
 
     if (action.state === ActionState.PURCHASING) {
-      // We are at the store, execute purchase
-      const sellerId = action.metadata?.sellerId || action.target!.id;
+      action.metadata = action.metadata || {};
+      const sellerId = action.metadata?.sellerId || action.target?.id;
+      if (!sellerId) {
+        this.lifecycleManager.transition(action, ActionState.FAILED, 'Missing store target');
+        return;
+      }
+
       const productId = action.metadata?.productId || 'wheat';
-      
-      // Check if store is in a region to get regional pricing
+      const quantity = action.metadata?.targetQuantity ?? action.metadata?.quantity ?? 1;
+      const unit = productId === 'water' ? 'L' : 'kg';
+
+      // Ensure stable transaction ID
+      if (!action.metadata.transactionId) {
+        action.metadata.transactionId = action.actionId
+          ? `TX-PURCHASE-${action.actionId}`
+          : `TX-PURCHASE-${citizen.id}-${productId}-${sellerId}-${TimeUtils.toSeconds(context.currentTime)}`;
+      }
+      const transactionId = action.metadata.transactionId;
+
+      // 1. Idempotency Check:
+      // If goods were already delivered or this transaction was already processed in the market engine
+      if (action.metadata.goodsDelivered === true || this.marketEngine.hasTransaction(transactionId)) {
+        if (this.marketEngine.isTransactionReversed(transactionId)) {
+          this.lifecycleManager.transition(action, ActionState.FAILED, 'Transaction was previously reversed');
+          return;
+        }
+        // Already executed: do not debit citizen again and do not deliver goods again
+        action.metadata.goodsDelivered = true;
+        this.lifecycleManager.transition(action, ActionState.COMPLETED, 'Purchase already completed (idempotent replay)');
+        return;
+      }
+
+      // 2. Check if store is in a region to get regional pricing
       let regionId = 'DEFAULT';
       try {
         const workplaceRepo = (this.spatialQueryService as any)?.worldEngine?.workplaceRepository;
@@ -118,22 +157,18 @@ export class PurchaseActionExecutor extends BaseActionExecutor {
       } catch (e) {}
       
       // Get expected price and quantity
-      const quantity = action.metadata?.targetQuantity || 1;
       const basePrice = 10;
       const unitPrice = this.marketEngine.calculateEffectivePrice(productId, regionId, basePrice);
       const finalPrice = unitPrice * quantity;
 
+      // 3. Validation: Affordability
       if (citizen.wallet.balance < finalPrice) {
         this.lifecycleManager.transition(action, ActionState.FAILED, 'Insufficient funds');
         return;
       }
 
-      // Check stock before transaction
+      // 4. Validation: Merchant inventory & usable stock
       const inventory = this.storeRanker['inventoryManager'].getInventoryByOwner(sellerId);
-      
-      const allInvs = this.storeRanker['inventoryManager'].getAllInventories().map((i: any) => i.id + ":" + i.ownerId).join(", ");
-      console.log(`[PurchaseActionExecutor] PURCHASING! sellerId: ${sellerId}, inventory: ${inventory?.id}. All invs: ${allInvs}`);
-
       if (!inventory) {
         this.lifecycleManager.transition(action, ActionState.FAILED, 'Store has no inventory');
         return;
@@ -143,12 +178,31 @@ export class PurchaseActionExecutor extends BaseActionExecutor {
       const available = this.storeRanker['inventoryManager'].getUsableQuantity(inventory.id, productId, timeSeconds);
       if (available < quantity) {
         this.lifecycleManager.transition(action, ActionState.FAILED, 'Store out of stock');
-        // A smarter citizen might retry with another store here
         return;
       }
 
-      const unit = productId === 'water' ? 'L' : 'kg';
+      // 5. Validation: Destination inventory & capacity
+      let destInventory: any = undefined;
+      if (citizen.householdId) {
+        destInventory = this.storeRanker['inventoryManager'].getInventoryByOwner(citizen.householdId);
+      }
+      if (!destInventory) {
+        destInventory = this.storeRanker['inventoryManager'].getInventoryByOwner(citizen.id);
+        if (!destInventory) {
+          destInventory = this.storeRanker['inventoryManager'].createInventory(`inv-${citizen.id}`, citizen.id, 100);
+        }
+      }
 
+      let destCurrentTotal = 0;
+      for (const item of Object.values(destInventory.items as Record<string, any>)) {
+        destCurrentTotal += item.totalQuantity;
+      }
+      if (destCurrentTotal + quantity > destInventory.storageCapacity) {
+        this.lifecycleManager.transition(action, ActionState.FAILED, 'Destination inventory capacity full');
+        return;
+      }
+
+      // 6. Step 1: Financial Transaction
       const transaction = this.marketEngine.processTransaction(
         citizen.id,
         sellerId,
@@ -159,30 +213,45 @@ export class PurchaseActionExecutor extends BaseActionExecutor {
         finalPrice,
         citizen.wallet.currency,
         TransactionType.PURCHASE,
-        regionId
+        regionId,
+        transactionId
       );
 
-      if (transaction) {
-        // Transfer from store to household inventory (or personal)
-        if (citizen.householdId) {
-           const household = this.storeRanker['inventoryManager'].getInventoryByOwner(citizen.householdId);
-           if (household) {
-             this.storeRanker['inventoryManager'].transferItemQuantity(inventory.id, household.id, productId, quantity, unit);
-           }
-        } else {
-           const citizenInv = this.storeRanker['inventoryManager'].getInventoryByOwner(citizen.id);
-           if (citizenInv) {
-             this.storeRanker['inventoryManager'].transferItemQuantity(inventory.id, citizenInv.id, productId, quantity, unit);
-           } else {
-             // Create one if it doesn't exist
-             const newInv = this.storeRanker['inventoryManager'].createInventory(`inv-${citizen.id}`, citizen.id, 100);
-             this.storeRanker['inventoryManager'].transferItemQuantity(inventory.id, newInv.id, productId, quantity, unit);
-           }
-        }
-        this.lifecycleManager.transition(action, ActionState.COMPLETED, 'Purchase successful');
-      } else {
-        this.lifecycleManager.transition(action, ActionState.FAILED, 'Purchase failed (market error)');
+      if (!transaction) {
+        this.lifecycleManager.transition(action, ActionState.FAILED, 'Purchase failed (market transaction error)');
+        return;
       }
+
+      // 7. Step 2: Inventory Delivery
+      let transferred = false;
+      try {
+        transferred = this.storeRanker['inventoryManager'].transferItemQuantity(
+          inventory.id,
+          destInventory.id,
+          productId,
+          quantity,
+          unit
+        );
+      } catch (err) {
+        transferred = false;
+      }
+
+      // 8. Compensation if delivery fails
+      if (!transferred) {
+        console.warn(`[PurchaseActionExecutor] Delivery failed for tx ${transactionId}. Executing compensation refund.`);
+        this.marketEngine.reverseTransaction(
+          transactionId,
+          `${transactionId}-REV-DELIVERY`,
+          'Inventory transfer failed'
+        );
+        this.lifecycleManager.transition(action, ActionState.FAILED, 'Inventory transfer failed (payment refunded)');
+        return;
+      }
+
+      // 9. Success: Mark goods delivered & complete action
+      action.metadata.goodsDelivered = true;
+      action.metadata.completedAt = TimeUtils.toSeconds(context.currentTime);
+      this.lifecycleManager.transition(action, ActionState.COMPLETED, 'Purchase successful');
     }
   }
 }

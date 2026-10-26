@@ -1,4 +1,4 @@
-import { ActionInstance, ActionState, CandidateAction, Citizen } from '@genesis/shared';
+import { ActionInstance, ActionState, ActionType, CandidateAction, Citizen } from '@genesis/shared';
 import { ActionLifecycleManager } from './ActionLifecycleManager';
 import { BaseActionExecutor } from './BaseActionExecutor';
 import { MovementActionExecutor } from './MovementActionExecutor';
@@ -67,7 +67,7 @@ export class ActionExecutor {
     }
 
     const actionInstance: ActionInstance = {
-      actionId: randomUUID(),
+      actionId: candidateAction.metadata?.actionId || randomUUID(),
       citizenId: citizen.id,
       actionType: candidateAction.type,
       state: ActionState.PENDING,
@@ -75,8 +75,15 @@ export class ActionExecutor {
       target: candidateAction.target,
       source: candidateAction.source,
       reason: candidateAction.reason,
-      metadata: candidateAction.metadata
+      metadata: candidateAction.metadata ? { ...candidateAction.metadata } : {}
     };
+
+    if (actionInstance.actionType === ActionType.PURCHASE) {
+      actionInstance.metadata = actionInstance.metadata || {};
+      if (!actionInstance.metadata.transactionId) {
+        actionInstance.metadata.transactionId = `TX-PURCHASE-${actionInstance.actionId}`;
+      }
+    }
 
     citizen.currentAction = actionInstance;
     
