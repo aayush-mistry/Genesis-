@@ -49,6 +49,9 @@ class MarketService {
     // Explicitly inject marketEngine into supplyService
     supplyService.setMarketEngine(this.engine);
 
+    // Ensure transport treasury wallet is registered
+    this.engine.getOrCreateTransportTreasuryWallet();
+
     console.log('[Market Engine] Initialized with PriceFormationService');
   }
 

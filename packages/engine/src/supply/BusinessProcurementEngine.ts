@@ -306,10 +306,14 @@ export class BusinessProcurementEngine {
           paymentSuccess = true;
           if (portionTransportCost > 0) {
             const transportTxId = `TRANS-${buyer.id}-${seller.id}-${req.productId}-${cycleKey}`;
-            this.marketEngine.processTransaction(
-              buyer.id, 'SYSTEM_TRANSPORT', null, null, null, null,
+            const transportTx = this.marketEngine.processTransaction(
+              buyer.id, MarketEngine.TRANSPORT_TREASURY_OWNER_ID, null, null, null, null,
               portionTransportCost, buyerWallet?.currency || 'GEN', 'TRANSPORT_EXPENSE' as any, buyer.regionId, transportTxId
             );
+            if (!transportTx) {
+              this.marketEngine.reverseTransaction(txId, `${txId}-REV-TRANS-FAIL`, 'Transport fee payment failed');
+              paymentSuccess = false;
+            }
           }
         }
       } else if (buyerWallet) {
@@ -338,7 +342,13 @@ export class BusinessProcurementEngine {
       if (order.status === OrderStatus.FAILED) {
         this.inventoryManager.releaseReservedItem(seller.inventoryId, req.productId, orderQuantity);
         if (this.marketEngine) {
-          this.marketEngine.reverseTransaction(txId, `${txId}-REV-CREATION`, 'Order creation or dispatch failed');
+          if (!this.marketEngine.isTransactionReversed(txId)) {
+            this.marketEngine.reverseTransaction(txId, `${txId}-REV-CREATION`, 'Order creation or dispatch failed');
+          }
+          const transportTxId = `TRANS-${buyer.id}-${seller.id}-${req.productId}-${cycleKey}`;
+          if (this.marketEngine.getTransaction(transportTxId) && !this.marketEngine.isTransactionReversed(transportTxId)) {
+            this.marketEngine.reverseTransaction(transportTxId, `${transportTxId}-REV-CREATION`, 'Order creation or dispatch failed');
+          }
         }
         continue;
       }

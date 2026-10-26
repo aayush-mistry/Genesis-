@@ -176,7 +176,13 @@ export class PersistenceService {
       const banks = await prisma.bank.findMany();
       const bankIds = new Set(banks.map(b => b.id));
       for (const w of wallets) {
-        if (w.ownerId.startsWith('utility-') || w.ownerId.startsWith('bank-') || bankIds.has(w.ownerId)) {
+        if (
+          w.ownerId.startsWith('utility-') || 
+          w.ownerId.startsWith('bank-') || 
+          w.ownerId === 'SYSTEM_TRANSPORT' || 
+          w.ownerId.startsWith('treasury-') ||
+          bankIds.has(w.ownerId)
+        ) {
           marketService.engine.registerWallet({
             id: w.id,
             ownerId: w.ownerId,
@@ -704,7 +710,7 @@ export class PersistenceService {
           if (existing) {
             await financialRepository.updateWallet(wallet.ownerId, wallet.balance, wallet.totalIncome, wallet.totalExpenses);
           } else {
-            await financialRepository.createWallet(wallet.ownerId, wallet.currency);
+            await financialRepository.createWallet(wallet.ownerId, wallet.currency, wallet.id);
             await financialRepository.updateWallet(wallet.ownerId, wallet.balance, wallet.totalIncome, wallet.totalExpenses);
           }
         } catch (err) {

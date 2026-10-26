@@ -1,13 +1,17 @@
 import { prisma } from './prisma';
 
 export class FinancialRepository {
-  async createWallet(ownerId: string, currency: string = 'CREDIT') {
+  async createWallet(ownerId: string, currency: string = 'CREDIT', id?: string) {
+    const data: any = {
+      ownerId,
+      currency,
+      balance: 0,
+    };
+    if (id) {
+      data.id = id;
+    }
     return prisma.wallet.create({
-      data: {
-        ownerId,
-        currency,
-        balance: 0,
-      }
+      data
     });
   }
 

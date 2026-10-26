@@ -31,9 +31,11 @@ export class SupplyChainEngine {
     private timeEngine: TimeEngine,
     private inventoryManager: InventoryManager,
     private spatialQueryService: SpatialQueryService,
-    storageAdapter?: SupplyChainStorageAdapter
+    storageAdapter?: SupplyChainStorageAdapter,
+    marketEngine?: MarketEngine
   ) {
     this.storageAdapter = storageAdapter;
+    this.marketEngine = marketEngine;
     EventRegistry.register('SupplyChainEngine.handleShipmentArrival', async (event) => {
       await this.handleShipmentArrival(event.metadata as { shipmentId: string, orderId: string });
     });
@@ -396,9 +398,13 @@ export class SupplyChainEngine {
       this.inventoryManager.releaseReservedItem(seller.inventoryId, order.productId, order.quantity);
     }
     if (order.transactionId && this.marketEngine) {
-      this.marketEngine.reverseTransaction(order.transactionId, `${order.transactionId}-REV-DISPATCH`, reason);
-      const transportTxId = order.transactionId.replace('B2B-PROC', 'TRANS');
-      if (this.marketEngine.getTransaction(transportTxId)) {
+      if (!this.marketEngine.isTransactionReversed(order.transactionId)) {
+        this.marketEngine.reverseTransaction(order.transactionId, `${order.transactionId}-REV-DISPATCH`, reason);
+      }
+      const transportTxId = order.transactionId.startsWith('B2B-PROC')
+        ? order.transactionId.replace('B2B-PROC', 'TRANS')
+        : null;
+      if (transportTxId && this.marketEngine.getTransaction(transportTxId) && !this.marketEngine.isTransactionReversed(transportTxId)) {
         this.marketEngine.reverseTransaction(transportTxId, `${transportTxId}-REV-DISPATCH`, reason);
       }
     }
@@ -451,9 +457,13 @@ export class SupplyChainEngine {
 
     // Compensate buyer and reverse payment
     if (order.transactionId && this.marketEngine) {
-      this.marketEngine.reverseTransaction(order.transactionId, `${order.transactionId}-REV-ARRIVAL`, reason);
-      const transportTxId = order.transactionId.replace('B2B-PROC', 'TRANS');
-      if (this.marketEngine.getTransaction(transportTxId)) {
+      if (!this.marketEngine.isTransactionReversed(order.transactionId)) {
+        this.marketEngine.reverseTransaction(order.transactionId, `${order.transactionId}-REV-ARRIVAL`, reason);
+      }
+      const transportTxId = order.transactionId.startsWith('B2B-PROC')
+        ? order.transactionId.replace('B2B-PROC', 'TRANS')
+        : null;
+      if (transportTxId && this.marketEngine.getTransaction(transportTxId) && !this.marketEngine.isTransactionReversed(transportTxId)) {
         this.marketEngine.reverseTransaction(transportTxId, `${transportTxId}-REV-ARRIVAL`, reason);
       }
     }
@@ -533,8 +543,10 @@ export class SupplyChainEngine {
       if (!this.marketEngine.isTransactionReversed(order.transactionId)) {
         this.marketEngine.reverseTransaction(order.transactionId, revTxId, reason);
       }
-      const transportTxId = order.transactionId.replace('B2B-PROC', 'TRANS');
-      if (this.marketEngine.getTransaction(transportTxId) && !this.marketEngine.isTransactionReversed(transportTxId)) {
+      const transportTxId = order.transactionId.startsWith('B2B-PROC')
+        ? order.transactionId.replace('B2B-PROC', 'TRANS')
+        : null;
+      if (transportTxId && this.marketEngine.getTransaction(transportTxId) && !this.marketEngine.isTransactionReversed(transportTxId)) {
         this.marketEngine.reverseTransaction(transportTxId, `${transportTxId}-REV-TIMEOUT`, reason);
       }
     }

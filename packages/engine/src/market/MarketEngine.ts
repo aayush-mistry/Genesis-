@@ -7,7 +7,13 @@ import { WorldEngine } from '../world/WorldEngine';
 import { InventoryManager } from '../inventory/InventoryManager';
 import { RegionalPriceAdjustment } from '@genesis/shared';
 
+export const SYSTEM_TRANSPORT_ID = 'SYSTEM_TRANSPORT';
+export const TRANSPORT_TREASURY_WALLET_ID = 'wallet-system-transport';
+
 export class MarketEngine {
+  public static readonly TRANSPORT_TREASURY_OWNER_ID = SYSTEM_TRANSPORT_ID;
+  public static readonly TRANSPORT_TREASURY_WALLET_ID = TRANSPORT_TREASURY_WALLET_ID;
+
   private transactions: Map<string, TransactionRecord> = new Map();
 
   constructor(
@@ -15,7 +21,9 @@ export class MarketEngine {
     private timeEngine: TimeEngine,
     private eventScheduler: EventScheduler,
     private citizenWalletLookup?: (citizenId: string) => Wallet | undefined
-  ) {}
+  ) {
+    this.getOrCreateTransportTreasuryWallet();
+  }
 
   private regionalAdjustments: Map<string, RegionalPriceAdjustment> = new Map();
   private priceFormationService?: import('./PriceFormationService').PriceFormationService;
@@ -229,6 +237,25 @@ export class MarketEngine {
     let buyerWallet = this.getWallet(orig.buyerId);
     let sellerWallet = this.getWallet(orig.sellerId);
 
+    // If money was transferred (totalPrice > 0), ensure wallets exist and seller has sufficient funds.
+    if (orig.totalPrice > 0) {
+      if (!sellerWallet) {
+        console.warn(`[MarketEngine] Reversal rejected: Seller wallet '${orig.sellerId}' not found for transaction ${originalTransactionId}`);
+        return null;
+      }
+      if (!buyerWallet) {
+        console.warn(`[MarketEngine] Reversal rejected: Buyer wallet '${orig.buyerId}' not found for transaction ${originalTransactionId}`);
+        return null;
+      }
+      if (sellerWallet.balance < orig.totalPrice) {
+        console.warn(
+          `[MarketEngine] Reversal rejected: Insufficient funds in seller wallet '${orig.sellerId}' ` +
+          `(balance: ${sellerWallet.balance}, required: ${orig.totalPrice}) for transaction ${originalTransactionId}`
+        );
+        return null;
+      }
+    }
+
     // Reversal transfer: refund funds from seller back to buyer
     if (sellerWallet) {
       sellerWallet.balance -= orig.totalPrice;
@@ -278,6 +305,26 @@ export class MarketEngine {
     this.customWalletLookup = lookup;
   }
 
+  public getOrCreateTransportTreasuryWallet(): Wallet {
+    let wallet = this.registeredWallets.get(MarketEngine.TRANSPORT_TREASURY_OWNER_ID);
+    if (!wallet) {
+      wallet = {
+        id: MarketEngine.TRANSPORT_TREASURY_WALLET_ID,
+        ownerId: MarketEngine.TRANSPORT_TREASURY_OWNER_ID,
+        balance: 0,
+        currency: 'GEN',
+        totalIncome: 0,
+        totalExpenses: 0
+      };
+      this.registeredWallets.set(MarketEngine.TRANSPORT_TREASURY_OWNER_ID, wallet);
+    }
+    return wallet;
+  }
+
+  public getTransportTreasuryWallet(): Wallet {
+    return this.getOrCreateTransportTreasuryWallet();
+  }
+
   public getOrCreateUtilityWallet(regionId: string): Wallet {
     const utilityOwnerId = `utility-water-${regionId}`;
     let wallet = this.registeredWallets.get(utilityOwnerId);
@@ -310,9 +357,18 @@ export class MarketEngine {
     const workplace = this.worldEngine.workplaceRepository.findById(entityId);
     if (workplace && workplace.wallet) return workplace.wallet;
 
-    // Check registered wallets (e.g. municipal utility accounts)
+    // Check registered wallets (e.g. municipal utility accounts, transport treasury)
     if (this.registeredWallets.has(entityId)) {
       return this.registeredWallets.get(entityId);
+    }
+
+    if (entityId === MarketEngine.TRANSPORT_TREASURY_OWNER_ID || entityId === MarketEngine.TRANSPORT_TREASURY_WALLET_ID) {
+      return this.getOrCreateTransportTreasuryWallet();
+    }
+
+    // Also support lookup by wallet.id if registered
+    for (const w of this.registeredWallets.values()) {
+      if (w.id === entityId) return w;
     }
 
     // Check custom wallet lookup
@@ -355,6 +411,7 @@ export class MarketEngine {
     this.reversedTransactionIds.clear();
     this.registeredWallets.clear();
     this.regionalAdjustments.clear();
+    this.getOrCreateTransportTreasuryWallet();
   }
 
   public reset(): void {
